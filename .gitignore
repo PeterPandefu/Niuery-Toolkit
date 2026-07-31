@@ -46,6 +46,10 @@ pnpm-debug.log*
 .qoder/
 .qoder-cn/
 
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
 # Misc
 *.local
 coverage/

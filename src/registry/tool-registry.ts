@@ -13,6 +13,7 @@ import {
   FileJson,
   FileText,
   Fingerprint,
+  Globe,
   Hash,
   Image,
   KeyRound,
@@ -395,4 +396,26 @@ registerTool({
   component: lazy(() => import('@/tools/graphic/screenshot-editor')),
   keywords: ['screenshot', 'capture', 'annotate', '截图', '截屏', '标注', '编辑'],
   description: '屏幕截图捕获与标注编辑',
+});
+
+// === 网络工具 ===
+registerTool({
+  id: 'socket-tool',
+  name: 'Socket 调试',
+  icon: Globe,
+  category: 'network',
+  component: lazy(() => import('@/tools/network/socket-tool')),
+  keywords: ['socket', 'websocket', 'ws', '网络', '连接', 'server', 'client', '调试'],
+  description: 'WebSocket 客户端/服务端调试',
+});
+
+// === 网络工具 ===
+registerTool({
+  id: 'api-tester',
+  name: '接口测试',
+  icon: Globe,
+  category: 'network',
+  component: lazy(() => import('@/tools/network/api-tester')),
+  keywords: ['api', 'http', 'rest', 'request', 'response', '接口', '请求', '调试', 'postman', 'apifox'],
+  description: 'HTTP API 接口调试测试',
 });

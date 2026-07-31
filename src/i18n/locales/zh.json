@@ -19,7 +19,8 @@
     "formatter": "格式化器",
     "generator": "生成器",
     "text": "文本工具",
-    "graphic": "图形工具"
+    "graphic": "图形工具",
+    "network": "网络工具"
   },
   "tools": {
     "json-yaml": "JSON ↔ YAML",
@@ -54,7 +55,9 @@
     "image-converter": "图片转换",
     "svg-optimizer": "SVG 优化",
     "icon-generator": "图标生成器",
-    "screenshot-editor": "截图编辑器"
+    "screenshot-editor": "截图编辑器",
+    "socket-tool": "Socket 调试",
+    "api-tester": "接口测试"
   },
   "actions": {
     "copy": "复制",
@@ -106,6 +109,38 @@
       "number": "序号",
       "crop": "裁剪"
     }
+  },
+  "socketTool": {
+    "client": "客户端",
+    "server": "服务端",
+    "url": "地址",
+    "urlPlaceholder": "ws://localhost:8080",
+    "connect": "连接",
+    "disconnect": "断开",
+    "connecting": "连接中...",
+    "connected": "已连接",
+    "disconnected": "已断开",
+    "error": "连接错误",
+    "idle": "未连接",
+    "send": "发送",
+    "messagePlaceholder": "输入消息，按 Enter 发送...",
+    "clearLog": "清空记录",
+    "connectionTime": "连接耗时: {{ms}}ms",
+    "sent": "发送",
+    "received": "接收",
+    "port": "端口",
+    "startServer": "启动服务",
+    "stopServer": "停止服务",
+    "serverRunning": "服务运行中",
+    "serverStopped": "服务已停止",
+    "clients": "已连接客户端",
+    "noClients": "暂无客户端连接",
+    "broadcast": "广播",
+    "broadcastPlaceholder": "输入广播消息...",
+    "serverRequiresDesktop": "WebSocket 服务端功能仅在桌面端（Tauri）可用",
+    "serverRequiresDesktopDesc": "请通过 Tauri 桌面应用使用此功能。浏览器环境下仅支持 WebSocket 客户端。",
+    "clientConnected": "客户端已连接: {{id}}",
+    "clientDisconnected": "客户端已断开: {{id}}"
   },
   "markdownEditor": {
     "splitView": "分屏视图",

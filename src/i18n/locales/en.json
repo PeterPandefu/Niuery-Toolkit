@@ -19,7 +19,8 @@
     "formatter": "Formatters",
     "generator": "Generators",
     "text": "Text Tools",
-    "graphic": "Graphic Tools"
+    "graphic": "Graphic Tools",
+    "network": "Network Tools"
   },
   "tools": {
     "json-yaml": "JSON ↔ YAML",
@@ -54,7 +55,9 @@
     "image-converter": "Image Converter",
     "svg-optimizer": "SVG Optimizer",
     "icon-generator": "Icon Generator",
-    "screenshot-editor": "Screenshot Editor"
+    "screenshot-editor": "Screenshot Editor",
+    "socket-tool": "Socket Debugger",
+    "api-tester": "API Tester"
   },
   "actions": {
     "copy": "Copy",
@@ -106,6 +109,38 @@
       "number": "Number",
       "crop": "Crop"
     }
+  },
+  "socketTool": {
+    "client": "Client",
+    "server": "Server",
+    "url": "URL",
+    "urlPlaceholder": "ws://localhost:8080",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "connecting": "Connecting...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "error": "Connection Error",
+    "idle": "Not Connected",
+    "send": "Send",
+    "messagePlaceholder": "Type a message, press Enter to send...",
+    "clearLog": "Clear Log",
+    "connectionTime": "Connection time: {{ms}}ms",
+    "sent": "Sent",
+    "received": "Received",
+    "port": "Port",
+    "startServer": "Start Server",
+    "stopServer": "Stop Server",
+    "serverRunning": "Server Running",
+    "serverStopped": "Server Stopped",
+    "clients": "Connected Clients",
+    "noClients": "No clients connected",
+    "broadcast": "Broadcast",
+    "broadcastPlaceholder": "Type broadcast message...",
+    "serverRequiresDesktop": "WebSocket Server is only available in Desktop (Tauri)",
+    "serverRequiresDesktopDesc": "Please use the Tauri desktop app for this feature. Only WebSocket Client is available in browser.",
+    "clientConnected": "Client connected: {{id}}",
+    "clientDisconnected": "Client disconnected: {{id}}"
   },
   "markdownEditor": {
     "splitView": "Split View",

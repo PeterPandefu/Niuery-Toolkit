@@ -7,7 +7,8 @@ export type ToolCategory =
   | 'formatter'
   | 'generator'
   | 'text'
-  | 'graphic';
+  | 'graphic'
+  | 'network';
 
 /** 分类显示名称映射 */
 export const CATEGORY_NAMES: Record<ToolCategory, string> = {
@@ -17,6 +18,7 @@ export const CATEGORY_NAMES: Record<ToolCategory, string> = {
   generator: '生成器',
   text: '文本工具',
   graphic: '图形工具',
+  network: '网络工具',
 };
 
 /** 工具定义接口 */

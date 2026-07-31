@@ -7,20 +7,21 @@ import {
 } from '@/registry/tool-registry';
 
 describe('Tool Registry', () => {
-  it('registers all 32 tools', () => {
+  it('registers all 35 tools', () => {
     const tools = getAllTools();
-    expect(tools.length).toBe(32);
+    expect(tools.length).toBe(35);
   });
 
-  it('has 6 categories', () => {
+  it('has 7 categories', () => {
     const categories = getAvailableCategories();
-    expect(categories.length).toBe(6);
+    expect(categories.length).toBe(7);
     expect(categories).toContain('converter');
     expect(categories).toContain('encoder');
     expect(categories).toContain('formatter');
     expect(categories).toContain('generator');
     expect(categories).toContain('text');
     expect(categories).toContain('graphic');
+    expect(categories).toContain('network');
   });
 
   it('has 7 converters', () => {
@@ -43,8 +44,12 @@ describe('Tool Registry', () => {
     expect(getToolsByCategory('text').length).toBe(5);
   });
 
-  it('has 4 graphic tools', () => {
-    expect(getToolsByCategory('graphic').length).toBe(4);
+  it('has 5 graphic tools', () => {
+    expect(getToolsByCategory('graphic').length).toBe(5);
+  });
+
+  it('has 2 network tools', () => {
+    expect(getToolsByCategory('network').length).toBe(2);
   });
 
   it('retrieves tool by id', () => {
