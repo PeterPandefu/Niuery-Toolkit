@@ -1,0 +1,77 @@
+{
+  "app": {
+    "name": "Niuery Toolkit",
+    "description": "Offline-first developer toolkit",
+    "welcome": "Welcome to Niuery Toolkit",
+    "welcomeDesc": "An offline-first developer toolkit. All data processing is done locally.",
+    "searchTools": "Search tools",
+    "searchPlaceholder": "Search tools...",
+    "noToolSelected": "No tool selected",
+    "selectToolHint": "Select a tool from the sidebar, or press",
+    "toSearch": "to search quickly.",
+    "offlineMode": "Offline Mode",
+    "recentTools": "Recent",
+    "noResults": "No matching tools found"
+  },
+  "categories": {
+    "converter": "Converters",
+    "encoder": "Encoders / Decoders",
+    "formatter": "Formatters",
+    "generator": "Generators",
+    "text": "Text Tools",
+    "graphic": "Graphic Tools"
+  },
+  "tools": {
+    "json-yaml": "JSON ↔ YAML",
+    "xml-json": "XML ↔ JSON",
+    "timestamp": "Timestamp",
+    "number-base": "Number Base",
+    "color-picker": "Color Picker",
+    "data-size": "Data Size",
+    "angle": "Angle",
+    "base64": "Base64",
+    "url-encode": "URL Encode/Decode",
+    "html-entity": "HTML Entity",
+    "unicode": "Unicode Escape",
+    "jwt-decoder": "JWT Decoder",
+    "qrcode": "QR Code",
+    "gzip": "GZip Compress",
+    "json-formatter": "JSON Formatter",
+    "xml-formatter": "XML Formatter",
+    "sql-formatter": "SQL Formatter",
+    "markdown-preview": "Markdown Preview",
+    "uuid-generator": "UUID Generator",
+    "hash-generator": "Hash Generator",
+    "password-generator": "Password Generator",
+    "lorem-ipsum": "Lorem Ipsum",
+    "checksum": "File Checksum",
+    "text-diff": "Text Diff",
+    "regex-tester": "Regex Tester",
+    "case-converter": "Case Converter",
+    "text-inspector": "Text Inspector",
+    "escape-unescape": "Escape/Unescape",
+    "image-compressor": "Image Compressor",
+    "image-converter": "Image Converter",
+    "svg-optimizer": "SVG Optimizer",
+    "icon-generator": "Icon Generator"
+  },
+  "actions": {
+    "copy": "Copy",
+    "copied": "Copied to clipboard",
+    "clear": "Clear",
+    "swap": "Swap input/output",
+    "download": "Download",
+    "generate": "Generate",
+    "verticalLayout": "Switch to vertical layout",
+    "horizontalLayout": "Switch to horizontal layout"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "language": {
+    "zh": "中文",
+    "en": "English"
+  }
+}

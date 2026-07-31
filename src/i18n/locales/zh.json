@@ -1,0 +1,77 @@
+{
+  "app": {
+    "name": "Niuery Toolkit",
+    "description": "离线优先的开发者工具箱",
+    "welcome": "欢迎使用 Niuery Toolkit",
+    "welcomeDesc": "一款离线优先的开发者工具箱，所有数据处理均在本地完成。",
+    "searchTools": "搜索工具",
+    "searchPlaceholder": "搜索工具...",
+    "noToolSelected": "未选择工具",
+    "selectToolHint": "从左侧选择工具，或按",
+    "toSearch": "快速搜索。",
+    "offlineMode": "离线模式",
+    "recentTools": "最近使用",
+    "noResults": "未找到匹配的工具"
+  },
+  "categories": {
+    "converter": "转换器",
+    "encoder": "编码器",
+    "formatter": "格式化器",
+    "generator": "生成器",
+    "text": "文本工具",
+    "graphic": "图形工具"
+  },
+  "tools": {
+    "json-yaml": "JSON ↔ YAML",
+    "xml-json": "XML ↔ JSON",
+    "timestamp": "时间戳转换",
+    "number-base": "进制转换",
+    "color-picker": "颜色转换",
+    "data-size": "数据大小转换",
+    "angle": "角度转换",
+    "base64": "Base64",
+    "url-encode": "URL 编解码",
+    "html-entity": "HTML 实体",
+    "unicode": "Unicode 转义",
+    "jwt-decoder": "JWT 解析器",
+    "qrcode": "二维码",
+    "gzip": "GZip 压缩",
+    "json-formatter": "JSON 格式化",
+    "xml-formatter": "XML 格式化",
+    "sql-formatter": "SQL 格式化",
+    "markdown-preview": "Markdown 预览",
+    "uuid-generator": "UUID 生成器",
+    "hash-generator": "Hash 生成器",
+    "password-generator": "密码生成器",
+    "lorem-ipsum": "Lorem Ipsum",
+    "checksum": "文件校验和",
+    "text-diff": "文本对比",
+    "regex-tester": "正则测试",
+    "case-converter": "大小写转换",
+    "text-inspector": "文本分析",
+    "escape-unescape": "转义处理",
+    "image-compressor": "图片压缩",
+    "image-converter": "图片转换",
+    "svg-optimizer": "SVG 优化",
+    "icon-generator": "图标生成器"
+  },
+  "actions": {
+    "copy": "复制",
+    "copied": "已复制到剪贴板",
+    "clear": "清空",
+    "swap": "交换输入输出",
+    "download": "下载",
+    "generate": "生成",
+    "verticalLayout": "切换为垂直布局",
+    "horizontalLayout": "切换为水平布局"
+  },
+  "theme": {
+    "light": "亮色",
+    "dark": "暗色",
+    "system": "跟随系统"
+  },
+  "language": {
+    "zh": "中文",
+    "en": "English"
+  }
+}

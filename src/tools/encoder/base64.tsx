@@ -1,0 +1,166 @@
+import { useState, useMemo, useCallback } from 'react';
+import { ToolLayout } from '@/components/shared/ToolLayout';
+import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+import { base64Encode, base64Decode } from '@/lib/codec-utils';
+
+type Mode = 'encode' | 'decode';
+type Variant = 'standard' | 'urlsafe';
+
+export default function Base64Tool() {
+  const [input, setInput] = useState('');
+  const [mode, setMode] = useState<Mode>('encode');
+  const [variant, setVariant] = useState<Variant>('standard');
+
+  const { output, error } = useMemo(() => {
+    if (!input.trim()) return { output: '', error: null };
+
+    try {
+      const result =
+        mode === 'encode'
+          ? base64Encode(input, variant === 'urlsafe')
+          : base64Decode(input, variant === 'urlsafe');
+      return { output: result, error: null };
+    } catch (e) {
+      return { output: '', error: (e as Error).message };
+    }
+  }, [input, mode, variant]);
+
+  const handleFileDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('文件大小不能超过 10MB');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        setInput(base64);
+        setMode('decode');
+        toast.success(`已加载文件: ${file.name}`);
+      };
+      reader.readAsDataURL(file);
+    },
+    []
+  );
+
+  const handleFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('文件大小不能超过 10MB');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        setInput(base64);
+        setMode('decode');
+        toast.success(`已加载文件: ${file.name}`);
+      };
+      reader.readAsDataURL(file);
+    },
+    []
+  );
+
+  // 检测是否为图片 Base64
+  const isImageBase64 = useMemo(() => {
+    if (mode !== 'decode' || !output) return false;
+    return output.startsWith('data:image/') || /^\/9j\/|^iVBOR|^R0lGOD/.test(input);
+  }, [mode, output, input]);
+
+  return (
+    <ToolLayout
+      inputTitle={mode === 'encode' ? '原始文本' : 'Base64'}
+      outputTitle={mode === 'encode' ? 'Base64' : '解码结果'}
+      outputValue={output}
+      onClear={() => setInput('')}
+      onSwap={() => {
+        if (output) {
+          setInput(output);
+          setMode(mode === 'encode' ? 'decode' : 'encode');
+        }
+      }}
+      inputActions={
+        <div className="flex items-center gap-2">
+          <Select
+            value={mode}
+            onChange={(e) => setMode(e.target.value as Mode)}
+            options={[
+              { value: 'encode', label: '编码' },
+              { value: 'decode', label: '解码' },
+            ]}
+            className="h-8 w-20 text-xs"
+          />
+          <Select
+            value={variant}
+            onChange={(e) => setVariant(e.target.value as Variant)}
+            options={[
+              { value: 'standard', label: '标准' },
+              { value: 'urlsafe', label: 'URL安全' },
+            ]}
+            className="h-8 w-24 text-xs"
+          />
+          <label className="cursor-pointer">
+            <input type="file" className="hidden" onChange={handleFileSelect} />
+            <Button variant="ghost" size="sm">
+              <Upload className="mr-1 h-3 w-3" />
+              文件
+            </Button>
+          </label>
+        </div>
+      }
+      input={
+        <div className="h-full" onDrop={handleFileDrop} onDragOver={(e) => e.preventDefault()}>
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={mode === 'encode' ? '输入要编码的文本...' : '输入 Base64 字符串...'}
+            className="h-full resize-none font-mono text-sm"
+            spellCheck={false}
+          />
+        </div>
+      }
+      output={
+        <div className="relative h-full">
+          {error ? (
+            <div className="flex h-full items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4">
+              <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+              <div>
+                <p className="font-medium text-destructive">解码错误</p>
+                <p className="mt-1 text-sm text-muted-foreground">无效的 Base64 字符串</p>
+              </div>
+            </div>
+          ) : isImageBase64 ? (
+            <div className="flex h-full items-center justify-center rounded-md border bg-muted/50 p-4">
+              <img
+                src={output.startsWith('data:') ? output : `data:image/png;base64,${input}`}
+                alt="解码图片"
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ) : (
+            <Textarea
+              value={output}
+              readOnly
+              placeholder="结果..."
+              className="h-full resize-none bg-muted/50 font-mono text-sm"
+              spellCheck={false}
+            />
+          )}
+        </div>
+      }
+    />
+  );
+}
