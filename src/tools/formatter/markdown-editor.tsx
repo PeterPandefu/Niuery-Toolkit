@@ -1,0 +1,450 @@
+import { useState, useCallback, useRef, useEffect } from 'react';
+import Editor, { OnMount } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
+import { useTranslation } from 'react-i18next';
+import { Toolbar, ToolbarAction } from '@/components/markdown/Toolbar';
+import { Preview, PreviewHandle, renderMarkdown } from '@/components/markdown/Preview';
+import { StatusBar } from '@/components/markdown/StatusBar';
+import { Outline } from '@/components/markdown/Outline';
+import { Button } from '@/components/ui/button';
+import { useIsDark } from '@/hooks/use-theme';
+import { toast } from 'sonner';
+import {
+  Columns2,
+  Eye,
+  PenLine,
+  Download,
+  FileCode2,
+  Copy,
+  Upload,
+  FileText,
+  ListTree,
+  PanelLeftClose,
+} from 'lucide-react';
+import {
+  wrapSelection,
+  toggleLinePrefix,
+  insertCodeBlock,
+  insertLink,
+  insertImage,
+  insertTable,
+  insertHorizontalRule,
+  indentLines,
+  outdentLines,
+  generateExportHtml,
+  downloadFile,
+  MARKDOWN_TEMPLATES,
+} from '@/lib/markdown-utils';
+import { copyToClipboard } from '@/lib/utils';
+
+type ViewMode = 'split' | 'editor' | 'preview';
+
+const STORAGE_KEY = 'niuery-markdown-editor-draft';
+
+function loadDraft(): string {
+  try {
+    return localStorage.getItem(STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveDraft(content: string) {
+  try {
+    localStorage.setItem(STORAGE_KEY, content);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** debounce hook：延迟更新值 */
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+export default function MarkdownEditor() {
+  const { t } = useTranslation();
+  const [content, setContent] = useState(loadDraft);
+  const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
+  const [showOutline, setShowOutline] = useState(false);
+
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const previewRef = useRef<PreviewHandle>(null);
+  const isEditorScrolling = useRef(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const isDark = useIsDark();
+
+  // 预览使用 debounce 150ms (NF-02)
+  const debouncedContent = useDebouncedValue(content, 150);
+
+  // 自动保存（debounce 1s）
+  useEffect(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveDraft(content), 1000);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [content]);
+
+  // Monaco 编辑器挂载
+  const handleEditorMount: OnMount = useCallback(
+    (ed, monaco) => {
+      editorRef.current = ed;
+
+      // 光标位置追踪
+      ed.onDidChangeCursorPosition((e) => {
+        setCursorPos({ line: e.position.lineNumber, column: e.position.column });
+      });
+
+      // 滚动同步：编辑器 → 预览
+      ed.onDidScrollChange(() => {
+        if (isEditorScrolling.current) return;
+        const model = ed.getModel();
+        if (!model || !previewRef.current) return;
+        const totalLines = model.getLineCount();
+        const visibleLine = ed.getVisibleRanges()[0]?.startLineNumber ?? 1;
+        const percent = Math.min(1, visibleLine / totalLines);
+        previewRef.current.scrollToPercent(percent);
+      });
+
+      // 注册快捷键
+      const addCommand = (
+        keybinding: number,
+        handler: () => void
+      ) => {
+        ed.addCommand(keybinding, handler);
+      };
+
+      const KM = monaco.KeyMod;
+      const KC = monaco.KeyCode;
+
+      addCommand(KM.CtrlCmd | KC.KeyB, () => applyAction('bold'));
+      addCommand(KM.CtrlCmd | KC.KeyI, () => applyAction('italic'));
+      addCommand(KM.CtrlCmd | KC.KeyK, () => applyAction('link'));
+      addCommand(KM.CtrlCmd | KM.Shift | KC.KeyK, () => applyAction('codeBlock'));
+      addCommand(KM.CtrlCmd | KM.Shift | KC.KeyP, () => cycleViewMode());
+
+      // Tab 缩进
+      addCommand(KC.Tab, () => {
+        const sel = ed.getSelection();
+        if (sel && !sel.isEmpty()) {
+          applyEdit(indentLines);
+        } else {
+          ed.trigger('keyboard', 'type', { text: '  ' });
+        }
+      });
+      addCommand(KM.Shift | KC.Tab, () => {
+        applyEdit(outdentLines);
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  // 应用编辑操作
+  const applyEdit = useCallback(
+    (
+      fn: (
+        text: string,
+        start: number,
+        end: number,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...args: any[]
+      ) => { text: string; selectionStart: number; selectionEnd: number },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...args: any[]
+    ) => {
+      const ed = editorRef.current;
+      if (!ed) return;
+      const model = ed.getModel();
+      if (!model) return;
+
+      const sel = ed.getSelection();
+      if (!sel) return;
+
+      const text = model.getValue();
+      const start = model.getOffsetAt({ lineNumber: sel.startLineNumber, column: sel.startColumn });
+      const end = model.getOffsetAt({ lineNumber: sel.endLineNumber, column: sel.endColumn });
+
+      const result = fn(text, start, end, ...args);
+
+      ed.executeEdits('markdown-toolbar', [
+        {
+          range: model.getFullModelRange(),
+          text: result.text,
+        },
+      ]);
+
+      // 恢复选区
+      const startPos = model.getPositionAt(result.selectionStart);
+      const endPos = model.getPositionAt(result.selectionEnd);
+      ed.setSelection({
+        startLineNumber: startPos.lineNumber,
+        startColumn: startPos.column,
+        endLineNumber: endPos.lineNumber,
+        endColumn: endPos.column,
+      });
+      ed.focus();
+    },
+    []
+  );
+
+  // 工具栏动作分发
+  const applyAction = useCallback(
+    (action: ToolbarAction) => {
+      switch (action) {
+        case 'bold':
+          applyEdit(wrapSelection, '**');
+          break;
+        case 'italic':
+          applyEdit(wrapSelection, '*');
+          break;
+        case 'strikethrough':
+          applyEdit(wrapSelection, '~~');
+          break;
+        case 'inlineCode':
+          applyEdit(wrapSelection, '`');
+          break;
+        case 'codeBlock':
+          applyEdit(insertCodeBlock);
+          break;
+        case 'quote':
+          applyEdit(toggleLinePrefix, '> ');
+          break;
+        case 'h1':
+          applyEdit(toggleLinePrefix, '# ');
+          break;
+        case 'h2':
+          applyEdit(toggleLinePrefix, '## ');
+          break;
+        case 'h3':
+          applyEdit(toggleLinePrefix, '### ');
+          break;
+        case 'ul':
+          applyEdit(toggleLinePrefix, '- ');
+          break;
+        case 'ol':
+          applyEdit(toggleLinePrefix, '1. ');
+          break;
+        case 'taskList':
+          applyEdit(toggleLinePrefix, '- [ ] ');
+          break;
+        case 'link':
+          applyEdit(insertLink);
+          break;
+        case 'image':
+          applyEdit(insertImage);
+          break;
+        case 'table':
+          applyEdit(insertTable);
+          break;
+        case 'hr':
+          applyEdit(insertHorizontalRule);
+          break;
+      }
+    },
+    [applyEdit]
+  );
+
+  // 循环切换视图模式
+  const cycleViewMode = useCallback(() => {
+    setViewMode((prev) => {
+      const modes: ViewMode[] = ['split', 'editor', 'preview'];
+      const idx = modes.indexOf(prev);
+      return modes[(idx + 1) % modes.length];
+    });
+  }, []);
+
+  // 文件导入
+  const handleImport = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.md,.markdown,.txt';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      setContent(text);
+      toast.success(t('markdownEditor.imported', { name: file.name }));
+    };
+    input.click();
+  }, [t]);
+
+  // 导出 Markdown
+  const handleExportMd = useCallback(() => {
+    downloadFile(content, 'document.md', 'text/markdown');
+    toast.success(t('markdownEditor.exportedMd'));
+  }, [content, t]);
+
+  // 导出 HTML
+  const handleExportHtml = useCallback(() => {
+    const html = generateExportHtml(renderMarkdown(content));
+    downloadFile(html, 'document.html', 'text/html');
+    toast.success(t('markdownEditor.exportedHtml'));
+  }, [content, t]);
+
+  // 复制 HTML
+  const handleCopyHtml = useCallback(async () => {
+    const html = renderMarkdown(content);
+    const success = await copyToClipboard(html);
+    if (success) toast.success(t('markdownEditor.copiedHtml'));
+  }, [content, t]);
+
+  // 拖放导入
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file && /\.(md|markdown|txt)$/i.test(file.name)) {
+      file.text().then((text) => {
+        setContent(text);
+        toast.success(t('markdownEditor.imported', { name: file.name }));
+      });
+    }
+  }, [t]);
+
+  // 大纲跳转
+  const handleJumpToLine = useCallback((line: number) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    ed.revealLineInCenter(line + 1);
+    ed.setPosition({ lineNumber: line + 1, column: 1 });
+    ed.focus();
+  }, []);
+
+  const showEditor = viewMode === 'split' || viewMode === 'editor';
+  const showPreview = viewMode === 'split' || viewMode === 'preview';
+
+  return (
+    <div className="flex h-full flex-col" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+      {/* 顶部操作栏 */}
+      <div className="flex items-center justify-between border-b px-3 py-1">
+        <div className="flex items-center gap-1">
+          {/* 视图切换 */}
+          <Button
+            variant={viewMode === 'split' ? 'secondary' : 'ghost'}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setViewMode('split')}
+            title={t('markdownEditor.splitView')}
+          >
+            <Columns2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant={viewMode === 'editor' ? 'secondary' : 'ghost'}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setViewMode('editor')}
+            title={t('markdownEditor.editorOnly')}
+          >
+            <PenLine className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant={viewMode === 'preview' ? 'secondary' : 'ghost'}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setViewMode('preview')}
+            title={t('markdownEditor.previewOnly')}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+          <div className="mx-1 h-4 w-px bg-border" />
+          <Button
+            variant={showOutline ? 'secondary' : 'ghost'}
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setShowOutline(!showOutline)}
+            title={t('markdownEditor.outline')}
+          >
+            {showOutline ? <PanelLeftClose className="h-3.5 w-3.5" /> : <ListTree className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {/* 模板 */}
+          {MARKDOWN_TEMPLATES.map((tpl) => (
+            <Button
+              key={tpl.id}
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                setContent(tpl.content);
+                toast.success(t('markdownEditor.templateLoaded', { name: tpl.name }));
+              }}
+            >
+              <FileText className="mr-1 h-3 w-3" />
+              {tpl.name}
+            </Button>
+          ))}
+
+          <div className="mx-1 h-4 w-px bg-border" />
+
+          {/* 导入导出 */}
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleImport} title={t('markdownEditor.import')}>
+            <Upload className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleExportMd} title={t('markdownEditor.exportMd')}>
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleExportHtml} title={t('markdownEditor.exportHtml')}>
+            <FileCode2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopyHtml} title={t('markdownEditor.copyHtml')}>
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* 工具栏 */}
+      {showEditor && <Toolbar onAction={applyAction} />}
+
+      {/* 主内容区 */}
+      <div className="flex min-h-0 flex-1">
+        {/* 大纲侧栏 */}
+        {showOutline && (
+          <div className="w-48 shrink-0 border-r">
+            <Outline content={content} onJumpToLine={handleJumpToLine} />
+          </div>
+        )}
+        {showEditor && (
+          <div className={`min-h-0 ${showPreview ? 'w-1/2 border-r' : 'flex-1'}`}>
+            <Editor
+              height="100%"
+              language="markdown"
+              theme={isDark ? 'vs-dark' : 'light'}
+              value={content}
+              onChange={(value) => setContent(value ?? '')}
+              onMount={handleEditorMount}
+              options={{
+                wordWrap: 'on',
+                minimap: { enabled: false },
+                fontSize: 14,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                renderWhitespace: 'boundary',
+                padding: { top: 12 },
+                smoothScrolling: true,
+              }}
+            />
+          </div>
+        )}
+        {showPreview && (
+          <div className={`min-h-0 p-2 ${showEditor ? 'w-1/2' : 'flex-1'}`}>
+            <Preview ref={previewRef} source={debouncedContent} />
+          </div>
+        )}
+      </div>
+
+      {/* 状态栏 */}
+      <StatusBar content={content} cursorLine={cursorPos.line} cursorColumn={cursorPos.column} />
+    </div>
+  );
+}

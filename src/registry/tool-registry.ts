@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Binary,
   Braces,
+  Camera,
   Clock,
   Code2,
   Compass,
@@ -234,13 +235,13 @@ registerTool({
 });
 
 registerTool({
-  id: 'markdown-preview',
-  name: 'Markdown 预览',
+  id: 'markdown-editor',
+  name: 'Markdown 编辑器',
   icon: FileText,
   category: 'formatter',
-  component: lazy(() => import('@/tools/formatter/markdown-preview')),
-  keywords: ['markdown', 'md', 'preview', '预览', '渲染'],
-  description: 'Markdown 实时渲染预览',
+  component: lazy(() => import('@/tools/formatter/markdown-editor')),
+  keywords: ['markdown', 'md', 'editor', 'preview', '编辑', '预览', '渲染', '写作'],
+  description: 'Markdown 编辑器：实时预览、工具栏、导出',
 });
 
 // === 生成器 ===
@@ -384,4 +385,14 @@ registerTool({
   component: lazy(() => import('@/tools/graphic/icon-generator')),
   keywords: ['icon', 'favicon', '图标', '生成', 'app', 'ios', 'android'],
   description: '从图片生成应用图标',
+});
+
+registerTool({
+  id: 'screenshot-editor',
+  name: '截图编辑器',
+  icon: Camera,
+  category: 'graphic',
+  component: lazy(() => import('@/tools/graphic/screenshot-editor')),
+  keywords: ['screenshot', 'capture', 'annotate', '截图', '截屏', '标注', '编辑'],
+  description: '屏幕截图捕获与标注编辑',
 });

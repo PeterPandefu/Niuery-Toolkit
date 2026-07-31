@@ -1,0 +1,2 @@
+tsc -b
+npx lint-staged

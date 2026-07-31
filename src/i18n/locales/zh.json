@@ -39,7 +39,7 @@
     "json-formatter": "JSON 格式化",
     "xml-formatter": "XML 格式化",
     "sql-formatter": "SQL 格式化",
-    "markdown-preview": "Markdown 预览",
+    "markdown-editor": "Markdown 编辑器",
     "uuid-generator": "UUID 生成器",
     "hash-generator": "Hash 生成器",
     "password-generator": "密码生成器",
@@ -53,7 +53,8 @@
     "image-compressor": "图片压缩",
     "image-converter": "图片转换",
     "svg-optimizer": "SVG 优化",
-    "icon-generator": "图标生成器"
+    "icon-generator": "图标生成器",
+    "screenshot-editor": "截图编辑器"
   },
   "actions": {
     "copy": "复制",
@@ -73,5 +74,78 @@
   "language": {
     "zh": "中文",
     "en": "English"
+  },
+  "screenshotEditor": {
+    "title": "截图编辑器",
+    "subtitle": "捕获屏幕或导入图片，进行标注编辑",
+    "capture": "屏幕截图",
+    "paste": "粘贴 (Ctrl+V)",
+    "upload": "上传图片",
+    "dragHint": "支持拖拽图片文件到此处",
+    "pasteHint": "请按 Ctrl+V 粘贴剪贴板中的图片",
+    "captureSuccess": "截屏成功",
+    "pasteSuccess": "已粘贴图片",
+    "cropDone": "裁剪完成",
+    "layers": "图层",
+    "noLayers": "暂无图层",
+    "export": "导出",
+    "copy": "复制",
+    "quality": "质量",
+    "strokeWidth": "线宽",
+    "fontSize": "字号",
+    "tools": {
+      "select": "选择",
+      "arrow": "箭头",
+      "rect": "矩形",
+      "ellipse": "椭圆",
+      "line": "直线",
+      "pen": "画笔",
+      "text": "文字",
+      "highlight": "高亮",
+      "mosaic": "马赛克",
+      "number": "序号",
+      "crop": "裁剪"
+    }
+  },
+  "markdownEditor": {
+    "splitView": "分屏视图",
+    "editorOnly": "仅编辑器",
+    "previewOnly": "仅预览",
+    "outline": "文档大纲",
+    "outlineEmpty": "暂无标题",
+    "import": "导入文件",
+    "exportMd": "导出 .md",
+    "exportHtml": "导出 .html",
+    "copyHtml": "复制 HTML",
+    "imported": "已导入: {{name}}",
+    "exportedMd": "已导出 Markdown 文件",
+    "exportedHtml": "已导出 HTML 文件",
+    "copiedHtml": "已复制 HTML 到剪贴板",
+    "templateLoaded": "已加载模板: {{name}}",
+    "toolbar": {
+      "bold": "粗体",
+      "italic": "斜体",
+      "strikethrough": "删除线",
+      "inlineCode": "行内代码",
+      "codeBlock": "代码块",
+      "quote": "引用",
+      "h1": "标题 1",
+      "h2": "标题 2",
+      "h3": "标题 3",
+      "ul": "无序列表",
+      "ol": "有序列表",
+      "taskList": "任务列表",
+      "link": "插入链接",
+      "image": "插入图片",
+      "table": "插入表格",
+      "hr": "水平线"
+    },
+    "status": {
+      "line": "行 {{line}}, 列 {{col}}",
+      "lines": "{{count}} 行",
+      "words": "{{count}} 词",
+      "chars": "{{count}} 字符",
+      "readingTime": "约 {{min}} 分钟阅读"
+    }
   }
 }

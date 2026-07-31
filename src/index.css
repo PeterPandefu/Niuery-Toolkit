@@ -87,3 +87,68 @@
 .monaco-editor-container {
   @apply h-full w-full overflow-hidden rounded-md border;
 }
+
+/* Markdown Preview - highlight.js code theme */
+.markdown-preview .hljs {
+  @apply bg-muted rounded-md p-3 text-sm font-mono overflow-x-auto;
+}
+
+.markdown-preview .hljs-keyword,
+.markdown-preview .hljs-selector-tag,
+.markdown-preview .hljs-built_in {
+  @apply text-violet-600 dark:text-violet-400;
+}
+
+.markdown-preview .hljs-string,
+.markdown-preview .hljs-attr {
+  @apply text-emerald-600 dark:text-emerald-400;
+}
+
+.markdown-preview .hljs-number,
+.markdown-preview .hljs-literal {
+  @apply text-orange-600 dark:text-orange-400;
+}
+
+.markdown-preview .hljs-comment,
+.markdown-preview .hljs-quote {
+  @apply text-muted-foreground italic;
+}
+
+.markdown-preview .hljs-title,
+.markdown-preview .hljs-function .hljs-title,
+.markdown-preview .hljs-class .hljs-title {
+  @apply text-blue-600 dark:text-blue-400;
+}
+
+.markdown-preview .hljs-type,
+.markdown-preview .hljs-name,
+.markdown-preview .hljs-selector-id,
+.markdown-preview .hljs-selector-class {
+  @apply text-amber-600 dark:text-amber-400;
+}
+
+.markdown-preview .hljs-variable,
+.markdown-preview .hljs-template-variable {
+  @apply text-red-600 dark:text-red-400;
+}
+
+.markdown-preview .hljs-regexp {
+  @apply text-pink-600 dark:text-pink-400;
+}
+
+.markdown-preview .hljs-meta {
+  @apply text-slate-500 dark:text-slate-400;
+}
+
+/* Markdown Preview - task list */
+.markdown-preview ul.contains-task-list {
+  @apply list-none pl-0;
+}
+
+.markdown-preview li.task-list-item {
+  @apply flex items-start gap-2;
+}
+
+.markdown-preview li.task-list-item input[type="checkbox"] {
+  @apply mt-1 h-4 w-4 rounded border-border accent-primary;
+}

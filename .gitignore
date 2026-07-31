@@ -49,3 +49,6 @@ pnpm-debug.log*
 # Misc
 *.local
 coverage/
+
+# Verification screenshots (dev artifacts)
+/*.png

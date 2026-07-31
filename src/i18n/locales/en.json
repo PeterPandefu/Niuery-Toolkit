@@ -39,7 +39,7 @@
     "json-formatter": "JSON Formatter",
     "xml-formatter": "XML Formatter",
     "sql-formatter": "SQL Formatter",
-    "markdown-preview": "Markdown Preview",
+    "markdown-editor": "Markdown Editor",
     "uuid-generator": "UUID Generator",
     "hash-generator": "Hash Generator",
     "password-generator": "Password Generator",
@@ -53,7 +53,8 @@
     "image-compressor": "Image Compressor",
     "image-converter": "Image Converter",
     "svg-optimizer": "SVG Optimizer",
-    "icon-generator": "Icon Generator"
+    "icon-generator": "Icon Generator",
+    "screenshot-editor": "Screenshot Editor"
   },
   "actions": {
     "copy": "Copy",
@@ -73,5 +74,78 @@
   "language": {
     "zh": "中文",
     "en": "English"
+  },
+  "screenshotEditor": {
+    "title": "Screenshot Editor",
+    "subtitle": "Capture screen or import image, annotate and edit",
+    "capture": "Screen Capture",
+    "paste": "Paste (Ctrl+V)",
+    "upload": "Upload Image",
+    "dragHint": "Drag and drop image files here",
+    "pasteHint": "Press Ctrl+V to paste image from clipboard",
+    "captureSuccess": "Screenshot captured",
+    "pasteSuccess": "Image pasted",
+    "cropDone": "Crop complete",
+    "layers": "Layers",
+    "noLayers": "No layers",
+    "export": "Export",
+    "copy": "Copy",
+    "quality": "Quality",
+    "strokeWidth": "Stroke",
+    "fontSize": "Font Size",
+    "tools": {
+      "select": "Select",
+      "arrow": "Arrow",
+      "rect": "Rectangle",
+      "ellipse": "Ellipse",
+      "line": "Line",
+      "pen": "Pen",
+      "text": "Text",
+      "highlight": "Highlight",
+      "mosaic": "Mosaic",
+      "number": "Number",
+      "crop": "Crop"
+    }
+  },
+  "markdownEditor": {
+    "splitView": "Split View",
+    "editorOnly": "Editor Only",
+    "previewOnly": "Preview Only",
+    "outline": "Outline",
+    "outlineEmpty": "No headings",
+    "import": "Import File",
+    "exportMd": "Export .md",
+    "exportHtml": "Export .html",
+    "copyHtml": "Copy HTML",
+    "imported": "Imported: {{name}}",
+    "exportedMd": "Exported Markdown file",
+    "exportedHtml": "Exported HTML file",
+    "copiedHtml": "Copied HTML to clipboard",
+    "templateLoaded": "Template loaded: {{name}}",
+    "toolbar": {
+      "bold": "Bold",
+      "italic": "Italic",
+      "strikethrough": "Strikethrough",
+      "inlineCode": "Inline Code",
+      "codeBlock": "Code Block",
+      "quote": "Quote",
+      "h1": "Heading 1",
+      "h2": "Heading 2",
+      "h3": "Heading 3",
+      "ul": "Unordered List",
+      "ol": "Ordered List",
+      "taskList": "Task List",
+      "link": "Insert Link",
+      "image": "Insert Image",
+      "table": "Insert Table",
+      "hr": "Horizontal Rule"
+    },
+    "status": {
+      "line": "Ln {{line}}, Col {{col}}",
+      "lines": "{{count}} lines",
+      "words": "{{count}} words",
+      "chars": "{{count}} chars",
+      "readingTime": "~{{min}} min read"
+    }
   }
 }
