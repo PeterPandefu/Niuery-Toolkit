@@ -88,7 +88,7 @@
   }
   /* 展示型标题使用 Space Grotesk */
   h1, h2, h3 {
-    @apply font-heading;
+    font-family: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
   }
 }
 

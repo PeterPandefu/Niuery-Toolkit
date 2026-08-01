@@ -105,12 +105,12 @@ registerTool({
 
 registerTool({
   id: 'color-picker',
-  name: '颜色转换',
+  name: '颜色助手',
   icon: Palette,
   category: 'converter',
-  component: lazy(() => import('@/tools/converter/color-picker')),
-  keywords: ['color', 'hex', 'rgb', 'hsl', '颜色', '取色'],
-  description: 'HEX/RGB/HSL/CMYK 颜色互转',
+  component: lazy(() => import('@/tools/converter/color-assistant')),
+  keywords: ['color', 'hex', 'rgb', 'hsl', '颜色', '取色', '色卡', '渐变', '传统色', 'palette', 'gradient'],
+  description: '颜色选择、UI色卡、传统色、渐变色、图片取色',
 });
 
 registerTool({
