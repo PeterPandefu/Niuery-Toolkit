@@ -15,35 +15,39 @@ impl Default for ScreenshotState {
     }
 }
 
-/// 捕获全屏并打开截图窗口
+/// 捕获全屏并打开截图窗口（异步，避免阻塞主线程）
 #[tauri::command]
-pub fn start_screenshot(app: AppHandle) -> Result<(), String> {
-    // 捕获主显示器
-    let monitors = xcap::Monitor::all().map_err(|e| format!("获取显示器失败: {e}"))?;
-    let monitor = monitors.first().ok_or("未找到显示器")?;
-    let image = monitor
-        .capture_image()
-        .map_err(|e| format!("截屏失败: {e}"))?;
+pub async fn start_screenshot(app: AppHandle) -> Result<(), String> {
+    // 在后台线程执行耗时的截屏 + 编码操作，避免阻塞 Tauri 事件循环
+    let base64_data = tauri::async_runtime::spawn_blocking(move || {
+        let monitors = xcap::Monitor::all().map_err(|e| format!("获取显示器失败: {e}"))?;
+        let monitor = monitors.first().ok_or_else(|| "未找到显示器".to_string())?;
+        let image = monitor
+            .capture_image()
+            .map_err(|e| format!("截屏失败: {e}"))?;
 
-    // 按 DPI 缩放比缩放到 CSS 像素尺寸，使前端坐标与屏幕坐标一致
-    let scale = monitor.scale_factor() as f64;
-    let css_w = (image.width() as f64 / scale).round() as u32;
-    let css_h = (image.height() as f64 / scale).round() as u32;
-    let resized = if scale != 1.0 {
-        image::imageops::resize(&image, css_w, css_h, image::imageops::FilterType::Lanczos3)
-    } else {
-        image.clone()
-    };
+        // 按 DPI 缩放比缩放到 CSS 像素尺寸，使前端坐标与屏幕坐标一致
+        let scale = monitor.scale_factor() as f64;
+        let css_w = (image.width() as f64 / scale).round() as u32;
+        let css_h = (image.height() as f64 / scale).round() as u32;
+        let resized = if (scale - 1.0).abs() > 0.01 {
+            image::imageops::resize(&image, css_w, css_h, image::imageops::FilterType::Lanczos3)
+        } else {
+            image.clone()
+        };
 
-    // 编码为 PNG base64
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut cursor = std::io::Cursor::new(&mut buf);
-        resized
-            .write_to(&mut cursor, image::ImageFormat::Png)
-            .map_err(|e| format!("编码 PNG 失败: {e}"))?;
-    }
-    let base64_data = base64::engine::general_purpose::STANDARD.encode(&buf);
+        // 编码为 PNG base64
+        let mut buf: Vec<u8> = Vec::new();
+        {
+            let mut cursor = std::io::Cursor::new(&mut buf);
+            resized
+                .write_to(&mut cursor, image::ImageFormat::Png)
+                .map_err(|e| format!("编码 PNG 失败: {e}"))?;
+        }
+        Ok::<String, String>(base64::engine::general_purpose::STANDARD.encode(&buf))
+    })
+    .await
+    .map_err(|e| format!("截屏线程异常: {e}"))??;
 
     // 存入状态
     {

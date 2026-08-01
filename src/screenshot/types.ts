@@ -42,6 +42,8 @@ export interface AnnotationItem {
   number?: number;
   /** mosaic 使用：马赛克方块列表 */
   mosaicBlocks?: { x: number; y: number; color: string }[];
+  /** mosaic 使用：每个标注的块大小 */
+  mosaicBlockSize?: number;
 }
 
 /** 工具栏颜色预设（微信风格） */
@@ -57,8 +59,14 @@ export const TOOL_COLORS = [
 /** 线宽预设 */
 export const STROKE_WIDTHS = [2, 4, 7];
 
-/** 马赛克方块大小 */
-export const MOSAIC_BLOCK_SIZE = 12;
+/** 文字大小预设 */
+export const FONT_SIZES = [14, 20, 28, 40];
+
+/** 马赛克方块大小预设（对应线宽选择器的三档） */
+export const MOSAIC_SIZES = [4, 8, 14];
+
+/** 默认马赛克方块大小 */
+export const MOSAIC_BLOCK_SIZE = 8;
 
 /** 最小有效选区尺寸 */
 export const MIN_SELECTION_SIZE = 8;

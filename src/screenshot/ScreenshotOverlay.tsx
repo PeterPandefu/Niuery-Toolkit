@@ -10,6 +10,7 @@ import {
   type SelectionRect,
   type AnnotationItem,
   MIN_SELECTION_SIZE,
+  MOSAIC_BLOCK_SIZE,
 } from './types';
 
 interface ScreenshotOverlayProps {
@@ -24,6 +25,7 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
   const [tool, setTool] = useState<ScreenshotTool>('arrow');
   const [color, setColor] = useState('#ff4444');
   const [strokeWidth, setStrokeWidth] = useState(4);
+  const [fontSize, setFontSize] = useState(20);
   const [annotations, setAnnotations] = useState<AnnotationItem[]>([]);
   const [history, setHistory] = useState<AnnotationItem[][]>([]);
   const [redoStack, setRedoStack] = useState<AnnotationItem[][]>([]);
@@ -33,8 +35,8 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
   const selStart = useRef<{ x: number; y: number } | null>(null);
 
   // ── 裁剪选区图片（用于标注画布背景 & 马赛克取色）──────────
-  const croppedImage = useMemo(() => {
-    if (!selection || selection.width < 1 || selection.height < 1) return null;
+  const { croppedImage, croppedCanvas } = useMemo(() => {
+    if (!selection || selection.width < 1 || selection.height < 1) return { croppedImage: null, croppedCanvas: null };
     const c = document.createElement('canvas');
     c.width = Math.round(selection.width);
     c.height = Math.round(selection.height);
@@ -44,9 +46,10 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
       selection.x, selection.y, selection.width, selection.height,
       0, 0, selection.width, selection.height,
     );
+    // canvas 立即可用于 getImageData（同步）
     const img = new Image();
     img.src = c.toDataURL('image/png');
-    return img;
+    return { croppedImage: img, croppedCanvas: c };
   }, [screenImage, selection]);
 
   // ── 标注变更（带历史记录）──────────────────────────────────
@@ -78,9 +81,32 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
   // ── 复制 / 保存 / 取消 ────────────────────────────────────
   const exportBase64 = useCallback((): string | null => {
     const stage = stageRef.current;
-    if (!stage) return null;
-    return stage.toDataURL({ pixelRatio: 1 }).replace(/^data:image\/\w+;base64,/, '');
-  }, []);
+    if (!stage || !selection) return null;
+    const w = Math.round(selection.width);
+    const h = Math.round(selection.height);
+    // 使用 toCanvas() 同步获取 Konva 渲染结果
+    const stageCanvas = stage.toCanvas({ pixelRatio: 1 });
+    // 合成马赛克（因为 DOM canvas 不在 Konva 场景图中）
+    const hasMosaic = annotations.some((a) => a.tool === 'mosaic' && a.mosaicBlocks?.length);
+    if (!hasMosaic) {
+      return stageCanvas.toDataURL('image/png').replace(/^data:image\/\w+;base64,/, '');
+    }
+    const composite = document.createElement('canvas');
+    composite.width = w;
+    composite.height = h;
+    const ctx = composite.getContext('2d')!;
+    ctx.drawImage(stageCanvas, 0, 0, w, h);
+    for (const a of annotations) {
+      if (a.tool === 'mosaic' && a.mosaicBlocks) {
+        const bs = a.mosaicBlockSize || MOSAIC_BLOCK_SIZE;
+        for (const b of a.mosaicBlocks) {
+          ctx.fillStyle = b.color;
+          ctx.fillRect(b.x, b.y, bs, bs);
+        }
+      }
+    }
+    return composite.toDataURL('image/png').replace(/^data:image\/\w+;base64,/, '');
+  }, [selection, annotations]);
 
   const handleCopy = useCallback(async () => {
     const b64 = exportBase64();
@@ -161,6 +187,10 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
   // ── 全局快捷键 ────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 当焦点在输入框内时，不拦截键盘事件（由 textarea 自行处理）
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+
       if (e.key === 'Escape') { invoke('close_screenshot_window'); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -231,15 +261,16 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
             className="fixed z-20"
             style={{ left: selection.x, top: selection.y }}
             onMouseDown={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => { e.stopPropagation(); handleCopy(); }}
           >
             <AnnotationLayer
               width={Math.round(selection.width)}
               height={Math.round(selection.height)}
               croppedImage={croppedImage}
+              croppedCanvas={croppedCanvas}
               tool={tool}
               color={color}
               strokeWidth={strokeWidth}
+              fontSize={fontSize}
               annotations={annotations}
               onAnnotationsChange={handleAnnotationsChange}
               numberCounter={numberCounter}
@@ -255,11 +286,13 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
             tool={tool}
             color={color}
             strokeWidth={strokeWidth}
+            fontSize={fontSize}
             canUndo={history.length > 0}
             canRedo={redoStack.length > 0}
             onToolChange={setTool}
             onColorChange={setColor}
             onStrokeWidthChange={setStrokeWidth}
+            onFontSizeChange={setFontSize}
             onUndo={undo}
             onRedo={redo}
             onCancel={handleCancel}

@@ -9,6 +9,13 @@ import ScreenshotApp from './screenshot/ScreenshotApp.tsx'
 // 截图窗口使用独立渲染路径（由 Tauri 以 #/screenshot 打开）
 const isScreenshotWindow = window.location.hash === '#/screenshot'
 
+// 截图窗口需要透明背景，覆盖 index.css 中的 bg-background
+if (isScreenshotWindow) {
+  document.documentElement.style.background = 'transparent'
+  document.body.style.background = 'transparent'
+  document.body.style.overflow = 'hidden'
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {isScreenshotWindow ? <ScreenshotApp /> : <App />}

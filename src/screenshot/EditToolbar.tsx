@@ -1,4 +1,4 @@
-import { type ScreenshotTool, TOOL_COLORS, STROKE_WIDTHS } from './types';
+import { type ScreenshotTool, TOOL_COLORS, STROKE_WIDTHS, FONT_SIZES, MOSAIC_SIZES } from './types';
 
 interface EditToolbarProps {
   /** 工具栏左上角在屏幕中的坐标 */
@@ -7,11 +7,13 @@ interface EditToolbarProps {
   tool: ScreenshotTool;
   color: string;
   strokeWidth: number;
+  fontSize: number;
   canUndo: boolean;
   canRedo: boolean;
   onToolChange: (t: ScreenshotTool) => void;
   onColorChange: (c: string) => void;
   onStrokeWidthChange: (w: number) => void;
+  onFontSizeChange: (s: number) => void;
   onUndo: () => void;
   onRedo: () => void;
   onCancel: () => void;
@@ -37,11 +39,13 @@ export function EditToolbar({
   tool,
   color,
   strokeWidth,
+  fontSize,
   canUndo,
   canRedo,
   onToolChange,
   onColorChange,
   onStrokeWidthChange,
+  onFontSizeChange,
   onUndo,
   onRedo,
   onCancel,
@@ -99,28 +103,71 @@ export function EditToolbar({
 
       <Divider />
 
-      {/* 线宽选择 */}
-      <div className="flex items-center gap-1 px-0.5">
-        {STROKE_WIDTHS.map((w) => (
-          <button
-            key={w}
-            title={`${w}px`}
-            onClick={() => onStrokeWidthChange(w)}
-            className="flex h-7 w-6 items-center justify-center rounded transition-colors"
-            style={{ background: strokeWidth === w ? 'rgba(255,255,255,0.2)' : 'transparent' }}
-          >
-            <span
-              className="rounded-full"
+      {/* 线宽 / 字号 / 马赛克大小 选择 */}
+      {tool === 'text' ? (
+        <div className="flex items-center gap-0.5 px-0.5">
+          {FONT_SIZES.map((s) => (
+            <button
+              key={s}
+              title={`${s}px`}
+              onClick={() => onFontSizeChange(s)}
+              className="flex h-7 items-center justify-center rounded px-1 transition-colors"
               style={{
-                display: 'block',
-                width: w + 2,
-                height: w + 2,
-                background: strokeWidth === w ? '#fff' : 'rgba(255,255,255,0.55)',
+                background: fontSize === s ? 'rgba(255,255,255,0.2)' : 'transparent',
+                color: fontSize === s ? '#fff' : 'rgba(255,255,255,0.55)',
+                fontSize: Math.min(s * 0.6 + 6, 18),
+                fontWeight: 700,
               }}
-            />
-          </button>
-        ))}
-      </div>
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      ) : tool === 'mosaic' ? (
+        <div className="flex items-center gap-0.5 px-0.5">
+          {MOSAIC_SIZES.map((s) => (
+            <button
+              key={s}
+              title={`${s}px`}
+              onClick={() => onStrokeWidthChange(s)}
+              className="flex h-7 w-7 items-center justify-center rounded transition-colors"
+              style={{ background: strokeWidth === s ? 'rgba(255,255,255,0.2)' : 'transparent' }}
+            >
+              <span
+                style={{
+                  display: 'block',
+                  width: s,
+                  height: s,
+                  background: strokeWidth === s ? '#fff' : 'rgba(255,255,255,0.55)',
+                  imageRendering: 'pixelated',
+                }}
+              />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1 px-0.5">
+          {STROKE_WIDTHS.map((w) => (
+            <button
+              key={w}
+              title={`${w}px`}
+              onClick={() => onStrokeWidthChange(w)}
+              className="flex h-7 w-6 items-center justify-center rounded transition-colors"
+              style={{ background: strokeWidth === w ? 'rgba(255,255,255,0.2)' : 'transparent' }}
+            >
+              <span
+                className="rounded-full"
+                style={{
+                  display: 'block',
+                  width: w + 2,
+                  height: w + 2,
+                  background: strokeWidth === w ? '#fff' : 'rgba(255,255,255,0.55)',
+                }}
+              />
+            </button>
+          ))}
+        </div>
+      )}
 
       <Divider />
 
