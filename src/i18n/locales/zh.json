@@ -55,7 +55,7 @@
     "image-converter": "图片转换",
     "svg-optimizer": "SVG 优化",
     "icon-generator": "图标生成器",
-    "screenshot-editor": "截图编辑器",
+    "screenshot-editor": "截图",
     "socket-tool": "Socket 调试",
     "api-tester": "接口测试"
   },
@@ -79,7 +79,7 @@
     "en": "English"
   },
   "screenshotEditor": {
-    "title": "截图编辑器",
+    "title": "截图",
     "subtitle": "捕获屏幕或导入图片，进行标注编辑",
     "capture": "屏幕截图",
     "paste": "粘贴 (Ctrl+V)",

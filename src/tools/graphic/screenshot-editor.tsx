@@ -5,9 +5,6 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
-  MonitorUp,
-  ClipboardPaste,
-  Upload,
   Download,
   Copy,
   RotateCw,
@@ -55,7 +52,7 @@ function ScreenshotEditorInner() {
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { capture, capturing, isSupported } = useScreenCapture();
+  const { capture, capturing } = useScreenCapture();
   const { undo, redo, clear } = useHistory();
   const { exportImage, copyToClipboard } = useExport({ stageRef, canvasSize });
 
@@ -361,24 +358,10 @@ function ScreenshotEditorInner() {
           {isTauri && (
             <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleWechatScreenshot}>
               <Camera className="h-8 w-8" />
-              <span className="text-xs">微信截图</span>
+              <span className="text-xs">截图</span>
               <span className="text-[10px] text-muted-foreground">Ctrl+Alt+A</span>
             </Button>
           )}
-          {isSupported && (
-            <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleCapture}>
-              <MonitorUp className="h-8 w-8" />
-              <span className="text-xs">{t('screenshotEditor.capture')}</span>
-            </Button>
-          )}
-          <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handlePasteClick}>
-            <ClipboardPaste className="h-8 w-8" />
-            <span className="text-xs">{t('screenshotEditor.paste')}</span>
-          </Button>
-          <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleUpload}>
-            <Upload className="h-8 w-8" />
-            <span className="text-xs">{t('screenshotEditor.upload')}</span>
-          </Button>
         </div>
         <p className="text-xs text-muted-foreground">
           {t('screenshotEditor.dragHint')}

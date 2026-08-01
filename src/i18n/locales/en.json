@@ -55,7 +55,7 @@
     "image-converter": "Image Converter",
     "svg-optimizer": "SVG Optimizer",
     "icon-generator": "Icon Generator",
-    "screenshot-editor": "Screenshot Editor",
+    "screenshot-editor": "Screenshot",
     "socket-tool": "Socket Debugger",
     "api-tester": "API Tester"
   },
@@ -79,7 +79,7 @@
     "en": "English"
   },
   "screenshotEditor": {
-    "title": "Screenshot Editor",
+    "title": "Screenshot",
     "subtitle": "Capture screen or import image, annotate and edit",
     "capture": "Screen Capture",
     "paste": "Paste (Ctrl+V)",

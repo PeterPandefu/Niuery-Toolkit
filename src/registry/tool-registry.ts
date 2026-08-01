@@ -390,7 +390,7 @@ registerTool({
 
 registerTool({
   id: 'screenshot-editor',
-  name: '截图编辑器',
+  name: '截图',
   icon: Camera,
   category: 'graphic',
   component: lazy(() => import('@/tools/graphic/screenshot-editor')),
