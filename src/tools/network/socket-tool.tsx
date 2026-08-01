@@ -15,9 +15,9 @@ import {
   Circle,
 } from 'lucide-react';
 
-// Detect Tauri environment
+// Detect Tauri environment (Tauri v2 uses __TAURI_INTERNALS__)
 function isTauri(): boolean {
-  return !!(window as unknown as { __TAURI__: unknown }).__TAURI__;
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 // ==================== Status Badge ====================
