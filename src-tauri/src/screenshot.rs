@@ -1,0 +1,137 @@
+use base64::Engine;
+use std::sync::Mutex;
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+
+/// 截图状态：保存最近一次全屏截图的 base64 PNG 数据
+pub struct ScreenshotState {
+    pub screen_data: Mutex<Option<String>>,
+}
+
+impl Default for ScreenshotState {
+    fn default() -> Self {
+        Self {
+            screen_data: Mutex::new(None),
+        }
+    }
+}
+
+/// 捕获全屏并打开截图窗口
+#[tauri::command]
+pub fn start_screenshot(app: AppHandle) -> Result<(), String> {
+    // 捕获主显示器
+    let monitors = xcap::Monitor::all().map_err(|e| format!("获取显示器失败: {e}"))?;
+    let monitor = monitors.first().ok_or("未找到显示器")?;
+    let image = monitor
+        .capture_image()
+        .map_err(|e| format!("截屏失败: {e}"))?;
+
+    // 按 DPI 缩放比缩放到 CSS 像素尺寸，使前端坐标与屏幕坐标一致
+    let scale = monitor.scale_factor() as f64;
+    let css_w = (image.width() as f64 / scale).round() as u32;
+    let css_h = (image.height() as f64 / scale).round() as u32;
+    let resized = if scale != 1.0 {
+        image::imageops::resize(&image, css_w, css_h, image::imageops::FilterType::Lanczos3)
+    } else {
+        image.clone()
+    };
+
+    // 编码为 PNG base64
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut cursor = std::io::Cursor::new(&mut buf);
+        resized
+            .write_to(&mut cursor, image::ImageFormat::Png)
+            .map_err(|e| format!("编码 PNG 失败: {e}"))?;
+    }
+    let base64_data = base64::engine::general_purpose::STANDARD.encode(&buf);
+
+    // 存入状态
+    {
+        let state = app.state::<ScreenshotState>();
+        *state.screen_data.lock().unwrap() = Some(base64_data);
+    }
+
+    // 关闭已有截图窗口
+    if let Some(win) = app.get_webview_window("screenshot") {
+        let _ = win.close();
+    }
+
+    // 打开全屏透明截图窗口
+    WebviewWindowBuilder::new(
+        &app,
+        "screenshot",
+        WebviewUrl::App("index.html#/screenshot".into()),
+    )
+    .title("Screenshot")
+    .fullscreen(true)
+    .transparent(true)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .resizable(false)
+    .focused(true)
+    .build()
+    .map_err(|e| format!("打开截图窗口失败: {e}"))?;
+
+    Ok(())
+}
+
+/// 获取已捕获的屏幕截图 base64 数据
+#[tauri::command]
+pub fn get_screen_capture(app: AppHandle) -> Result<String, String> {
+    let state = app.state::<ScreenshotState>();
+    let data = state.screen_data.lock().unwrap();
+    data.clone().ok_or_else(|| "暂无截图数据".to_string())
+}
+
+/// 将 base64 PNG 图片写入系统剪贴板
+#[tauri::command]
+pub fn copy_image_to_clipboard(base64_data: String) -> Result<(), String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_data.as_bytes())
+        .map_err(|e| format!("解码 base64 失败: {e}"))?;
+    let img = image::load_from_memory(&bytes).map_err(|e| format!("解析图片失败: {e}"))?;
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    let img_data = arboard::ImageData {
+        bytes: std::borrow::Cow::Owned(rgba.into_raw()),
+        width: w as usize,
+        height: h as usize,
+    };
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("打开剪贴板失败: {e}"))?;
+    clipboard
+        .set_image(img_data)
+        .map_err(|e| format!("写入剪贴板失败: {e}"))?;
+    Ok(())
+}
+
+/// 弹出保存对话框，将 base64 PNG 保存到文件
+#[tauri::command]
+pub fn save_image_dialog(base64_data: String) -> Result<bool, String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_data.as_bytes())
+        .map_err(|e| format!("解码 base64 失败: {e}"))?;
+
+    let path = rfd::FileDialog::new()
+        .add_filter("PNG 图片", &["png"])
+        .add_filter("JPEG 图片", &["jpg", "jpeg"])
+        .set_file_name("screenshot")
+        .save_file();
+
+    match path {
+        Some(path) => {
+            std::fs::write(&path, &bytes).map_err(|e| format!("保存失败: {e}"))?;
+            Ok(true)
+        }
+        None => Ok(false),
+    }
+}
+
+/// 关闭截图窗口
+#[tauri::command]
+pub fn close_screenshot_window(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("screenshot") {
+        win.close().map_err(|e| format!("关闭窗口失败: {e}"))?;
+    }
+    Ok(())
+}

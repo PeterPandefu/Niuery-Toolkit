@@ -2,10 +2,11 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": ["main", "screenshot"],
   "permissions": [
     "core:default",
     "opener:default",
-    "http:default"
+    "http:default",
+    "global-shortcut:default"
   ]
 }

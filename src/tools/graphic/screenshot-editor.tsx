@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ import {
   FlipHorizontal2,
   FlipVertical2,
   Maximize2,
+  Camera,
 } from 'lucide-react';
 import Konva from 'konva';
 import { HistoryProvider, useHistory } from './screenshot/HistoryProvider';
@@ -139,6 +141,16 @@ function ScreenshotEditorInner() {
   // 粘贴按钮（触发提示）
   const handlePasteClick = useCallback(() => {
     toast.info('请按 Ctrl+V 粘贴剪贴板中的图片');
+  }, []);
+
+  // 微信风格截图（Tauri 桌面端）
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  const handleWechatScreenshot = useCallback(async () => {
+    try {
+      await invoke('start_screenshot');
+    } catch (e) {
+      toast.error(`截图失败: ${e}`);
+    }
   }, []);
 
   // 工具切换时退出裁剪
@@ -346,6 +358,13 @@ function ScreenshotEditorInner() {
           </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-4">
+          {isTauri && (
+            <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleWechatScreenshot}>
+              <Camera className="h-8 w-8" />
+              <span className="text-xs">微信截图</span>
+              <span className="text-[10px] text-muted-foreground">Ctrl+Alt+A</span>
+            </Button>
+          )}
           {isSupported && (
             <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleCapture}>
               <MonitorUp className="h-8 w-8" />
