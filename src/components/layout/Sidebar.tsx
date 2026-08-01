@@ -52,6 +52,9 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
             );
           })}
         </div>
+        <div className="mt-auto text-[10px] text-muted-foreground/60">
+          v{__APP_VERSION__}
+        </div>
       </div>
     );
   }
@@ -126,6 +129,11 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
             </div>
           );
         })}
+      </div>
+
+      {/* Version Footer */}
+      <div className="border-t px-4 py-2.5">
+        <span className="text-xs text-muted-foreground/70">v{__APP_VERSION__}</span>
       </div>
     </nav>
   );
