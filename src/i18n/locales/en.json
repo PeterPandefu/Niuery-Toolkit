@@ -11,7 +11,11 @@
     "toSearch": "to search quickly.",
     "offlineMode": "Offline Mode",
     "recentTools": "Recent",
-    "noResults": "No matching tools found"
+    "noResults": "No matching tools found",
+    "quickTools": "Quick tools",
+    "allCategories": "All categories",
+    "searchHint": "Search {{count}} tools",
+    "home": "Home"
   },
   "categories": {
     "converter": "Converters",

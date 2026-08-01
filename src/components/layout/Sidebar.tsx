@@ -7,134 +7,251 @@ import {
   getAvailableCategories,
   getToolsByCategory,
 } from '@/registry/tool-registry';
-import { ToolCategory } from '@/types/tool';
-import { Clock, PanelLeftClose, PanelLeft, Wrench } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ToolCategory, CATEGORY_ICONS } from '@/types/tool';
+import { Clock, Home, Search } from 'lucide-react';
+import { BrandMark } from '@/components/shared/BrandMark';
 
 interface SidebarProps {
   onSelectTool: (toolId: string) => void;
 }
 
+/** 工具列表条目 */
+function ToolItem({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'group relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-all duration-150',
+        'hover:bg-sidebar-accent hover:translate-x-[2px]',
+        active
+          ? 'bg-sidebar-accent font-medium text-foreground'
+          : 'text-sidebar-foreground/75 hover:text-foreground'
+      )}
+    >
+      {/* 活动指示条 */}
+      <span
+        className={cn(
+          'absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-all duration-200',
+          active ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-50'
+        )}
+      />
+      <Icon
+        className={cn(
+          'h-4 w-4 shrink-0 transition-colors duration-150',
+          active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground/70'
+        )}
+      />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
 export function Sidebar({ onSelectTool }: SidebarProps) {
   const { t } = useTranslation();
-  const { sidebarCollapsed, toggleSidebar, activeToolId, recentTools } = useAppStore();
+  const {
+    activeToolId,
+    recentTools,
+    setSearchOpen,
+    setActiveTool,
+    activeCategory,
+    setActiveCategory,
+  } = useAppStore();
   const categories = getAvailableCategories();
 
   const recentToolList = useMemo(() => {
     const allTools = getAllTools();
     return recentTools
-      .map((id) => allTools.find((t) => t.id === id))
+      .map((id) => allTools.find((tool) => tool.id === id))
       .filter(Boolean)
       .slice(0, 5);
   }, [recentTools]);
 
-  if (sidebarCollapsed) {
-    return (
-      <div className="flex h-full w-14 flex-col items-center border-r bg-sidebar py-3">
-        <Button variant="ghost" size="icon" onClick={toggleSidebar} className="mb-4">
-          <PanelLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex flex-col items-center gap-2">
+  // 当前分类下的工具列表
+  const categoryTools = useMemo(() => {
+    if (!activeCategory) return [];
+    return getToolsByCategory(activeCategory);
+  }, [activeCategory]);
+
+  const handleCategoryClick = (category: ToolCategory) => {
+    // 切换：再次点击同一分类则收起
+    setActiveCategory(activeCategory === category ? null : category);
+  };
+
+  const handleHome = () => {
+    setActiveTool(null);
+    setActiveCategory(null);
+  };
+
+  const handleSelectTool = (toolId: string) => {
+    onSelectTool(toolId);
+  };
+
+  return (
+    <div className="flex h-full shrink-0">
+      {/* ===== 图标导航栏 (Rail) ===== */}
+      <nav
+        className="flex h-full w-[56px] flex-col items-center border-r border-sidebar-border bg-sidebar py-3"
+        aria-label="Category navigation"
+      >
+        {/* 品牌标识 */}
+        <button
+          onClick={handleHome}
+          className="mb-1 rounded-lg p-1.5 transition-all duration-150 hover:scale-105 active:scale-95"
+          title="Home"
+        >
+          <BrandMark size={28} />
+        </button>
+
+        {/* 首页 */}
+        <button
+          onClick={handleHome}
+          title={t('app.home', '首页')}
+          className={cn(
+            'relative mb-0.5 rounded-lg p-2.5 transition-all duration-150 hover:bg-sidebar-accent active:scale-90',
+            !activeToolId && !activeCategory
+              ? 'text-primary bg-sidebar-accent'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Home className="h-[18px] w-[18px]" />
+          {!activeToolId && !activeCategory && (
+            <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
+          )}
+        </button>
+
+        {/* 搜索 */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          title={`${t('app.searchTools')} (Ctrl+K)`}
+          className="mb-2 rounded-lg p-2.5 text-muted-foreground transition-all duration-150 hover:bg-sidebar-accent hover:text-foreground active:scale-90"
+        >
+          <Search className="h-[18px] w-[18px]" />
+        </button>
+
+        {/* 分隔线 */}
+        <div className="mb-2 h-px w-7 bg-sidebar-border" />
+
+        {/* 分类图标 */}
+        <div className="flex flex-1 flex-col items-center gap-0.5 overflow-y-auto">
           {categories.map((category) => {
-            const tools = getToolsByCategory(category);
-            const FirstIcon = tools[0]?.icon || Wrench;
+            const CategoryIcon = CATEGORY_ICONS[category] || Search;
+            const isActive = activeCategory === category;
+            const hasActiveTool =
+              activeToolId != null &&
+              getToolsByCategory(category).some((tool) => tool.id === activeToolId);
+
             return (
-              <Button
+              <button
                 key={category}
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground"
+                onClick={() => handleCategoryClick(category)}
                 title={t(`categories.${category}`)}
-                onClick={() => tools[0] && onSelectTool(tools[0].id)}
+                className={cn(
+                  'relative rounded-lg p-2.5 transition-all duration-150 hover:bg-sidebar-accent active:scale-90',
+                  isActive
+                    ? 'text-primary bg-sidebar-accent'
+                    : hasActiveTool
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                )}
               >
-                <FirstIcon className="h-5 w-5" />
-              </Button>
+                <CategoryIcon className="h-[18px] w-[18px]" />
+                {/* 活动指示条 */}
+                {(isActive || hasActiveTool) && (
+                  <span
+                    className={cn(
+                      'absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-all',
+                      isActive ? 'opacity-100' : 'opacity-50'
+                    )}
+                  />
+                )}
+              </button>
             );
           })}
         </div>
-        <div className="mt-auto text-[10px] text-muted-foreground/60">
+
+        {/* 版本号 */}
+        <div className="mt-2 font-mono text-[9px] text-muted-foreground/40">
           v{__APP_VERSION__}
         </div>
-      </div>
-    );
-  }
+      </nav>
 
-  return (
-    <nav className="flex h-full w-64 flex-col border-r bg-sidebar" aria-label="Tool navigation">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Wrench className="h-5 w-5 text-primary" aria-hidden="true" />
-          <span className="font-semibold">Niuery Toolkit</span>
-        </div>
-        <Button variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Collapse sidebar">
-          <PanelLeftClose className="h-4 w-4" />
-        </Button>
-      </div>
+      {/* ===== 工具列表面板 ===== */}
+      <div
+        className={cn(
+          'flex h-full flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 ease-in-out',
+          activeCategory ? 'w-[196px] opacity-100' : 'w-0 overflow-hidden border-r-0 opacity-0'
+        )}
+      >
+        {activeCategory && (
+          <div className="flex h-full flex-col animate-fade-in">
+            {/* 分类标题 */}
+            <div className="flex items-center gap-2 px-3.5 pb-2 pt-3.5">
+              {(() => {
+                const CategoryIcon = CATEGORY_ICONS[activeCategory];
+                return CategoryIcon ? (
+                  <CategoryIcon className="h-4 w-4 text-primary" />
+                ) : null;
+              })()}
+              <h2 className="flex-1 truncate text-[13px] font-semibold text-foreground">
+                {t(`categories.${activeCategory}`)}
+              </h2>
+              <span className="rounded-full bg-muted/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                {categoryTools.length}
+              </span>
+            </div>
 
-      {/* Recent Tools */}
-      {recentToolList.length > 0 && (
-        <div className="px-3 pb-2">
-          <div className="mb-1 flex items-center gap-1.5 px-2 text-xs font-medium text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            {t('app.recentTools')}
-          </div>
-          <div className="space-y-0.5">
-            {recentToolList.map((tool) => {
-              if (!tool) return null;
-              const Icon = tool.icon;
-              return (
-                <button
-                  key={tool.id}
-                  onClick={() => onSelectTool(tool.id)}
-                  aria-current={activeToolId === tool.id ? 'page' : undefined}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent',
-                    activeToolId === tool.id && 'bg-sidebar-accent font-medium'
-                  )}
-                >
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                  {t(`tools.${tool.id}`, tool.name)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Tool Categories */}
-      <div className="flex-1 overflow-y-auto px-3 pb-4" role="list" aria-label="Tools by category">
-        {categories.map((category: ToolCategory) => {
-          const tools = getToolsByCategory(category);
-          return (
-            <div key={category} className="mb-3">
-              <div className="mb-1 px-2 text-xs font-medium text-muted-foreground">
-                {t(`categories.${category}`)}
-              </div>
-              <div className="space-y-0.5">
-                {tools.map((tool) => (
-                  <button
+            {/* 工具列表 */}
+            <div className="flex-1 overflow-y-auto px-2 pb-3" role="list">
+              <div className="space-y-px">
+                {categoryTools.map((tool) => (
+                  <ToolItem
                     key={tool.id}
-                    onClick={() => onSelectTool(tool.id)}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent',
-                      activeToolId === tool.id && 'bg-sidebar-accent font-medium'
-                    )}
-                  >
-                    <tool.icon className="h-4 w-4 text-muted-foreground" />
-                    {t(`tools.${tool.id}`, tool.name)}
-                  </button>
+                    active={activeToolId === tool.id}
+                    icon={tool.icon}
+                    label={t(`tools.${tool.id}`, tool.name)}
+                    onClick={() => handleSelectTool(tool.id)}
+                  />
                 ))}
               </div>
             </div>
-          );
-        })}
-      </div>
 
-      {/* Version Footer */}
-      <div className="border-t px-4 py-2.5">
-        <span className="text-xs text-muted-foreground/70">v{__APP_VERSION__}</span>
+            {/* 最近使用（底部） */}
+            {recentToolList.length > 0 && (
+              <div className="border-t border-sidebar-border px-2 py-2">
+                <div className="mb-1 flex items-center gap-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {t('app.recentTools')}
+                </div>
+                <div className="space-y-px">
+                  {recentToolList.slice(0, 3).map((tool) => {
+                    if (!tool) return null;
+                    return (
+                      <ToolItem
+                        key={tool.id}
+                        active={activeToolId === tool.id}
+                        icon={tool.icon}
+                        label={t(`tools.${tool.id}`, tool.name)}
+                        onClick={() => handleSelectTool(tool.id)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </nav>
+    </div>
   );
 }

@@ -3,55 +3,74 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Niuery Toolkit — "Forge" design language
+   * 深炭黑基底 + 余烬橙点缀。余烬表面始终承载墨色文字（暗色模式），
+   * 亮色模式使用深余烬 + 暖白文字。单一强调色，全局锁定。
+   */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --background: 33 26% 97%;
+    --foreground: 20 16% 13%;
+    --card: 33 30% 99%;
+    --card-foreground: 20 16% 13%;
+    --popover: 33 26% 98%;
+    --popover-foreground: 20 16% 13%;
+    --primary: 24 82% 40%;
+    --primary-foreground: 30 30% 98%;
+    --secondary: 30 16% 92%;
+    --secondary-foreground: 20 14% 20%;
+    --muted: 30 16% 92%;
+    --muted-foreground: 24 8% 44%;
+    --accent: 28 45% 92%;
+    --accent-foreground: 22 35% 24%;
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
-    --sidebar: 240 4.8% 97%;
-    --sidebar-foreground: 240 10% 3.9%;
-    --sidebar-accent: 240 4.8% 92%;
+    --border: 30 13% 87%;
+    --input: 30 13% 82%;
+    --ring: 24 82% 40%;
+    --radius: 0.625rem;
+    --sidebar: 30 20% 94%;
+    --sidebar-foreground: 20 12% 30%;
+    --sidebar-accent: 28 26% 88%;
+    --sidebar-border: 30 15% 87%;
+
+    /* 扩展令牌 */
+    --surface-raised: 33 30% 99%;
+    --surface-overlay: 33 26% 98%;
+    --ember-glow: 24 82% 40%;
+    --shadow-tint: 30 20% 60%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 5.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 20 14% 7%;
+    --foreground: 32 22% 92%;
+    --card: 20 13% 9.5%;
+    --card-foreground: 32 22% 92%;
+    --popover: 20 14% 8.5%;
+    --popover-foreground: 32 22% 92%;
+    --primary: 27 88% 60%;
+    --primary-foreground: 24 30% 9%;
+    --secondary: 20 11% 14%;
+    --secondary-foreground: 32 18% 88%;
+    --muted: 20 11% 14%;
+    --muted-foreground: 26 9% 56%;
+    --accent: 24 32% 15%;
+    --accent-foreground: 30 45% 90%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --sidebar: 240 10% 5.9%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-accent: 240 3.7% 12.9%;
+    --border: 20 11% 15%;
+    --input: 20 11% 18%;
+    --ring: 27 88% 60%;
+    --sidebar: 20 15% 5.5%;
+    --sidebar-foreground: 30 15% 85%;
+    --sidebar-accent: 22 20% 12%;
+    --sidebar-border: 20 12% 12%;
+
+    /* 扩展令牌 */
+    --surface-raised: 20 13% 11%;
+    --surface-overlay: 20 14% 9%;
+    --ember-glow: 27 88% 60%;
+    --shadow-tint: 20 30% 3%;
   }
 }
 
@@ -59,9 +78,71 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+  }
+  /* 展示型标题使用 Space Grotesk */
+  h1, h2, h3 {
+    @apply font-heading;
+  }
+}
+
+@layer utilities {
+  /*
+   * 环境背景：细点阵 + 顶部余烬微光。
+   * 为主内容区提供「工坊」氛围，而非一片死寂的纯色。
+   */
+  .app-ambient {
+    background-image:
+      radial-gradient(
+        ellipse 80% 50% at 50% -10%,
+        hsl(var(--ember-glow) / 0.06),
+        transparent 60%
+      ),
+      radial-gradient(
+        hsl(var(--foreground) / 0.045) 1px,
+        transparent 1px
+      );
+    background-size: 100% 100%, 22px 22px;
+  }
+  .dark .app-ambient {
+    background-image:
+      radial-gradient(
+        ellipse 80% 50% at 50% -10%,
+        hsl(var(--ember-glow) / 0.07),
+        transparent 60%
+      ),
+      radial-gradient(
+        hsl(var(--foreground) / 0.05) 1px,
+        transparent 1px
+      );
+    background-size: 100% 100%, 22px 22px;
+  }
+
+  /* 面板质感：抬升表面 + 色调化阴影 + 顶部高光线 */
+  .panel-raised {
+    @apply rounded-lg border bg-card;
+    box-shadow:
+      0 1px 0 0 hsl(var(--foreground) / 0.04) inset,
+      0 1px 2px 0 hsl(var(--shadow-tint) / 0.06),
+      0 4px 12px -2px hsl(var(--shadow-tint) / 0.08);
+  }
+
+  /* 余烬辉光（用于品牌标识、焦点强调） */
+  .ember-glow {
+    box-shadow: 0 0 0 1px hsl(var(--ember-glow) / 0.25),
+      0 2px 12px -2px hsl(var(--ember-glow) / 0.4);
+  }
+
+  /* kbd 键帽样式 */
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground;
+    box-shadow: 0 1px 0 0 hsl(var(--shadow-tint) / 0.15);
   }
 }
 
@@ -76,11 +157,14 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/30 rounded-full;
+  @apply bg-muted-foreground/25 rounded-full;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/50;
+  @apply bg-muted-foreground/45;
+  background-clip: padding-box;
 }
 
 /* Monaco editor container */
@@ -151,4 +235,15 @@
 
 .markdown-preview li.task-list-item input[type="checkbox"] {
   @apply mt-1 h-4 w-4 rounded border-border accent-primary;
+}
+
+/* 减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

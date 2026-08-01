@@ -1,4 +1,13 @@
 import { ComponentType, LazyExoticComponent } from 'react';
+import {
+  ArrowLeftRight,
+  Code2,
+  FileJson,
+  Sparkles,
+  Type,
+  Image,
+  Globe,
+} from 'lucide-react';
 
 /** 工具分类 */
 export type ToolCategory =
@@ -19,6 +28,17 @@ export const CATEGORY_NAMES: Record<ToolCategory, string> = {
   text: '文本工具',
   graphic: '图形工具',
   network: '网络工具',
+};
+
+/** 分类图标映射 */
+export const CATEGORY_ICONS: Record<ToolCategory, ComponentType<{ className?: string }>> = {
+  converter: ArrowLeftRight,
+  encoder: Code2,
+  formatter: FileJson,
+  generator: Sparkles,
+  text: Type,
+  graphic: Image,
+  network: Globe,
 };
 
 /** 工具定义接口 */
@@ -52,7 +72,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 /** 全局应用状态 */
 export interface AppState {
   theme: ThemeMode;
-  sidebarCollapsed: boolean;
+  activeCategory: ToolCategory | null;
   recentTools: string[];
   activeToolId: string | null;
 }

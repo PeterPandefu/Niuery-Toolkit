@@ -11,7 +11,11 @@
     "toSearch": "快速搜索。",
     "offlineMode": "离线模式",
     "recentTools": "最近使用",
-    "noResults": "未找到匹配的工具"
+    "noResults": "未找到匹配的工具",
+    "quickTools": "常用工具",
+    "allCategories": "全部分类",
+    "searchHint": "搜索 {{count}} 个工具",
+    "home": "首页"
   },
   "categories": {
     "converter": "转换器",

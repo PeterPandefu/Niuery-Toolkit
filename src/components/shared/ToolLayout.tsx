@@ -105,17 +105,17 @@ export function ToolLayout({
 
   return (
     <div className={cn('flex h-full flex-col', className)}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-end gap-1 border-b px-4 py-1">
+      {/* 工具栏 */}
+      <div className="flex items-center justify-end gap-1 border-b border-border/70 bg-background/50 px-4 py-1">
         {onSwap && (
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onSwap} title="交换输入输出">
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={onSwap} title="交换输入输出">
             <ArrowDownUp className="h-3.5 w-3.5" />
           </Button>
         )}
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground"
           onClick={() => setVertical(!vertical)}
           title={vertical ? '切换为水平布局' : '切换为垂直布局'}
         >
@@ -155,16 +155,19 @@ export function ToolLayout({
           }}
         >
           {dragOver && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-primary bg-primary/5">
-              <span className="text-sm text-primary font-medium">拖放文件或文本到此处</span>
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-primary bg-primary/8">
+              <span className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-tinted">拖放文件或文本到此处</span>
             </div>
           )}
-          <div className="flex items-center justify-between px-4 py-1.5">
-            <span className="text-xs font-medium text-muted-foreground">{inputTitle}</span>
-            <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5">
+            <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="h-[3px] w-[3px] rounded-full bg-primary/70" />
+              {inputTitle}
+            </span>
+            <div className="ml-auto flex items-center gap-1">
               {inputActions}
               {onClear && (
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClear} title="清空">
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onClear} title="清空">
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
@@ -173,31 +176,34 @@ export function ToolLayout({
           <div className="min-h-0 flex-1 px-4 pb-2">{input}</div>
         </div>
 
-        {/* Drag Handle */}
+        {/* 拖拽手柄 */}
         <div
           onMouseDown={handleDragStart}
           className={cn(
-            'group relative flex shrink-0 items-center justify-center transition-colors hover:bg-primary/20',
-            vertical ? 'h-1.5 w-full cursor-row-resize' : 'w-1.5 h-full cursor-col-resize'
+            'group relative flex shrink-0 items-center justify-center transition-colors hover:bg-primary/15',
+            vertical ? 'h-2 w-full cursor-row-resize' : 'w-2 h-full cursor-col-resize'
           )}
         >
           <div
             className={cn(
-              'rounded-full bg-muted-foreground/30 group-hover:bg-primary/50 transition-colors',
-              vertical ? 'h-0.5 w-8' : 'w-0.5 h-8'
+              'rounded-full bg-muted-foreground/25 transition-all duration-200 group-hover:bg-primary/60',
+              vertical ? 'h-0.5 w-10 group-hover:w-14' : 'w-0.5 h-10 group-hover:h-14'
             )}
           />
         </div>
 
-        {/* Output Panel */}
+        {/* 输出面板 */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-1.5">
-            <span className="text-xs font-medium text-muted-foreground">{outputTitle}</span>
-            <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5">
+            <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="h-[3px] w-[3px] rounded-full bg-primary/70" />
+              {outputTitle}
+            </span>
+            <div className="ml-auto flex items-center gap-1">
               {outputActions}
               {outputValue !== undefined && (
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy} title="复制输出 (Ctrl+Shift+C)">
-                  {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={handleCopy} title="复制输出 (Ctrl+Shift+C)">
+                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                 </Button>
               )}
             </div>

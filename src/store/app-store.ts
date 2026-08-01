@@ -1,15 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ThemeMode } from '@/types/tool';
+import { ThemeMode, ToolCategory } from '@/types/tool';
 
 interface AppStore {
   // 主题
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
 
-  // 侧边栏
-  sidebarCollapsed: boolean;
-  toggleSidebar: () => void;
+  // 当前展开的分类面板
+  activeCategory: ToolCategory | null;
+  setActiveCategory: (category: ToolCategory | null) => void;
 
   // 最近使用的工具
   recentTools: string[];
@@ -31,9 +31,9 @@ export const useAppStore = create<AppStore>()(
       theme: 'system',
       setTheme: (theme) => set({ theme }),
 
-      // 侧边栏
-      sidebarCollapsed: false,
-      toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      // 分类面板
+      activeCategory: null,
+      setActiveCategory: (category) => set({ activeCategory: category }),
 
       // 最近使用
       recentTools: [],
@@ -55,7 +55,6 @@ export const useAppStore = create<AppStore>()(
       name: 'niuery-toolkit-store',
       partialize: (state) => ({
         theme: state.theme,
-        sidebarCollapsed: state.sidebarCollapsed,
         recentTools: state.recentTools,
       }),
     }

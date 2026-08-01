@@ -5,7 +5,7 @@ describe('useAppStore', () => {
   beforeEach(() => {
     useAppStore.setState({
       theme: 'system',
-      sidebarCollapsed: false,
+      activeCategory: null,
       recentTools: [],
       activeToolId: null,
       searchOpen: false,
@@ -25,23 +25,6 @@ describe('useAppStore', () => {
     it('sets theme to light', () => {
       useAppStore.getState().setTheme('light');
       expect(useAppStore.getState().theme).toBe('light');
-    });
-  });
-
-  describe('toggleSidebar', () => {
-    it('defaults to expanded', () => {
-      expect(useAppStore.getState().sidebarCollapsed).toBe(false);
-    });
-
-    it('collapses on first toggle', () => {
-      useAppStore.getState().toggleSidebar();
-      expect(useAppStore.getState().sidebarCollapsed).toBe(true);
-    });
-
-    it('expands on second toggle', () => {
-      useAppStore.getState().toggleSidebar();
-      useAppStore.getState().toggleSidebar();
-      expect(useAppStore.getState().sidebarCollapsed).toBe(false);
     });
   });
 
@@ -106,6 +89,23 @@ describe('useAppStore', () => {
       useAppStore.getState().setSearchOpen(true);
       useAppStore.getState().setSearchOpen(false);
       expect(useAppStore.getState().searchOpen).toBe(false);
+    });
+  });
+
+  describe('setActiveCategory', () => {
+    it('defaults to null', () => {
+      expect(useAppStore.getState().activeCategory).toBeNull();
+    });
+
+    it('sets active category', () => {
+      useAppStore.getState().setActiveCategory('encoder');
+      expect(useAppStore.getState().activeCategory).toBe('encoder');
+    });
+
+    it('clears active category with null', () => {
+      useAppStore.getState().setActiveCategory('converter');
+      useAppStore.getState().setActiveCategory(null);
+      expect(useAppStore.getState().activeCategory).toBeNull();
     });
   });
 });
