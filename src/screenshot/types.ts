@@ -1,7 +1,10 @@
 /** 微信风格截图 - 类型定义 */
 
 /** 截图阶段 */
-export type ScreenshotPhase = 'idle' | 'selecting' | 'selected';
+export type ScreenshotPhase = 'idle' | 'drawing' | 'selecting' | 'selected';
+
+/** 选区模式：手绘 / 矩形框选 */
+export type SelectionMode = 'freehand' | 'rect';
 
 /** 标注工具类型 */
 export type ScreenshotTool =
@@ -70,3 +73,6 @@ export const MOSAIC_BLOCK_SIZE = 8;
 
 /** 最小有效选区尺寸 */
 export const MIN_SELECTION_SIZE = 8;
+
+/** 手绘模式最小有效轨迹点数（防止误触） */
+export const FREEHAND_MIN_POINTS = 5;

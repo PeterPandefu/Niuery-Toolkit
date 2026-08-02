@@ -55,25 +55,32 @@ pub async fn start_screenshot(app: AppHandle) -> Result<(), String> {
         *state.screen_data.lock().unwrap() = Some(base64_data);
     }
 
-    // 关闭已有截图窗口
+    // 关闭已有截图窗口，轮询等待标签释放
     if let Some(win) = app.get_webview_window("screenshot") {
         let _ = win.close();
+        // 轮询等待窗口完全销毁，最多等待 2 秒
+        for _ in 0..40 {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            if app.get_webview_window("screenshot").is_none() {
+                break;
+            }
+        }
     }
 
-    // 打开全屏透明截图窗口
+    // 打开透明截图窗口（先隐藏且不全屏，等前端渲染就绪后再全屏+显示）
+    // 注意：fullscreen + visible(false) 在 Windows 上组合使用会导致 show() 异常
     WebviewWindowBuilder::new(
         &app,
         "screenshot",
         WebviewUrl::App("index.html#/screenshot".into()),
     )
     .title("Screenshot")
-    .fullscreen(true)
     .transparent(true)
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(false)
-    .focused(true)
+    .visible(false)
     .build()
     .map_err(|e| format!("打开截图窗口失败: {e}"))?;
 
@@ -136,6 +143,19 @@ pub fn save_image_dialog(base64_data: String) -> Result<bool, String> {
 pub fn close_screenshot_window(app: AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("screenshot") {
         win.close().map_err(|e| format!("关闭窗口失败: {e}"))?;
+    }
+    Ok(())
+}
+
+/// 前端渲染就绪后全屏并显示截图窗口
+#[tauri::command]
+pub fn show_screenshot_window(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("screenshot") {
+        // 先设置全屏，再显示，最后聚焦
+        win.set_fullscreen(true)
+            .map_err(|e| format!("全屏失败: {e}"))?;
+        win.show().map_err(|e| format!("显示窗口失败: {e}"))?;
+        win.set_focus().map_err(|e| format!("聚焦窗口失败: {e}"))?;
     }
     Ok(())
 }

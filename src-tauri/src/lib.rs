@@ -98,6 +98,7 @@ pub fn run() {
             screenshot::copy_image_to_clipboard,
             screenshot::save_image_dialog,
             screenshot::close_screenshot_window,
+            screenshot::show_screenshot_window,
             clipboard::init_clipboard_history,
             clipboard::get_clipboard_history,
             clipboard::get_clipboard_image,
@@ -187,6 +188,10 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
+                // 只对主窗口应用关闭拦截逻辑，截图窗口等其他窗口允许正常关闭
+                if window.label() != "main" {
+                    return;
+                }
                 let app = window.app_handle();
                 let config = load_config(app);
 

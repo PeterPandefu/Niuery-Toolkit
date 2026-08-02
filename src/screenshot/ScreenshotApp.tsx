@@ -19,6 +19,21 @@ export default function ScreenshotApp() {
   useEffect(() => {
     let cancelled = false;
 
+    // 显示窗口的辅助函数（带重试）
+    const showWindow = () => {
+      const tryShow = (retries = 3) => {
+        invoke('show_screenshot_window').catch(() => {
+          if (retries > 0) setTimeout(() => tryShow(retries - 1), 100);
+        });
+      };
+      tryShow();
+    };
+
+    // 后备定时器：无论 async 流程如何，最多 2s 后强制显示窗口
+    const fallbackTimer = setTimeout(() => {
+      if (!cancelled) showWindow();
+    }, 2000);
+
     (async () => {
       try {
         const base64 = await invoke<string>('get_screen_capture');
@@ -33,10 +48,16 @@ export default function ScreenshotApp() {
         }
       } catch (e) {
         if (!cancelled) setError(String(e));
+      } finally {
+        clearTimeout(fallbackTimer);
+        if (!cancelled) showWindow();
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(fallbackTimer);
+    };
   }, []);
 
   if (error) {

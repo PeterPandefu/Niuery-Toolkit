@@ -6,11 +6,13 @@ import { AnnotationLayer } from './AnnotationLayer';
 import { EditToolbar } from './EditToolbar';
 import {
   type ScreenshotPhase,
+  type SelectionMode,
   type ScreenshotTool,
   type SelectionRect,
   type AnnotationItem,
   MIN_SELECTION_SIZE,
   MOSAIC_BLOCK_SIZE,
+  FREEHAND_MIN_POINTS,
 } from './types';
 
 interface ScreenshotOverlayProps {
@@ -21,7 +23,9 @@ interface ScreenshotOverlayProps {
 
 export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotOverlayProps) {
   const [phase, setPhase] = useState<ScreenshotPhase>('idle');
+  const [mode, setMode] = useState<SelectionMode>('freehand');
   const [selection, setSelection] = useState<SelectionRect | null>(null);
+  const [freehandPoints, setFreehandPoints] = useState<{ x: number; y: number }[]>([]);
   const [tool, setTool] = useState<ScreenshotTool>('arrow');
   const [color, setColor] = useState('#ff4444');
   const [strokeWidth, setStrokeWidth] = useState(4);
@@ -33,6 +37,7 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const selStart = useRef<{ x: number; y: number } | null>(null);
+  const isDrawing = useRef(false);
 
   // ── 裁剪选区图片（用于标注画布背景 & 马赛克取色）──────────
   const { croppedImage, croppedCanvas } = useMemo(() => {
@@ -134,7 +139,27 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
   const copyRef = useRef(handleCopy);
   copyRef.current = handleCopy;
 
-  // ── 初始框选（idle / selecting 阶段）──────────────────────
+  // ── 手绘确认：计算外接矩形 ────────────────────────────────
+  const confirmFreehand = useCallback(() => {
+    if (freehandPoints.length < FREEHAND_MIN_POINTS) return;
+    const xs = freehandPoints.map((p) => p.x);
+    const ys = freehandPoints.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+    const w = maxX - minX;
+    const h = maxY - minY;
+    if (w < MIN_SELECTION_SIZE && h < MIN_SELECTION_SIZE) return;
+    setSelection({ x: minX, y: minY, width: w, height: h });
+    setFreehandPoints([]);
+    setPhase('selected');
+  }, [freehandPoints]);
+
+  const confirmFreehandRef = useRef(confirmFreehand);
+  confirmFreehandRef.current = confirmFreehand;
+
+  // ── 初始框选 / 手绘（idle 阶段）──────────────────────────
   const handleBgMouseDown = useCallback(
     (e: React.MouseEvent) => {
       // 点击选区外部 → 重新框选
@@ -144,13 +169,41 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
         setRedoStack([]);
         setNumberCounter(1);
       }
-      selStart.current = { x: e.clientX, y: e.clientY };
-      setSelection({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
-      setPhase('selecting');
+
+      if (mode === 'freehand') {
+        // 手绘模式：开始绘制轨迹
+        isDrawing.current = true;
+        setFreehandPoints([{ x: e.clientX, y: e.clientY }]);
+        setPhase('drawing');
+      } else {
+        // 矩形模式
+        selStart.current = { x: e.clientX, y: e.clientY };
+        setSelection({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
+        setPhase('selecting');
+      }
     },
-    [phase],
+    [phase, mode],
   );
 
+  // ── 手绘模式事件（drawing 阶段）─────────────────────────
+  useEffect(() => {
+    if (phase !== 'drawing') return;
+    const onMove = (e: MouseEvent) => {
+      if (!isDrawing.current) return;
+      setFreehandPoints((pts) => [...pts, { x: e.clientX, y: e.clientY }]);
+    };
+    const onUp = () => {
+      isDrawing.current = false;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [phase]);
+
+  // ── 矩形模式事件（selecting 阶段）─────────────────────────
   useEffect(() => {
     if (phase !== 'selecting') return;
     const onMove = (e: MouseEvent) => {
@@ -191,14 +244,35 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'TEXTAREA' || tag === 'INPUT') return;
 
-      if (e.key === 'Escape') { invoke('close_screenshot_window'); return; }
+      if (e.key === 'Escape') {
+        if (phase === 'drawing') {
+          // 手绘阶段：清空轨迹回到 idle
+          setFreehandPoints([]);
+          isDrawing.current = false;
+          setPhase('idle');
+        } else {
+          invoke('close_screenshot_window');
+        }
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         if (e.shiftKey) { redo(); } else { undo(); }
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); return; }
-      if (e.key === 'Enter' && phase === 'selected') { e.preventDefault(); copyRef.current(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (phase === 'drawing') { confirmFreehandRef.current(); }
+        else if (phase === 'selected') { copyRef.current(); }
+        return;
+      }
+      // M 键切换模式（仅 idle 阶段）
+      if ((e.key === 'm' || e.key === 'M') && phase === 'idle') {
+        e.preventDefault();
+        setMode((m) => (m === 'freehand' ? 'rect' : 'freehand'));
+        setFreehandPoints([]);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -228,6 +302,24 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
         draggable={false}
         alt=""
       />
+
+      {/* 手绘轨迹渲染 */}
+      {phase === 'drawing' && freehandPoints.length > 1 && (
+        <svg
+          className="pointer-events-none fixed inset-0 z-30"
+          width={screenW}
+          height={screenH}
+        >
+          <polyline
+            points={freehandPoints.map((p) => `${p.x},${p.y}`).join(' ')}
+            fill="none"
+            stroke="#4488ff"
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
 
       {/* 框选中的临时遮罩 */}
       {phase === 'selecting' && selection && (
@@ -302,11 +394,22 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
         </>
       )}
 
-      {/* 空闲提示 */}
+      {/* 空闲 / 手绘提示 */}
       {phase === 'idle' && (
         <div className="pointer-events-none fixed inset-x-0 top-10 z-10 flex justify-center">
           <span className="rounded-full bg-black/65 px-5 py-2 text-sm text-white/90 select-none">
-            拖动鼠标框选截图区域&ensp;·&ensp;Esc 取消
+            {mode === 'freehand'
+              ? '按住鼠标绘制截图区域\u2002·\u2002Enter 确认\u2002·\u2002M 切换矩形\u2002·\u2002Esc 取消'
+              : '拖动鼠标框选截图区域\u2002·\u2002M 切换手绘\u2002·\u2002Esc 取消'}
+          </span>
+        </div>
+      )}
+
+      {/* 手绘中提示 */}
+      {phase === 'drawing' && (
+        <div className="pointer-events-none fixed inset-x-0 top-10 z-10 flex justify-center">
+          <span className="rounded-full bg-black/65 px-5 py-2 text-sm text-white/90 select-none">
+            松开结束笔画\u2002·\u2002Enter 确认选区\u2002·\u2002Esc 重画
           </span>
         </div>
       )}
