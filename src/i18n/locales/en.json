@@ -55,7 +55,8 @@
     "generator": "Generators",
     "text": "Text Tools",
     "graphic": "Graphic Tools",
-    "network": "Network Tools"
+    "network": "Network Tools",
+    "system": "System Tools"
   },
   "tools": {
     "json-yaml": "JSON ↔ YAML",
@@ -94,7 +95,8 @@
     "screenshot-editor": "Screenshot",
     "screen-recorder": "Screen Recorder",
     "socket-tool": "Socket Debugger",
-    "api-tester": "API Tester"
+    "api-tester": "API Tester",
+    "system-monitor": "System Monitor"
   },
   "actions": {
     "copy": "Copy",

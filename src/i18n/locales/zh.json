@@ -55,7 +55,8 @@
     "generator": "生成器",
     "text": "文本工具",
     "graphic": "图形工具",
-    "network": "网络工具"
+    "network": "网络工具",
+    "system": "系统工具"
   },
   "tools": {
     "json-yaml": "JSON ↔ YAML",
@@ -94,7 +95,8 @@
     "screenshot-editor": "截图",
     "screen-recorder": "屏幕录制",
     "socket-tool": "Socket 调试",
-    "api-tester": "接口测试"
+    "api-tester": "接口测试",
+    "system-monitor": "系统监控"
   },
   "actions": {
     "copy": "复制",

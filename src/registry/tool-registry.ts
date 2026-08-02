@@ -31,6 +31,7 @@ import {
   Type,
   Video,
   Wind,
+  Activity,
 } from 'lucide-react';
 
 // 工具注册表
@@ -418,6 +419,16 @@ registerTool({
   component: lazy(() => import('@/tools/graphic/screen-recorder')),
   keywords: ['screen', 'record', 'video', 'gif', '录屏', '录制', '窗口录制', '动图'],
   description: '区域、窗口与显示器录制，并支持 GIF 编辑导出',
+});
+
+registerTool({
+  id: 'system-monitor',
+  name: '系统监控',
+  icon: Activity,
+  category: 'system',
+  component: lazy(() => import('@/tools/system/system-monitor')),
+  keywords: ['system', 'monitor', 'cpu', 'memory', 'ram', 'network', '系统', '监控', '内存', '网络'],
+  description: '实时查看 CPU、内存和网络资源使用情况',
 });
 
 // === 网络工具 ===

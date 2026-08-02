@@ -7,14 +7,14 @@ import {
 } from '@/registry/tool-registry';
 
 describe('Tool Registry', () => {
-  it('registers all 37 tools', () => {
+  it('registers all 38 tools', () => {
     const tools = getAllTools();
-    expect(tools.length).toBe(37);
+    expect(tools.length).toBe(38);
   });
 
-  it('has 7 categories', () => {
+  it('has 8 categories', () => {
     const categories = getAvailableCategories();
-    expect(categories.length).toBe(7);
+    expect(categories.length).toBe(8);
     expect(categories).toContain('converter');
     expect(categories).toContain('encoder');
     expect(categories).toContain('formatter');
@@ -22,6 +22,7 @@ describe('Tool Registry', () => {
     expect(categories).toContain('text');
     expect(categories).toContain('graphic');
     expect(categories).toContain('network');
+    expect(categories).toContain('system');
   });
 
   it('has 7 converters', () => {
@@ -50,6 +51,10 @@ describe('Tool Registry', () => {
 
   it('has 2 network tools', () => {
     expect(getToolsByCategory('network').length).toBe(2);
+  });
+
+  it('has a system monitor', () => {
+    expect(getToolsByCategory('system').map((tool) => tool.id)).toEqual(['system-monitor']);
   });
 
   it('retrieves tool by id', () => {

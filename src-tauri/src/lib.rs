@@ -2,12 +2,14 @@ mod clipboard;
 mod hotkey;
 pub mod recorder;
 mod screenshot;
+mod system_monitor;
 mod ws_server;
 
 use clipboard::ClipboardHistoryState;
 use hotkey::{HotkeyState, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW};
-use screenshot::ScreenshotState;
 use recorder::RecorderState;
+use screenshot::ScreenshotState;
+use system_monitor::SystemMonitorState;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
@@ -106,6 +108,7 @@ pub fn run() {
         .manage(ScreenshotState::default())
         .manage(RecorderState::default())
         .manage(ClipboardHistoryState::default())
+        .manage(SystemMonitorState::default())
         .manage(HotkeyState::default())
         .invoke_handler(tauri::generate_handler![
             ws_server::start_ws_server,
@@ -138,6 +141,7 @@ pub fn run() {
             hotkey::update_hotkey,
             hotkey::get_hotkeys,
             hotkey::reset_hotkeys,
+            system_monitor::get_system_stats,
         ])
         .setup(move |app| {
             // 初始化剪贴板历史

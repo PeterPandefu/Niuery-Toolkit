@@ -17,7 +17,8 @@ export type ToolCategory =
   | 'generator'
   | 'text'
   | 'graphic'
-  | 'network';
+  | 'network'
+  | 'system';
 
 /** 分类显示名称映射 */
 export const CATEGORY_NAMES: Record<ToolCategory, string> = {
@@ -28,6 +29,7 @@ export const CATEGORY_NAMES: Record<ToolCategory, string> = {
   text: '文本工具',
   graphic: '图形工具',
   network: '网络工具',
+  system: '系统工具',
 };
 
 /** 分类图标映射 */
@@ -39,6 +41,7 @@ export const CATEGORY_ICONS: Record<ToolCategory, ComponentType<{ className?: st
   text: Type,
   graphic: Image,
   network: Globe,
+  system: Globe,
 };
 
 /** 工具定义接口 */

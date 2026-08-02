@@ -129,6 +129,18 @@ test.describe('Text Diff 工具', () => {
   });
 });
 
+test.describe('系统监控', () => {
+  test('可以从系统工具分类打开监控面板', async ({ page }) => {
+    await waitForAppReady(page);
+    await expandCategory(page, 'System Tools');
+    await page.getByRole('list').getByText('System Monitor').click();
+
+    await expect(page.getByText('系统监控')).toBeVisible();
+    await expect(page.getByText(/CPU Usage|CPU 使用率/)).toBeVisible();
+    await expect(page.getByText(/Memory|内存/).first()).toBeVisible();
+  });
+});
+
 test.describe('快捷键', () => {
   test('Ctrl+K 打开搜索', async ({ page }) => {
     await waitForAppReady(page);

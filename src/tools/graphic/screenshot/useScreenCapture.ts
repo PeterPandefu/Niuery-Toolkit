@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 /**
@@ -7,6 +7,9 @@ import { toast } from 'sonner';
  */
 export function useScreenCapture() {
   const [capturing, setCapturing] = useState(false);
+  const [longCapturing, setLongCapturing] = useState(false);
+  const longStreamRef = useRef<MediaStream | null>(null);
+  const longVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const isSupported = typeof navigator !== 'undefined' &&
     !!navigator.mediaDevices &&
@@ -77,5 +80,62 @@ export function useScreenCapture() {
     }
   }, [isSupported]);
 
-  return { capture, capturing, isSupported };
+  const stopLongCapture = useCallback(() => {
+    longStreamRef.current?.getTracks().forEach((track) => track.stop());
+    longStreamRef.current = null;
+    if (longVideoRef.current) {
+      longVideoRef.current.pause();
+      longVideoRef.current.srcObject = null;
+    }
+    longVideoRef.current = null;
+    setLongCapturing(false);
+  }, []);
+
+  useEffect(() => stopLongCapture, [stopLongCapture]);
+
+  const startLongCapture = useCallback(async () => {
+    if (!isSupported) {
+      toast.error('当前环境不支持屏幕捕获');
+      return false;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      await video.play();
+      longStreamRef.current = stream;
+      longVideoRef.current = video;
+      stream.getVideoTracks()[0]?.addEventListener('ended', stopLongCapture, { once: true });
+      setLongCapturing(true);
+      return true;
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === 'NotAllowedError')) toast.error('长截图启动失败');
+      return false;
+    }
+  }, [isSupported, stopLongCapture]);
+
+  const captureLongFrame = useCallback(async (): Promise<HTMLImageElement | null> => {
+    const video = longVideoRef.current;
+    if (!video || !longStreamRef.current) return null;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const settings = longStreamRef.current.getVideoTracks()[0]?.getSettings();
+    const width = settings?.width || video.videoWidth || 1920;
+    const height = settings?.height || video.videoHeight || 1080;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d')?.drawImage(video, 0, 0, width, height);
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('图片解码失败'));
+      image.src = canvas.toDataURL('image/png');
+    });
+    return image;
+  }, []);
+
+  return { capture, capturing, isSupported, longCapturing, startLongCapture, captureLongFrame, stopLongCapture };
 }
