@@ -56,3 +56,4 @@ coverage/
 
 # Verification screenshots (dev artifacts)
 /*.png
+tmp_review_diff.txt
