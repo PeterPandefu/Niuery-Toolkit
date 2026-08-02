@@ -116,6 +116,7 @@
     "title": "截图",
     "subtitle": "捕获屏幕或导入图片，进行标注编辑",
     "capture": "屏幕截图",
+    "hotkey": "快捷键",
     "paste": "粘贴 (Ctrl+V)",
     "upload": "上传图片",
     "dragHint": "支持拖拽图片文件到此处",

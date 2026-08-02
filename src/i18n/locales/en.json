@@ -116,6 +116,7 @@
     "title": "Screenshot",
     "subtitle": "Capture screen or import image, annotate and edit",
     "capture": "Screen Capture",
+    "hotkey": "Shortcut",
     "paste": "Paste (Ctrl+V)",
     "upload": "Upload Image",
     "dragHint": "Drag and drop image files here",

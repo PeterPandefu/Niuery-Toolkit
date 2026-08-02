@@ -23,9 +23,10 @@ interface ScreenshotOverlayProps {
 
 export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotOverlayProps) {
   const [phase, setPhase] = useState<ScreenshotPhase>('idle');
-  const [mode, setMode] = useState<SelectionMode>('freehand');
+  const [mode, setMode] = useState<SelectionMode>('rect');
   const [selection, setSelection] = useState<SelectionRect | null>(null);
   const [freehandPoints, setFreehandPoints] = useState<{ x: number; y: number }[]>([]);
+  const [freehandSelection, setFreehandSelection] = useState<{ x: number; y: number }[]>([]);
   const [tool, setTool] = useState<ScreenshotTool>('arrow');
   const [color, setColor] = useState('#ff4444');
   const [strokeWidth, setStrokeWidth] = useState(4);
@@ -46,16 +47,29 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
     c.width = Math.round(selection.width);
     c.height = Math.round(selection.height);
     const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, selection.width, selection.height);
+    if (freehandSelection.length) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(freehandSelection[0].x - selection.x, freehandSelection[0].y - selection.y);
+      freehandSelection.slice(1).forEach((point) => {
+        ctx.lineTo(point.x - selection.x, point.y - selection.y);
+      });
+      ctx.closePath();
+      ctx.clip();
+    }
     ctx.drawImage(
       screenImage,
       selection.x, selection.y, selection.width, selection.height,
       0, 0, selection.width, selection.height,
     );
+    if (freehandSelection.length) ctx.restore();
     // canvas 立即可用于 getImageData（同步）
     const img = new Image();
     img.src = c.toDataURL('image/png');
     return { croppedImage: img, croppedCanvas: c };
-  }, [screenImage, selection]);
+  }, [freehandSelection, screenImage, selection]);
 
   // ── 标注变更（带历史记录）──────────────────────────────────
   const handleAnnotationsChange = useCallback(
@@ -152,6 +166,7 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
     const h = maxY - minY;
     if (w < MIN_SELECTION_SIZE && h < MIN_SELECTION_SIZE) return;
     setSelection({ x: minX, y: minY, width: w, height: h });
+    setFreehandSelection(freehandPoints);
     setFreehandPoints([]);
     setPhase('selected');
   }, [freehandPoints]);
@@ -168,9 +183,11 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
         setHistory([]);
         setRedoStack([]);
         setNumberCounter(1);
+        setFreehandSelection([]);
       }
 
       if (mode === 'freehand') {
+        setFreehandSelection([]);
         // 手绘模式：开始绘制轨迹
         isDrawing.current = true;
         setFreehandPoints([{ x: e.clientX, y: e.clientY }]);
@@ -288,6 +305,11 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
     return { x: tx, y: ty };
   }, [selection, screenW, screenH]);
 
+  const handleSelectionChange = useCallback((nextSelection: SelectionRect) => {
+    setSelection(nextSelection);
+    setFreehandSelection([]);
+  }, []);
+
   return (
     <div
       className="fixed inset-0 overflow-hidden"
@@ -344,7 +366,7 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
             selection={selection}
             screenW={screenW}
             screenH={screenH}
-            onSelectionChange={setSelection}
+            onSelectionChange={handleSelectionChange}
             onDoubleClick={handleCopy}
           />
 

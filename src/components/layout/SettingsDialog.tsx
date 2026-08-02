@@ -5,6 +5,7 @@ import { getAvailableCategories, getToolsByCategory } from '@/registry/tool-regi
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useAppStore } from '@/store/app-store';
 import { isTauri } from '@/lib/api-client';
+import { emitHotkeysChanged } from '@/lib/hotkeys';
 import { CATEGORY_ICONS } from '@/types/tool';
 import { Pin, Power, Search, X, Zap, Keyboard, RotateCcw } from 'lucide-react';
 
@@ -189,6 +190,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           invoke('update_hotkey', { action, shortcut })
             .then(() => {
               setHotkeys((prev) => ({ ...prev, [action]: shortcut }));
+              emitHotkeysChanged({ [action]: shortcut });
             })
             .catch((err: string) => {
               setHotkeyError(err);
@@ -205,8 +207,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const handleResetHotkeys = useCallback(() => {
     if (isTauri) {
       import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke<Record<string, string>>('reset_hotkeys')
-          .then((defaults) => setHotkeys(defaults))
+        invoke('reset_hotkeys')
+          .then(() => invoke<Record<string, string>>('get_hotkeys'))
+          .then((hotkeys) => {
+            setHotkeys(hotkeys);
+            emitHotkeysChanged(hotkeys);
+          })
           .catch(() => {});
       });
     }

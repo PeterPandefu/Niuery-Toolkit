@@ -1,16 +1,20 @@
 use base64::Engine;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// 截图状态：保存最近一次全屏截图的 base64 PNG 数据
 pub struct ScreenshotState {
     pub screen_data: Mutex<Option<String>>,
+    /// 防止并发调用 start_screenshot 导致竞态卡死
+    pub in_progress: AtomicBool,
 }
 
 impl Default for ScreenshotState {
     fn default() -> Self {
         Self {
             screen_data: Mutex::new(None),
+            in_progress: AtomicBool::new(false),
         }
     }
 }
@@ -18,6 +22,20 @@ impl Default for ScreenshotState {
 /// 捕获全屏并打开截图窗口（异步，避免阻塞主线程）
 #[tauri::command]
 pub async fn start_screenshot(app: AppHandle) -> Result<(), String> {
+    // 防重入：如果已有截图流程正在执行，直接返回，避免并发竞态导致卡死
+    let state = app.state::<ScreenshotState>();
+    if state.in_progress.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {
+        return Ok(());
+    }
+
+    // 确保无论成功还是失败，最终都释放标志
+    let result = do_start_screenshot(app.clone()).await;
+    let state = app.state::<ScreenshotState>();
+    state.in_progress.store(false, Ordering::Release);
+    result
+}
+
+async fn do_start_screenshot(app: AppHandle) -> Result<(), String> {
     // 在后台线程执行耗时的截屏 + 编码操作，避免阻塞 Tauri 事件循环
     let base64_data = tauri::async_runtime::spawn_blocking(move || {
         let monitors = xcap::Monitor::all().map_err(|e| format!("获取显示器失败: {e}"))?;

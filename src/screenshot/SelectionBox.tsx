@@ -135,6 +135,7 @@ export function SelectionBox({
   
       {/* 选区過罩（纯视觉，不拦截鼠标事件） */}
       <div
+        data-testid="selection-outside-mask"
         className="pointer-events-none fixed z-10"
         style={{
           left: x,

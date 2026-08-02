@@ -2,6 +2,12 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
+import {
+  DEFAULT_SCREENSHOT_HOTKEY,
+  getScreenshotHotkey,
+  HOTKEYS_CHANGED_EVENT,
+  type HotkeyBindings,
+} from '@/lib/hotkeys';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -36,7 +42,10 @@ import {
 
 function ScreenshotEditorInner() {
   const { t } = useTranslation();
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [screenshotHotkey, setScreenshotHotkey] = useState(DEFAULT_SCREENSHOT_HOTKEY);
+  const hasReceivedHotkeyUpdate = useRef(false);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [tool, setTool] = useState<ToolType>('select');
   const [settings, setSettings] = useState<ToolSettings>(DEFAULT_TOOL_SETTINGS);
@@ -55,6 +64,32 @@ function ScreenshotEditorInner() {
   const { capture, capturing } = useScreenCapture();
   const { undo, redo, clear } = useHistory();
   const { exportImage, copyToClipboard } = useExport({ stageRef, canvasSize });
+
+  useEffect(() => {
+    if (!isTauri) return;
+    let cancelled = false;
+    const handleHotkeysChanged = (event: Event) => {
+      const { screenshot } = (event as CustomEvent<HotkeyBindings>).detail;
+      if (screenshot) {
+        hasReceivedHotkeyUpdate.current = true;
+        setScreenshotHotkey(screenshot);
+      }
+    };
+
+    window.addEventListener(HOTKEYS_CHANGED_EVENT, handleHotkeysChanged);
+    invoke<HotkeyBindings>('get_hotkeys')
+      .then((hotkeys) => {
+        if (!cancelled && !hasReceivedHotkeyUpdate.current) {
+          setScreenshotHotkey(getScreenshotHotkey(hotkeys));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(HOTKEYS_CHANGED_EVENT, handleHotkeysChanged);
+    };
+  }, [isTauri]);
 
   // 加载图片到画布
   const loadImage = useCallback(
@@ -141,7 +176,6 @@ function ScreenshotEditorInner() {
   }, []);
 
   // 微信风格截图（Tauri 桌面端）
-  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   const handleWechatScreenshot = useCallback(async () => {
     try {
       await invoke('start_screenshot');
@@ -350,22 +384,18 @@ function ScreenshotEditorInner() {
         />
         <div className="text-center">
           <h2 className="text-lg font-semibold text-foreground">{t('screenshotEditor.title')}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('screenshotEditor.subtitle')}
-          </p>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-4">
           {isTauri && (
             <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleWechatScreenshot}>
               <Camera className="h-8 w-8" />
-              <span className="text-xs">截图</span>
-              <span className="text-[10px] text-muted-foreground">Ctrl+Alt+A</span>
+              <span className="text-xs">{t('screenshotEditor.capture')}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {t('screenshotEditor.hotkey')}: <kbd>{screenshotHotkey}</kbd>
+              </span>
             </Button>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {t('screenshotEditor.dragHint')}
-        </p>
       </div>
     );
   }

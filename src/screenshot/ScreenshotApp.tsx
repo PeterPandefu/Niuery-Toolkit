@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ScreenshotOverlay } from './ScreenshotOverlay';
 
@@ -15,24 +15,33 @@ interface ScreenData {
 export default function ScreenshotApp() {
   const [screen, setScreen] = useState<ScreenData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const hasShownWindow = useRef(false);
+
+  useEffect(() => {
+    if ((!screen && !error) || hasShownWindow.current) return;
+    hasShownWindow.current = true;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const tryShow = (retries = 3) => {
+      invoke('show_screenshot_window').catch(() => {
+        if (cancelled || retries === 0) return;
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (!cancelled) tryShow(retries - 1);
+        }, 100);
+      });
+    };
+    tryShow();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) clearTimeout(retryTimer);
+    };
+  }, [error, screen]);
 
   useEffect(() => {
     let cancelled = false;
-
-    // 显示窗口的辅助函数（带重试）
-    const showWindow = () => {
-      const tryShow = (retries = 3) => {
-        invoke('show_screenshot_window').catch(() => {
-          if (retries > 0) setTimeout(() => tryShow(retries - 1), 100);
-        });
-      };
-      tryShow();
-    };
-
-    // 后备定时器：无论 async 流程如何，最多 2s 后强制显示窗口
-    const fallbackTimer = setTimeout(() => {
-      if (!cancelled) showWindow();
-    }, 2000);
 
     (async () => {
       try {
@@ -48,15 +57,11 @@ export default function ScreenshotApp() {
         }
       } catch (e) {
         if (!cancelled) setError(String(e));
-      } finally {
-        clearTimeout(fallbackTimer);
-        if (!cancelled) showWindow();
       }
     })();
 
     return () => {
       cancelled = true;
-      clearTimeout(fallbackTimer);
     };
   }, []);
 
