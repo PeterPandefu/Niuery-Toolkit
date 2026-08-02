@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef } from 'react';
+import { Suspense, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import {
@@ -8,13 +8,15 @@ import {
   getToolsByCategory,
 } from '@/registry/tool-registry';
 import { useAppStore } from '@/store/app-store';
+import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useTheme } from '@/hooks/use-theme';
 import { Button } from '@/components/ui/button';
 import { BrandMark } from '@/components/shared/BrandMark';
-import { Search, Moon, Sun, Monitor, Loader2, Languages, Sparkles } from 'lucide-react';
+import { Search, Moon, Sun, Monitor, Loader2, Languages, Sparkles, Power, Pin, Settings, Zap } from 'lucide-react';
 
 interface ToolPanelProps {
   toolId: string | null;
+  onOpenSettings: () => void;
 }
 
 function ToolLoader() {
@@ -34,9 +36,17 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setActiveCategory = useAppStore((s) => s.setActiveCategory);
   const recentTools = useAppStore((s) => s.recentTools);
+  const pinnedTools = useAppStore((s) => s.pinnedTools);
 
   const allTools = useMemo(() => getAllTools(), []);
   const categories = useMemo(() => getAvailableCategories(), []);
+
+  // 快捷栏：用户固定的工具
+  const pinnedToolDefs = useMemo(() => {
+    return pinnedTools
+      .map((id) => allTools.find((tool) => tool.id === id))
+      .filter(Boolean) as NonNullable<ReturnType<typeof getToolById>>[];
+  }, [pinnedTools, allTools]);
 
   // 快速访问：优先最近使用，否则展示一组常用工具
   const quickTools = useMemo(() => {
@@ -94,8 +104,38 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
           </button>
         </div>
 
+        {/* 快捷栏：用户固定的工具 */}
+        {pinnedToolDefs.length > 0 && (
+          <section className="mt-9">
+            <div className="mb-3 flex items-center gap-2">
+              <Zap className="h-3.5 w-3.5 text-amber-500" />
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {t('app.pinnedBar')}
+              </h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {pinnedToolDefs.map((tool, i) => {
+                const Icon = tool.icon;
+                return (
+                  <button
+                    key={tool.id}
+                    onClick={() => onSelectTool(tool.id)}
+                    className="animate-rise-in group flex items-center gap-2 rounded-lg border border-border bg-card/80 px-3 py-2 text-[13px] font-medium text-foreground shadow-tinted-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400/50 hover:shadow-tinted active:translate-y-0 active:scale-[0.97]"
+                    style={{ animationDelay: `${40 + i * 35}ms` }}
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10 transition-colors duration-200 group-hover:bg-amber-500/20">
+                      <Icon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    </span>
+                    {t(`tools.${tool.id}`, tool.name)}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* 快速访问网格 */}
-        <section className="mt-11">
+        <section className="mt-9">
           <div className="mb-3 flex items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -155,19 +195,110 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
   );
 }
 
-export function ToolPanel({ toolId }: ToolPanelProps) {
+/** 工具已停止时的占位屏 */
+function ToolStoppedScreen({ toolId }: { toolId: string }) {
+  const { t } = useTranslation();
+  const startTool = useToolLifecycleStore((s) => s.startTool);
+  const toolDef = getToolById(toolId);
+  if (!toolDef) return null;
+  const Icon = toolDef.icon;
+
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="animate-rise-in flex flex-col items-center gap-4 text-center">
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border/60 bg-muted/40">
+          <Icon className="h-6 w-6 text-muted-foreground/60" />
+        </span>
+        <div>
+          <p className="text-sm font-medium text-foreground">
+            {t(`tools.${toolDef.id}`, toolDef.name)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('app.toolStoppedDesc')}</p>
+        </div>
+        <button
+          onClick={() => startTool(toolId)}
+          className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-[13px] font-medium text-emerald-600 transition-all duration-200 hover:bg-emerald-500/20 hover:shadow-tinted-sm active:scale-[0.97] dark:text-emerald-400"
+        >
+          <Power className="h-3.5 w-3.5" />
+          {t('app.startTool')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** 工具运行开关 —— 类似 uTools 的进程开关 */
+function ToolPowerSwitch({ toolId }: { toolId: string }) {
+  const { t } = useTranslation();
+  const activeTools = useToolLifecycleStore((s) => s.activeTools);
+  const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
+  const toggleTool = useToolLifecycleStore((s) => s.toggleTool);
+  const setActiveTool = useAppStore((s) => s.setActiveTool);
+
+  const isActive = activeTools.includes(toolId);
+  const isAlwaysOn = alwaysOnTools.includes(toolId);
+
+  const handleToggle = () => {
+    if (isAlwaysOn) return;
+    if (isActive) {
+      // 关闭当前工具：切换到下一个活跃工具或回到欢迎页
+      toggleTool(toolId);
+      const remaining = useToolLifecycleStore.getState().activeTools;
+      setActiveTool(remaining.length > 0 ? remaining[remaining.length - 1] : null);
+    } else {
+      toggleTool(toolId);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleToggle}
+      disabled={isAlwaysOn}
+      title={
+        isAlwaysOn
+          ? t('app.toolAlwaysOn')
+          : isActive
+            ? t('app.stopTool')
+            : t('app.startTool')
+      }
+      className={cn(
+        'group relative flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-200',
+        isAlwaysOn
+          ? 'cursor-default border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+          : isActive
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-500 dark:text-emerald-400 dark:hover:text-red-400'
+            : 'border-border bg-muted/50 text-muted-foreground hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400'
+      )}
+    >
+      {isAlwaysOn ? (
+        <Pin className="h-3 w-3" />
+      ) : (
+        <Power className={cn('h-3 w-3 transition-transform duration-200', !isActive && 'group-hover:scale-110')} />
+      )}
+      <span className="hidden sm:inline">
+        {isAlwaysOn ? t('app.alwaysOn') : isActive ? t('app.toolRunning') : t('app.toolStopped')}
+      </span>
+      {/* 运行状态呼吸灯 */}
+      {isActive && !isAlwaysOn && (
+        <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-glow-pulse" />
+      )}
+    </button>
+  );
+}
+
+export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setActiveTool = useAppStore((s) => s.setActiveTool);
   const addRecentTool = useAppStore((s) => s.addRecentTool);
+  // 生命周期：仅渲染运行中的工具组件
+  const activeTools = useToolLifecycleStore((s) => s.activeTools);
+  const startTool = useToolLifecycleStore((s) => s.startTool);
   const tool = toolId ? getToolById(toolId) : null;
-  // KeepAlive: 记录已访问过的工具，保持其组件挂载不丢失状态
-  const visitedToolsRef = useRef<Set<string>>(new Set());
-  if (toolId) visitedToolsRef.current.add(toolId);
-  const visitedTools = Array.from(visitedToolsRef.current);
 
   const handleSelectTool = (id: string) => {
+    startTool(id);
     setActiveTool(id);
     addRecentTool(id);
   };
@@ -201,6 +332,8 @@ export function ToolPanel({ toolId }: ToolPanelProps) {
               <span className="shrink-0 rounded-full border border-border/70 bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {t(`categories.${tool.category}`)}
               </span>
+              {/* 工具进程开关 */}
+              <ToolPowerSwitch toolId={tool.id} />
             </>
           ) : (
             <span className="text-[13px] text-muted-foreground">{t('app.noToolSelected')}</span>
@@ -234,15 +367,24 @@ export function ToolPanel({ toolId }: ToolPanelProps) {
           >
             <ThemeIcon className="h-4 w-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={onOpenSettings}
+            title={t('app.settings')}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
         </div>
       </header>
 
-      {/* 内容区 */}
+      {/* 内容区：仅渲染运行中的工具 */}
       <main className="flex-1 overflow-hidden">
-        {tool ? (
-          visitedTools.map((id) => {
-            const visited = getToolById(id);
-            if (!visited) return null;
+        {tool && activeTools.includes(tool.id) ? (
+          activeTools.map((id) => {
+            const activeToolDef = getToolById(id);
+            if (!activeToolDef) return null;
             const isActive = id === toolId;
             return (
               <div
@@ -251,11 +393,14 @@ export function ToolPanel({ toolId }: ToolPanelProps) {
                 aria-hidden={!isActive}
               >
                 <Suspense fallback={<ToolLoader />}>
-                  <visited.component />
+                  <activeToolDef.component />
                 </Suspense>
               </div>
             );
           })
+        ) : tool ? (
+          /* 工具存在但未启动：显示已停止占位 */
+          <ToolStoppedScreen toolId={tool.id} />
         ) : (
           <WelcomeScreen onSelectTool={handleSelectTool} />
         )}

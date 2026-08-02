@@ -1,6 +1,10 @@
+mod clipboard;
+mod hotkey;
 mod screenshot;
 mod ws_server;
 
+use clipboard::ClipboardHistoryState;
+use hotkey::{HotkeyState, ACTION_SCREENSHOT, ACTION_SHOW_WINDOW};
 use screenshot::ScreenshotState;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
@@ -8,7 +12,7 @@ use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::ShortcutState;
 use ws_server::WsServerState;
 
 /// 关闭行为配置
@@ -45,20 +49,33 @@ fn config_path(app: &tauri::AppHandle) -> std::path::PathBuf {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 微信风格快捷键 Ctrl+Alt+A
-    let screenshot_shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyA);
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, shortcut, event| {
-                    if shortcut == &screenshot_shortcut && event.state() == ShortcutState::Pressed {
-                        let app = app.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let _ = screenshot::start_screenshot(app).await;
-                        });
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    // 动态查找快捷键对应的动作
+                    if let Some(action) = hotkey::find_action(app, shortcut) {
+                        match action.as_str() {
+                            ACTION_SCREENSHOT => {
+                                let app = app.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    let _ = screenshot::start_screenshot(app).await;
+                                });
+                            }
+                            ACTION_SHOW_WINDOW => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.unminimize();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 })
                 .build(),
@@ -70,6 +87,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(WsServerState::default())
         .manage(ScreenshotState::default())
+        .manage(ClipboardHistoryState::default())
+        .manage(HotkeyState::default())
         .invoke_handler(tauri::generate_handler![
             ws_server::start_ws_server,
             ws_server::stop_ws_server,
@@ -79,11 +98,33 @@ pub fn run() {
             screenshot::copy_image_to_clipboard,
             screenshot::save_image_dialog,
             screenshot::close_screenshot_window,
+            clipboard::init_clipboard_history,
+            clipboard::get_clipboard_history,
+            clipboard::get_clipboard_image,
+            clipboard::copy_text_to_clipboard,
+            clipboard::copy_image_from_history,
+            clipboard::copy_files_to_clipboard,
+            clipboard::delete_clipboard_entry,
+            clipboard::clear_clipboard_history,
+            hotkey::update_hotkey,
+            hotkey::get_hotkeys,
+            hotkey::reset_hotkeys,
         ])
         .setup(move |app| {
-            app.global_shortcut()
-                .register(screenshot_shortcut)
-                .expect("注册全局快捷键失败");
+            // 初始化剪贴板历史
+            let app_handle = app.handle().clone();
+            let _ = clipboard::init_clipboard_history(app_handle.clone());
+            // 启动后台剪贴板监控
+            clipboard::start_clipboard_monitor(app_handle);
+
+            // 加载快捷键配置并注册
+            let hotkey_bindings = hotkey::load_hotkey_bindings(app.handle());
+            {
+                let state = app.state::<HotkeyState>();
+                let mut bindings = state.bindings.lock().unwrap();
+                *bindings = hotkey_bindings;
+            }
+            hotkey::register_all(app.handle());
 
             // 加载托盘图标
             let tray_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))

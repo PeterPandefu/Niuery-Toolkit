@@ -5,6 +5,7 @@ import {
   Binary,
   Braces,
   Camera,
+  ClipboardList,
   Clock,
   Code2,
   Compass,
@@ -345,6 +346,16 @@ registerTool({
   component: lazy(() => import('@/tools/text/escape-unescape')),
   keywords: ['escape', 'unescape', '转义', '反转义'],
   description: '字符串转义处理',
+});
+
+registerTool({
+  id: 'clipboard-history',
+  name: '粘贴板历史',
+  icon: ClipboardList,
+  category: 'text',
+  component: lazy(() => import('@/tools/text/clipboard-history')),
+  keywords: ['clipboard', 'paste', 'copy', 'history', '粘贴板', '剪贴板', '复制', '历史', '记录'],
+  description: '剪贴板历史记录与重新复制',
 });
 
 // === 图形工具 ===

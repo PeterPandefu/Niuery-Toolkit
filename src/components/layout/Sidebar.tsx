@@ -2,13 +2,14 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
+import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import {
   getAllTools,
   getAvailableCategories,
   getToolsByCategory,
 } from '@/registry/tool-registry';
 import { ToolCategory, CATEGORY_ICONS } from '@/types/tool';
-import { Clock, Home, Search } from 'lucide-react';
+import { Clock, Home, Pin, Search } from 'lucide-react';
 import { BrandMark } from '@/components/shared/BrandMark';
 
 interface SidebarProps {
@@ -20,11 +21,15 @@ function ToolItem({
   active,
   icon: Icon,
   label,
+  running,
+  alwaysOn,
   onClick,
 }: {
   active: boolean;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
+  running?: boolean;
+  alwaysOn?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -53,6 +58,12 @@ function ToolItem({
         )}
       />
       <span className="truncate">{label}</span>
+      {/* 运行状态指示 */}
+      {alwaysOn ? (
+        <Pin className="ml-auto h-3 w-3 shrink-0 text-amber-500/80" />
+      ) : running ? (
+        <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-glow-pulse" />
+      ) : null}
     </button>
   );
 }
@@ -67,6 +78,8 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
     activeCategory,
     setActiveCategory,
   } = useAppStore();
+  const activeTools = useToolLifecycleStore((s) => s.activeTools);
+  const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
   const categories = getAvailableCategories();
 
   const recentToolList = useMemo(() => {
@@ -220,6 +233,8 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
                     active={activeToolId === tool.id}
                     icon={tool.icon}
                     label={t(`tools.${tool.id}`, tool.name)}
+                    running={activeTools.includes(tool.id)}
+                    alwaysOn={alwaysOnTools.includes(tool.id)}
                     onClick={() => handleSelectTool(tool.id)}
                   />
                 ))}
@@ -242,6 +257,8 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
                         active={activeToolId === tool.id}
                         icon={tool.icon}
                         label={t(`tools.${tool.id}`, tool.name)}
+                        running={activeTools.includes(tool.id)}
+                        alwaysOn={alwaysOnTools.includes(tool.id)}
                         onClick={() => handleSelectTool(tool.id)}
                       />
                     );

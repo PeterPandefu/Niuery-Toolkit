@@ -22,6 +22,11 @@ interface AppStore {
   // 搜索面板
   searchOpen: boolean;
   setSearchOpen: (open: boolean) => void;
+
+  // 快捷栏固定工具
+  pinnedTools: string[];
+  setPinnedTools: (tools: string[]) => void;
+  togglePinnedTool: (toolId: string) => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -50,12 +55,26 @@ export const useAppStore = create<AppStore>()(
       // 搜索
       searchOpen: false,
       setSearchOpen: (open) => set({ searchOpen: open }),
+
+      // 快捷栏固定工具
+      pinnedTools: ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'qrcode', 'text-diff'],
+      setPinnedTools: (tools) => set({ pinnedTools: tools }),
+      togglePinnedTool: (toolId) =>
+        set((state) => {
+          const exists = state.pinnedTools.includes(toolId);
+          return {
+            pinnedTools: exists
+              ? state.pinnedTools.filter((id) => id !== toolId)
+              : [...state.pinnedTools, toolId],
+          };
+        }),
     }),
     {
       name: 'niuery-toolkit-store',
       partialize: (state) => ({
         theme: state.theme,
         recentTools: state.recentTools,
+        pinnedTools: state.pinnedTools,
       }),
     }
   )
