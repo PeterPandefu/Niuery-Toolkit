@@ -41,6 +41,8 @@
     "showWindowDesc": "在任何程序中按下快捷键即可唤出主窗口",
     "screenshot": "截图",
     "screenshotDesc": "全局截图快捷键，类似微信截图",
+    "screenRecorder": "屏幕录制",
+    "screenRecorderDesc": "打开屏幕录制工具，或停止当前录制",
     "hint": "点击快捷键区域后按下新的组合键即可重新绑定",
     "reset": "重置默认",
     "desktopOnly": "全局快捷键仅在桌面端（Tauri）可用，浏览器环境下无法注册系统级快捷键。",
@@ -90,6 +92,7 @@
     "svg-optimizer": "SVG 优化",
     "icon-generator": "图标生成器",
     "screenshot-editor": "截图",
+    "screen-recorder": "屏幕录制",
     "socket-tool": "Socket 调试",
     "api-tester": "接口测试"
   },
@@ -144,6 +147,24 @@
       "number": "序号",
       "crop": "裁剪"
     }
+  },
+  "screenRecorder": {
+    "title": "屏幕录制",
+    "region": "框选区域",
+    "window": "选择窗口",
+    "monitor": "整个显示器",
+    "start": "开始录制",
+    "pause": "暂停",
+    "resume": "继续",
+    "stop": "停止录制",
+    "exportMp4": "导出 MP4",
+    "exportGif": "导出 GIF",
+    "gifEditor": "GIF 编辑器",
+    "microphone": "麦克风",
+    "systemAudio": "系统声音",
+    "cursor": "光标高亮",
+    "countdown": "倒计时",
+    "unavailable": "录屏仅可在 Windows 桌面版使用"
   },
   "socketTool": {
     "client": "客户端",

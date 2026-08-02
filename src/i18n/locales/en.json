@@ -41,6 +41,8 @@
     "showWindowDesc": "Press this shortcut from any app to show the main window",
     "screenshot": "Screenshot",
     "screenshotDesc": "Global screenshot shortcut, similar to WeChat capture",
+    "screenRecorder": "Screen recorder",
+    "screenRecorderDesc": "Open the screen recorder, or stop the active recording",
     "hint": "Click the shortcut area then press a new key combination to rebind",
     "reset": "Reset Defaults",
     "desktopOnly": "Global hotkeys are only available in the desktop app (Tauri). System-level shortcuts cannot be registered in browser environment.",
@@ -90,6 +92,7 @@
     "svg-optimizer": "SVG Optimizer",
     "icon-generator": "Icon Generator",
     "screenshot-editor": "Screenshot",
+    "screen-recorder": "Screen Recorder",
     "socket-tool": "Socket Debugger",
     "api-tester": "API Tester"
   },
@@ -144,6 +147,24 @@
       "number": "Number",
       "crop": "Crop"
     }
+  },
+  "screenRecorder": {
+    "title": "Screen Recorder",
+    "region": "Region",
+    "window": "Window",
+    "monitor": "Display",
+    "start": "Start Recording",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop Recording",
+    "exportMp4": "Export MP4",
+    "exportGif": "Export GIF",
+    "gifEditor": "GIF Editor",
+    "microphone": "Microphone",
+    "systemAudio": "System audio",
+    "cursor": "Cursor highlight",
+    "countdown": "Countdown",
+    "unavailable": "Screen recording is available in the Windows desktop app only"
   },
   "socketTool": {
     "client": "Client",

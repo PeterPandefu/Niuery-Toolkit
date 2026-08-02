@@ -7,9 +7,9 @@ import {
 } from '@/registry/tool-registry';
 
 describe('Tool Registry', () => {
-  it('registers all 35 tools', () => {
+  it('registers all 37 tools', () => {
     const tools = getAllTools();
-    expect(tools.length).toBe(35);
+    expect(tools.length).toBe(37);
   });
 
   it('has 7 categories', () => {
@@ -40,12 +40,12 @@ describe('Tool Registry', () => {
     expect(getToolsByCategory('generator').length).toBe(5);
   });
 
-  it('has 5 text tools', () => {
-    expect(getToolsByCategory('text').length).toBe(5);
+  it('has 6 text tools', () => {
+    expect(getToolsByCategory('text').length).toBe(6);
   });
 
-  it('has 5 graphic tools', () => {
-    expect(getToolsByCategory('graphic').length).toBe(5);
+  it('has 6 graphic tools', () => {
+    expect(getToolsByCategory('graphic').length).toBe(6);
   });
 
   it('has 2 network tools', () => {

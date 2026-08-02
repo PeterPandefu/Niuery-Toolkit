@@ -29,6 +29,7 @@ import {
   Shuffle,
   Square,
   Type,
+  Video,
   Wind,
 } from 'lucide-react';
 
@@ -407,6 +408,16 @@ registerTool({
   component: lazy(() => import('@/tools/graphic/screenshot-editor')),
   keywords: ['screenshot', 'capture', 'annotate', '截图', '截屏', '标注', '编辑'],
   description: '屏幕截图捕获与标注编辑',
+});
+
+registerTool({
+  id: 'screen-recorder',
+  name: '屏幕录制',
+  icon: Video,
+  category: 'graphic',
+  component: lazy(() => import('@/tools/graphic/screen-recorder')),
+  keywords: ['screen', 'record', 'video', 'gif', '录屏', '录制', '窗口录制', '动图'],
+  description: '区域、窗口与显示器录制，并支持 GIF 编辑导出',
 });
 
 // === 网络工具 ===

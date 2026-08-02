@@ -1,15 +1,17 @@
 mod clipboard;
 mod hotkey;
+pub mod recorder;
 mod screenshot;
 mod ws_server;
 
 use clipboard::ClipboardHistoryState;
-use hotkey::{HotkeyState, ACTION_SCREENSHOT, ACTION_SHOW_WINDOW};
+use hotkey::{HotkeyState, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW};
 use screenshot::ScreenshotState;
+use recorder::RecorderState;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_global_shortcut::ShortcutState;
@@ -74,6 +76,21 @@ pub fn run() {
                                     let _ = window.set_focus();
                                 }
                             }
+                            ACTION_SCREEN_RECORDER => {
+                                if let Some(session_id) = recorder::active_session_id(app) {
+                                    let app = app.clone();
+                                    tauri::async_runtime::spawn(async move {
+                                        let _ = recorder::stop_recording(app, session_id).await;
+                                    });
+                                } else {
+                                    if let Some(window) = app.get_webview_window("main") {
+                                        let _ = window.show();
+                                        let _ = window.unminimize();
+                                        let _ = window.set_focus();
+                                    }
+                                    let _ = app.emit("open-screen-recorder", ());
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -87,6 +104,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(WsServerState::default())
         .manage(ScreenshotState::default())
+        .manage(RecorderState::default())
         .manage(ClipboardHistoryState::default())
         .manage(HotkeyState::default())
         .invoke_handler(tauri::generate_handler![
@@ -99,6 +117,16 @@ pub fn run() {
             screenshot::save_image_dialog,
             screenshot::close_screenshot_window,
             screenshot::show_screenshot_window,
+            recorder::list_capture_monitors,
+            recorder::list_capture_windows,
+            recorder::list_audio_sources,
+            recorder::start_recording,
+            recorder::pause_recording,
+            recorder::resume_recording,
+            recorder::stop_recording,
+            recorder::cancel_recording,
+            recorder::export_recording,
+            recorder::prepare_gif_editor,
             clipboard::init_clipboard_history,
             clipboard::get_clipboard_history,
             clipboard::get_clipboard_image,
@@ -114,6 +142,7 @@ pub fn run() {
         .setup(move |app| {
             // 初始化剪贴板历史
             let app_handle = app.handle().clone();
+            recorder::cleanup_stale_recordings(&app_handle);
             let _ = clipboard::init_clipboard_history(app_handle.clone());
             // 启动后台剪贴板监控
             clipboard::start_clipboard_monitor(app_handle);

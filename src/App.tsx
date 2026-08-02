@@ -8,6 +8,7 @@ import { ToolPanel } from '@/components/layout/ToolPanel';
 import { SearchDialog } from '@/components/layout/SearchDialog';
 import { SettingsDialog } from '@/components/layout/SettingsDialog';
 import { getToolById } from '@/registry/tool-registry';
+import { listen } from '@tauri-apps/api/event';
 
 export default function App() {
   // 初始化主题
@@ -36,6 +37,15 @@ export default function App() {
     },
     [startTool, setActiveTool, addRecentTool, setActiveCategory]
   );
+
+  useEffect(() => {
+    if (!(typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window)) return;
+    let cleanup: (() => void) | undefined;
+    void listen('open-screen-recorder', () => handleSelectTool('screen-recorder')).then((unlisten) => {
+      cleanup = unlisten;
+    });
+    return () => cleanup?.();
+  }, [handleSelectTool]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

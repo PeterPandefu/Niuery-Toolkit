@@ -53,6 +53,7 @@ function Toggle({
 const HOTKEY_ACTIONS = [
   { id: 'showWindow', labelKey: 'hotkeys.showWindow', descKey: 'hotkeys.showWindowDesc' },
   { id: 'screenshot', labelKey: 'hotkeys.screenshot', descKey: 'hotkeys.screenshotDesc' },
+  { id: 'screenRecorder', labelKey: 'hotkeys.screenRecorder', descKey: 'hotkeys.screenRecorderDesc' },
 ] as const;
 
 /** 解析快捷键字符串为显示用的 parts */
