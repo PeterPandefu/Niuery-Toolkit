@@ -30,7 +30,7 @@ import { CropOverlay } from './screenshot/CropOverlay';
 import { useScreenCapture } from './screenshot/useScreenCapture';
 import { useClipboardPaste } from './screenshot/useClipboardPaste';
 import { useExport } from './screenshot/useExport';
-import { LongScreenshotPanel } from './screenshot/LongScreenshotPanel';
+import { AutoLongScreenshotPanel } from './screenshot/AutoLongScreenshotPanel';
 import {
   type ToolType,
   type ToolSettings,
@@ -60,13 +60,11 @@ function ScreenshotEditorInner() {
   const [showResize, setShowResize] = useState(false);
   const [resizeW, setResizeW] = useState('');
   const [resizeH, setResizeH] = useState('');
-  const [longMode, setLongMode] = useState(false);
-  const [longFrames, setLongFrames] = useState<HTMLImageElement[]>([]);
-  const [longFrameBusy, setLongFrameBusy] = useState(false);
+  const [showAutoLongCapture, setShowAutoLongCapture] = useState(false);
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { capture, capturing, longCapturing, startLongCapture, captureLongFrame, stopLongCapture } = useScreenCapture();
+  const { capture, capturing } = useScreenCapture();
   const { undo, redo, clear } = useHistory();
   const { exportImage, copyToClipboard } = useExport({ stageRef, canvasSize });
 
@@ -98,10 +96,10 @@ function ScreenshotEditorInner() {
 
   // 加载图片到画布
   const loadImage = useCallback(
-    (img: HTMLImageElement) => {
+    (img: HTMLImageElement, maxDimension = MAX_CANVAS_SIZE) => {
       let { width, height } = img;
-      if (width > MAX_CANVAS_SIZE || height > MAX_CANVAS_SIZE) {
-        const ratio = Math.min(MAX_CANVAS_SIZE / width, MAX_CANVAS_SIZE / height);
+      if (width > maxDimension || height > maxDimension) {
+        const ratio = Math.min(maxDimension / width, maxDimension / height);
         width = Math.round(width * ratio);
         height = Math.round(height * ratio);
         toast.warning(`图片过大，已缩放至 ${width}×${height}`);
@@ -125,61 +123,19 @@ function ScreenshotEditorInner() {
     if (img) loadImage(img);
   }, [capture, loadImage]);
 
-  const handleStartLongCapture = useCallback(async () => {
-    const started = await startLongCapture();
-    if (!started) return;
-    setLongFrames([]);
-    setLongMode(true);
-    toast.info('长截图已开始：滚动后添加下一段画面');
-  }, [startLongCapture]);
-
-  const handleCaptureLongFrame = useCallback(async () => {
-    setLongFrameBusy(true);
-    try {
-      const frame = await captureLongFrame();
-      if (frame) setLongFrames((previous) => [...previous, frame]);
-    } finally {
-      setLongFrameBusy(false);
+  const handleStartLongCapture = useCallback(() => {
+    if (!isTauri) {
+      toast.error('自动长截图仅支持桌面版');
+      return;
     }
-  }, [captureLongFrame]);
+    setShowAutoLongCapture(true);
+  }, [isTauri]);
 
-  const handleCancelLongCapture = useCallback(() => {
-    stopLongCapture();
-    setLongMode(false);
-    setLongFrames([]);
-    setLongFrameBusy(false);
-  }, [stopLongCapture]);
-
-  const handleFinishLongCapture = useCallback((overlapPercent: number) => {
-    if (longFrames.length === 0) return;
-    const width = Math.max(...longFrames.map((frame) => frame.naturalWidth || frame.width));
-    const heights = longFrames.map((frame) => (frame.naturalHeight || frame.height) * (width / (frame.naturalWidth || frame.width)));
-    const overlap = Math.max(0, Math.min(30, overlapPercent)) / 100;
-    const estimatedHeight = heights.reduce((total, height, index) => total + (index === 0 ? height : height * (1 - overlap)), 0);
-    const scale = Math.min(1, MAX_CANVAS_SIZE / width, 16000 / estimatedHeight);
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(width * scale));
-    canvas.height = Math.max(1, Math.round(estimatedHeight * scale));
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    let y = 0;
-    longFrames.forEach((frame, index) => {
-      const frameWidth = frame.naturalWidth || frame.width;
-      const frameHeight = frame.naturalHeight || frame.height;
-      const drawHeight = frameHeight * (width / frameWidth) * scale;
-      context.drawImage(frame, 0, y, canvas.width, drawHeight);
-      y += index === 0 ? drawHeight : drawHeight * (1 - overlap);
-    });
-    const result = new Image();
-    result.onload = () => {
-      stopLongCapture();
-      setLongMode(false);
-      setLongFrames([]);
-      loadImage(result);
-      toast.success(`长截图已拼接（${longFrames.length} 段）`);
-    };
-    result.src = canvas.toDataURL('image/png');
-  }, [loadImage, longFrames, stopLongCapture]);
+  const handleAutoLongComplete = useCallback((result: HTMLImageElement, wasScaled: boolean) => {
+    setShowAutoLongCapture(false);
+    loadImage(result, 16_384);
+    toast.success(wasScaled ? '长截图已完成，已为兼容性缩小' : '长截图已完成');
+  }, [loadImage]);
 
   // 文件上传
   const handleUpload = useCallback(() => {
@@ -428,16 +384,12 @@ function ScreenshotEditorInner() {
     setSettings((prev) => ({ ...prev, ...partial }));
   }, []);
 
-  // 空状态
-  if (!image && longMode) {
+  if (showAutoLongCapture) {
     return (
-      <div className="relative h-full overflow-y-auto bg-muted/20">
-        <LongScreenshotPanel
-          frames={longFrames}
-          busy={longFrameBusy}
-          onCaptureFrame={() => void handleCaptureLongFrame()}
-          onFinish={handleFinishLongCapture}
-          onCancel={handleCancelLongCapture}
+      <div className="h-full bg-muted/20">
+        <AutoLongScreenshotPanel
+          onComplete={handleAutoLongComplete}
+          onCancel={() => setShowAutoLongCapture(false)}
         />
       </div>
     );
@@ -470,11 +422,13 @@ function ScreenshotEditorInner() {
               </span>
             </Button>
           )}
-          <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={() => void handleStartLongCapture()}>
-            <Rows3 className="h-8 w-8" />
-            <span className="text-xs">长截图</span>
-            <span className="text-[10px] text-muted-foreground">分段拼接</span>
-          </Button>
+          {isTauri && (
+            <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleStartLongCapture}>
+              <Rows3 className="h-8 w-8" />
+              <span className="text-xs">长截图</span>
+              <span className="text-[10px] text-muted-foreground">自动滚动拼接</span>
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -502,9 +456,9 @@ function ScreenshotEditorInner() {
         onCapture={handleCapture}
         onPaste={handlePasteClick}
         onUpload={handleUpload}
-        onLongCapture={() => void handleStartLongCapture()}
+        onLongCapture={isTauri ? handleStartLongCapture : undefined}
         capturing={capturing}
-        longCapturing={longCapturing}
+        longCapturing={showAutoLongCapture}
         hasImage={!!image}
       />
 
@@ -512,15 +466,6 @@ function ScreenshotEditorInner() {
       <div className="flex min-h-0 flex-1">
         {/* 画布 */}
         <div className="relative min-h-0 flex-1">
-          {longMode && (
-            <LongScreenshotPanel
-              frames={longFrames}
-              busy={longFrameBusy}
-              onCaptureFrame={() => void handleCaptureLongFrame()}
-              onFinish={handleFinishLongCapture}
-              onCancel={handleCancelLongCapture}
-            />
-          )}
           <EditorCanvas
             image={image}
             canvasSize={canvasSize}

@@ -33,7 +33,7 @@ interface ToolbarProps {
   onCapture: () => void;
   onPaste: () => void;
   onUpload: () => void;
-  onLongCapture: () => void;
+  onLongCapture?: () => void;
   capturing: boolean;
   longCapturing: boolean;
   hasImage: boolean;
@@ -111,18 +111,20 @@ export function Toolbar({
           <Upload className="h-3.5 w-3.5" />
           {t('screenshotEditor.upload')}
         </Button>
-        <Button
-          variant={longCapturing ? 'secondary' : 'ghost'}
-          size="sm"
-          className="h-7 gap-1 text-xs"
-          onClick={onLongCapture}
-          disabled={capturing || longCapturing}
-          aria-label="长截图"
-          title="连续采集并纵向拼接"
-        >
-          <Rows3 className="h-3.5 w-3.5" />
-          长截图
-        </Button>
+        {onLongCapture && (
+          <Button
+            variant={longCapturing ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 gap-1 text-xs"
+            onClick={onLongCapture}
+            disabled={capturing || longCapturing}
+            aria-label="长截图"
+            title="自动滚动并纵向拼接"
+          >
+            <Rows3 className="h-3.5 w-3.5" />
+            长截图
+          </Button>
+        )}
       </div>
 
       <div className="mx-2 h-5 w-px bg-border" />
