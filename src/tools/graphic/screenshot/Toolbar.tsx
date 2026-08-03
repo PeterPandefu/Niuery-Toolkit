@@ -19,7 +19,6 @@ import {
   MonitorUp,
   ClipboardPaste,
   Upload,
-  Rows3,
 } from 'lucide-react';
 import type { ToolType, ToolSettings } from './types';
 import { COLOR_PRESETS } from './types';
@@ -33,9 +32,7 @@ interface ToolbarProps {
   onCapture: () => void;
   onPaste: () => void;
   onUpload: () => void;
-  onLongCapture?: () => void;
   capturing: boolean;
-  longCapturing: boolean;
   hasImage: boolean;
 }
 
@@ -61,9 +58,7 @@ export function Toolbar({
   onCapture,
   onPaste,
   onUpload,
-  onLongCapture,
   capturing,
-  longCapturing,
   hasImage,
 }: ToolbarProps) {
   const { t } = useTranslation();
@@ -111,20 +106,6 @@ export function Toolbar({
           <Upload className="h-3.5 w-3.5" />
           {t('screenshotEditor.upload')}
         </Button>
-        {onLongCapture && (
-          <Button
-            variant={longCapturing ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 gap-1 text-xs"
-            onClick={onLongCapture}
-            disabled={capturing || longCapturing}
-            aria-label="长截图"
-            title="自动滚动并纵向拼接"
-          >
-            <Rows3 className="h-3.5 w-3.5" />
-            长截图
-          </Button>
-        )}
       </div>
 
       <div className="mx-2 h-5 w-px bg-border" />

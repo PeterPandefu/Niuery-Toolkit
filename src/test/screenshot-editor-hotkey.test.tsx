@@ -5,6 +5,13 @@ import ScreenshotEditor from '@/tools/graphic/screenshot-editor';
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
+  emitTo: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({ unminimize: vi.fn(), setFocus: vi.fn() }),
+}));
 vi.mock('@/tools/graphic/screenshot/HistoryProvider', () => ({
   HistoryProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useHistory: () => ({ undo: vi.fn(), redo: vi.fn(), clear: vi.fn() }),

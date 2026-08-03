@@ -8,6 +8,9 @@ interface ScreenData {
   height: number;
 }
 
+// 长截图模式由 Rust 端通过 URL 查询参数传入：#/screenshot?mode=longshot
+const isLongshotMode = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('mode') === 'longshot';
+
 /**
  * 截图窗口根组件
  * 从 Rust 后端获取已捕获的屏幕截图，然后渲染全屏覆盖层
@@ -83,6 +86,7 @@ export default function ScreenshotApp() {
       screenImage={screen.image}
       screenW={screen.width}
       screenH={screen.height}
+      longshotMode={isLongshotMode}
     />
   );
 }

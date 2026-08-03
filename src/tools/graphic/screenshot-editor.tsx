@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Button } from '@/components/ui/button';
 import {
   DEFAULT_SCREENSHOT_HOTKEY,
@@ -19,7 +21,7 @@ import {
   FlipVertical2,
   Maximize2,
   Camera,
-  Rows3,
+  Scroll,
 } from 'lucide-react';
 import Konva from 'konva';
 import { HistoryProvider, useHistory } from './screenshot/HistoryProvider';
@@ -30,7 +32,6 @@ import { CropOverlay } from './screenshot/CropOverlay';
 import { useScreenCapture } from './screenshot/useScreenCapture';
 import { useClipboardPaste } from './screenshot/useClipboardPaste';
 import { useExport } from './screenshot/useExport';
-import { AutoLongScreenshotPanel } from './screenshot/AutoLongScreenshotPanel';
 import {
   type ToolType,
   type ToolSettings,
@@ -60,7 +61,6 @@ function ScreenshotEditorInner() {
   const [showResize, setShowResize] = useState(false);
   const [resizeW, setResizeW] = useState('');
   const [resizeH, setResizeH] = useState('');
-  const [showAutoLongCapture, setShowAutoLongCapture] = useState(false);
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -122,20 +122,6 @@ function ScreenshotEditorInner() {
     const img = await capture();
     if (img) loadImage(img);
   }, [capture, loadImage]);
-
-  const handleStartLongCapture = useCallback(() => {
-    if (!isTauri) {
-      toast.error('自动长截图仅支持桌面版');
-      return;
-    }
-    setShowAutoLongCapture(true);
-  }, [isTauri]);
-
-  const handleAutoLongComplete = useCallback((result: HTMLImageElement, wasScaled: boolean) => {
-    setShowAutoLongCapture(false);
-    loadImage(result, 16_384);
-    toast.success(wasScaled ? '长截图已完成，已为兼容性缩小' : '长截图已完成');
-  }, [loadImage]);
 
   // 文件上传
   const handleUpload = useCallback(() => {
@@ -200,6 +186,62 @@ function ScreenshotEditorInner() {
       toast.error(`截图失败: ${e}`);
     }
   }, []);
+
+  // 长截图入口：打开框选窗口（长截图模式）
+  const handleLongshotEntry = useCallback(async () => {
+    try {
+      await invoke('start_screenshot', { mode: 'longshot' });
+    } catch (e) {
+      toast.error(`${t('screenshotEditor.longshot.entry')}: ${e}`);
+    }
+  }, [t]);
+
+  // 长截图事件：选区确认 → 启动悬浮面板；拼接完成 → 载入编辑器
+  useEffect(() => {
+    if (!isTauri) return;
+    let disposed = false;
+    const unlisteners: (() => void)[] = [];
+
+    listen<{ x: number; y: number; width: number; height: number }>(
+      'longshot-region-selected',
+      (event) => {
+        const { x, y, width, height } = event.payload;
+        invoke('start_longshot_panel', { x, y, width, height }).catch((e) =>
+          toast.error(`长截图启动失败: ${e}`)
+        );
+      }
+    ).then((un) => {
+      if (disposed) un();
+      else unlisteners.push(un);
+    });
+
+    listen<{ dataUrl: string; droppedCount: number }>('longshot-complete', (event) => {
+      const { dataUrl, droppedCount } = event.payload;
+      const img = new Image();
+      img.onload = () => {
+        loadImage(img);
+        if (droppedCount > 0) {
+          toast.warning(t('screenshotEditor.longshot.droppedToast', { count: droppedCount }));
+        } else {
+          toast.success(t('screenshotEditor.longshot.complete'));
+        }
+        // 面板关闭后聚焦主窗口（可能处于最小化/失焦状态）
+        const win = getCurrentWindow();
+        win.unminimize().catch(() => {});
+        win.setFocus().catch(() => {});
+      };
+      img.onerror = () => toast.error(t('screenshotEditor.longshot.failed'));
+      img.src = dataUrl;
+    }).then((un) => {
+      if (disposed) un();
+      else unlisteners.push(un);
+    });
+
+    return () => {
+      disposed = true;
+      unlisteners.forEach((un) => un());
+    };
+  }, [isTauri, loadImage, t]);
 
   // 工具切换时退出裁剪
   useEffect(() => {
@@ -384,17 +426,6 @@ function ScreenshotEditorInner() {
     setSettings((prev) => ({ ...prev, ...partial }));
   }, []);
 
-  if (showAutoLongCapture) {
-    return (
-      <div className="h-full bg-muted/20">
-        <AutoLongScreenshotPanel
-          onComplete={handleAutoLongComplete}
-          onCancel={() => setShowAutoLongCapture(false)}
-        />
-      </div>
-    );
-  }
-
   if (!image) {
     return (
       <div
@@ -423,10 +454,12 @@ function ScreenshotEditorInner() {
             </Button>
           )}
           {isTauri && (
-            <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleStartLongCapture}>
-              <Rows3 className="h-8 w-8" />
-              <span className="text-xs">长截图</span>
-              <span className="text-[10px] text-muted-foreground">自动滚动拼接</span>
+            <Button variant="outline" className="h-24 w-36 flex-col gap-2" onClick={handleLongshotEntry}>
+              <Scroll className="h-8 w-8" />
+              <span className="text-xs">{t('screenshotEditor.longshot.entry')}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {t('screenshotEditor.longshot.entryHint')}
+              </span>
             </Button>
           )}
         </div>
@@ -456,9 +489,7 @@ function ScreenshotEditorInner() {
         onCapture={handleCapture}
         onPaste={handlePasteClick}
         onUpload={handleUpload}
-        onLongCapture={isTauri ? handleStartLongCapture : undefined}
         capturing={capturing}
-        longCapturing={showAutoLongCapture}
         hasImage={!!image}
       />
 

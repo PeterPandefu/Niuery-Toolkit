@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { emitTo } from '@tauri-apps/api/event';
 import type Konva from 'konva';
 import { SelectionBox } from './SelectionBox';
 import { toast } from 'sonner';
@@ -20,9 +21,11 @@ interface ScreenshotOverlayProps {
   screenImage: HTMLImageElement;
   screenW: number;
   screenH: number;
+  /** 长截图模式：框选可滚动区域后发送给主窗口，不做标注 */
+  longshotMode?: boolean;
 }
 
-export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotOverlayProps) {
+export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode = false }: ScreenshotOverlayProps) {
   const [phase, setPhase] = useState<ScreenshotPhase>('idle');
   const [mode, setMode] = useState<SelectionMode>('rect');
   const [selection, setSelection] = useState<SelectionRect | null>(null);
@@ -152,6 +155,26 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
 
   const handleCancel = useCallback(() => {
     invoke('close_screenshot_window');
+  }, []);
+
+  // ── 长截图：确认选区并发送给主窗口 ───────────────────
+  const confirmLongshot = useCallback(() => {
+    if (!selection || selection.width < MIN_SELECTION_SIZE || selection.height < MIN_SELECTION_SIZE) return;
+    emitTo('main', 'longshot-region-selected', {
+      x: Math.round(selection.x),
+      y: Math.round(selection.y),
+      width: Math.round(selection.width),
+      height: Math.round(selection.height),
+    }).catch((e) => console.error('发送长截图选区失败', e));
+    invoke('close_screenshot_window');
+  }, [selection]);
+
+  const confirmLongshotRef = useRef(confirmLongshot);
+  confirmLongshotRef.current = confirmLongshot;
+
+  const reselectLongshot = useCallback(() => {
+    setSelection(null);
+    setPhase('idle');
   }, []);
 
   // 用 ref 保存 handleCopy 供键盘事件使用（避免闭包过期）
@@ -286,11 +309,14 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
       if (e.key === 'Enter') {
         e.preventDefault();
         if (phase === 'drawing') { confirmFreehandRef.current(); }
-        else if (phase === 'selected') { copyRef.current(); }
+        else if (phase === 'selected') {
+          if (longshotMode) { confirmLongshotRef.current(); }
+          else { copyRef.current(); }
+        }
         return;
       }
-      // M 键切换模式（仅 idle 阶段）
-      if ((e.key === 'm' || e.key === 'M') && phase === 'idle') {
+      // M 键切换模式（仅 idle 阶段，长截图模式仅支持矩形框选）
+      if ((e.key === 'm' || e.key === 'M') && phase === 'idle' && !longshotMode) {
         e.preventDefault();
         setMode((m) => (m === 'freehand' ? 'rect' : 'freehand'));
         setFreehandPoints([]);
@@ -298,7 +324,7 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [phase, undo, redo]);
+  }, [phase, undo, redo, longshotMode]);
 
   // ── 工具栏位置（选区下方，空间不足则上方）────────────────
   const toolbarPos = useMemo(() => {
@@ -372,52 +398,82 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
             screenW={screenW}
             screenH={screenH}
             onSelectionChange={handleSelectionChange}
-            onDoubleClick={handleCopy}
+            onDoubleClick={longshotMode ? confirmLongshot : handleCopy}
           />
 
-          {/* 标注画布（精确覆盖选区） */}
-          <div
-            className="fixed z-20"
-            style={{ left: selection.x, top: selection.y }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <AnnotationLayer
-              width={Math.round(selection.width)}
-              height={Math.round(selection.height)}
-              croppedImage={croppedImage}
-              croppedCanvas={croppedCanvas}
-              tool={tool}
-              color={color}
-              strokeWidth={strokeWidth}
-              fontSize={fontSize}
-              annotations={annotations}
-              onAnnotationsChange={handleAnnotationsChange}
-              numberCounter={numberCounter}
-              onNumberCounterChange={setNumberCounter}
-              stageRef={stageRef}
-            />
-          </div>
+          {/* 长截图模式：动作按钮（代替标注工具栏） */}
+          {longshotMode ? (
+            <div
+              className="fixed z-30 flex items-center gap-1 rounded-lg bg-[#2a2a2a]/95 px-2 py-1.5 shadow-lg"
+              style={{ left: toolbarPos.x, top: toolbarPos.y }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button
+                className="rounded bg-[#4488ff] px-3 py-1 text-sm text-white hover:bg-[#3377ee]"
+                onClick={confirmLongshot}
+              >
+                开始长截图
+              </button>
+              <button
+                className="rounded px-3 py-1 text-sm text-white/85 hover:bg-white/10"
+                onClick={reselectLongshot}
+              >
+                重新框选
+              </button>
+              <button
+                className="rounded px-3 py-1 text-sm text-white/85 hover:bg-white/10"
+                onClick={handleCancel}
+              >
+                取消
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* 标注画布（精确覆盖选区） */}
+              <div
+                className="fixed z-20"
+                style={{ left: selection.x, top: selection.y }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <AnnotationLayer
+                  width={Math.round(selection.width)}
+                  height={Math.round(selection.height)}
+                  croppedImage={croppedImage}
+                  croppedCanvas={croppedCanvas}
+                  tool={tool}
+                  color={color}
+                  strokeWidth={strokeWidth}
+                  fontSize={fontSize}
+                  annotations={annotations}
+                  onAnnotationsChange={handleAnnotationsChange}
+                  numberCounter={numberCounter}
+                  onNumberCounterChange={setNumberCounter}
+                  stageRef={stageRef}
+                />
+              </div>
 
-          {/* 微信风格工具栏 */}
-          <EditToolbar
-            x={toolbarPos.x}
-            y={toolbarPos.y}
-            tool={tool}
-            color={color}
-            strokeWidth={strokeWidth}
-            fontSize={fontSize}
-            canUndo={history.length > 0}
-            canRedo={redoStack.length > 0}
-            onToolChange={setTool}
-            onColorChange={setColor}
-            onStrokeWidthChange={setStrokeWidth}
-            onFontSizeChange={setFontSize}
-            onUndo={undo}
-            onRedo={redo}
-            onCancel={handleCancel}
-            onSave={handleSave}
-            onCopy={handleCopy}
-          />
+              {/* 微信风格工具栏 */}
+              <EditToolbar
+                x={toolbarPos.x}
+                y={toolbarPos.y}
+                tool={tool}
+                color={color}
+                strokeWidth={strokeWidth}
+                fontSize={fontSize}
+                canUndo={history.length > 0}
+                canRedo={redoStack.length > 0}
+                onToolChange={setTool}
+                onColorChange={setColor}
+                onStrokeWidthChange={setStrokeWidth}
+                onFontSizeChange={setFontSize}
+                onUndo={undo}
+                onRedo={redo}
+                onCancel={handleCancel}
+                onSave={handleSave}
+                onCopy={handleCopy}
+              />
+            </>
+          )}
         </>
       )}
 
@@ -425,9 +481,11 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
       {phase === 'idle' && (
         <div className="pointer-events-none fixed inset-x-0 top-10 z-10 flex justify-center">
           <span className="rounded-full bg-black/65 px-5 py-2 text-sm text-white/90 select-none">
-            {mode === 'freehand'
-              ? '按住鼠标绘制截图区域\u2002·\u2002Enter 确认\u2002·\u2002M 切换矩形\u2002·\u2002Esc 取消'
-              : '拖动鼠标框选截图区域\u2002·\u2002M 切换手绘\u2002·\u2002Esc 取消'}
+            {longshotMode
+              ? '拖动鼠标框选可滚动区域\u2002·\u2002Enter 开始长截图\u2002·\u2002Esc 取消'
+              : mode === 'freehand'
+                ? '按住鼠标绘制截图区域\u2002·\u2002Enter 确认\u2002·\u2002M 切换矩形\u2002·\u2002Esc 取消'
+                : '拖动鼠标框选截图区域\u2002·\u2002M 切换手绘\u2002·\u2002Esc 取消'}
           </span>
         </div>
       )}

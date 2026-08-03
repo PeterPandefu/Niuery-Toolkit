@@ -40,7 +40,7 @@ pub fn run() {
                             ACTION_SCREENSHOT => {
                                 let app = app.clone();
                                 tauri::async_runtime::spawn(async move {
-                                    let _ = screenshot::start_screenshot(app).await;
+                                    let _ = screenshot::start_screenshot(app, None).await;
                                 });
                             }
                             ACTION_SHOW_WINDOW => {
@@ -93,10 +93,9 @@ pub fn run() {
             screenshot::save_image_dialog,
             screenshot::close_screenshot_window,
             screenshot::show_screenshot_window,
-            screenshot::list_long_screenshot_sources,
-            screenshot::capture_long_screenshot_source,
-            screenshot::prepare_long_screenshot_source,
-            screenshot::scroll_long_screenshot_source,
+            screenshot::capture_screen_region,
+            screenshot::start_longshot_panel,
+            screenshot::close_longshot_panel,
             recorder::list_capture_monitors,
             recorder::list_capture_windows,
             recorder::list_audio_sources,
