@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "调试 Vite 前端",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "调试 Tauri 桌面应用",
+      "type": "lldb",
+      "request": "launch",
+      "preLaunchTask": "准备 Tauri 调试环境",
+      "program": "${workspaceFolder}/src-tauri/target/debug/niuery-toolkit.exe",
+      "cwd": "${workspaceFolder}/src-tauri"
+    }
+  ]
+}

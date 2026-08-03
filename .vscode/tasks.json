@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "启动 Vite 开发服务器",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": [
+          {
+            "regexp": ".",
+            "file": 1,
+            "location": 2,
+            "message": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "starting server",
+          "endsPattern": "Local:\\s+http://localhost:5173/"
+        }
+      }
+    },
+    {
+      "label": "构建 Tauri 调试程序",
+      "type": "process",
+      "command": "${env:USERPROFILE}\\.cargo\\bin\\cargo.exe",
+      "args": [
+        "build",
+        "--manifest-path",
+        "${workspaceFolder}\\src-tauri\\Cargo.toml"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "准备 Tauri 调试环境",
+      "dependsOn": [
+        "启动 Vite 开发服务器",
+        "构建 Tauri 调试程序"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    }
+  ]
+}
