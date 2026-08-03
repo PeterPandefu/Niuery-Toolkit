@@ -160,6 +160,18 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     }
   }, [session]);
 
+  const loadPreview = useCallback(async () => {
+    const currentSessionId = lastSessionIdRef.current;
+    if (!currentSessionId) return null;
+    try {
+      const bytes = await invoke<number[]>('get_recording_preview', { sessionId: currentSessionId });
+      return URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'video/mp4' }));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      return null;
+    }
+  }, []);
+
   return {
     monitors,
     windows,
@@ -177,6 +189,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     cancel,
     exportRecording,
     prepareGifEditor,
+    loadPreview,
     clearError: () => setError(null),
   };
 }

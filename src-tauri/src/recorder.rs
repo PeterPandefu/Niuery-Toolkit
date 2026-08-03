@@ -641,6 +641,19 @@ pub async fn export_recording(
 }
 
 #[tauri::command]
+pub fn get_recording_preview(app: AppHandle, session_id: String) -> Result<Vec<u8>, String> {
+    let state = app.state::<RecorderState>();
+    let artifact = state
+        .artifacts
+        .lock()
+        .map_err(|_| "录制结果不可用".to_string())?
+        .get(&session_id)
+        .cloned()
+        .ok_or_else(|| "录制预览已过期，请重新录制".to_string())?;
+    std::fs::read(&artifact.path).map_err(|error| format!("无法读取录制预览: {error}"))
+}
+
+#[tauri::command]
 pub async fn prepare_gif_editor(
     app: AppHandle,
     session_id: String,

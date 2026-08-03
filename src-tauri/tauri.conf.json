@@ -5,7 +5,7 @@
   "identifier": "com.niuery.toolkit",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:21516",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
@@ -27,7 +27,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$CACHE/**", "$APPDATA/**", "$VIDEO/**"]
+        "scope": ["$CACHE/**", "$APPDATA/**", "$APPCACHE/**", "$VIDEO/**"]
       }
     }
   },

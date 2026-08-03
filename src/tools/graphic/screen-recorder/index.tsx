@@ -30,6 +30,7 @@ export default function ScreenRecorder() {
   const [region, setRegion] = useState<CaptureRect>({ x: 0, y: 0, width: 1280, height: 720 });
   const [settings, setSettings] = useState<RecordingSettings>(DEFAULT_RECORDING_SETTINGS);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [previewSource, setPreviewSource] = useState<string | null>(null);
   const recorder = useRecorder({
     onStatus: (event) => {
       setElapsedMs(event.elapsedMs);
@@ -57,6 +58,28 @@ export default function ScreenRecorder() {
     const timer = window.setInterval(() => setElapsedMs(Date.now() - started), 250);
     return () => window.clearInterval(timer);
   }, [elapsedMs, state.status]);
+
+  useEffect(() => {
+    if (state.status !== 'preview' || !state.artifact) {
+      setPreviewSource(null);
+      return;
+    }
+    let active = true;
+    let source: string | null = null;
+    void recorder.loadPreview().then((nextSource) => {
+      if (!nextSource) return;
+      if (!active) {
+        URL.revokeObjectURL(nextSource);
+        return;
+      }
+      source = nextSource;
+      setPreviewSource(nextSource);
+    });
+    return () => {
+      active = false;
+      if (source) URL.revokeObjectURL(source);
+    };
+  }, [recorder.loadPreview, state.artifact, state.status]);
 
   const target = useMemo<CaptureTarget | null>(() => {
     if (mode === 'window') return windowId ? { mode, windowId: Number(windowId) } : null;
@@ -153,7 +176,6 @@ export default function ScreenRecorder() {
   }
 
   if (state.status === 'preview' && state.artifact) {
-    const source = isTauri ? convertFileSrc(state.artifact.path) : state.artifact.path;
     return (
       <div className="flex h-full min-h-0 flex-col p-5">
         <div className="mb-4 flex items-center justify-between">
@@ -164,7 +186,13 @@ export default function ScreenRecorder() {
           <Button variant="outline" onClick={() => dispatch({ type: 'cancelled' })}>新建录制</Button>
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border bg-black/90 p-4">
-          <video className="max-h-full max-w-full rounded" src={source} controls />
+          {previewSource ? (
+            <video className="max-h-full max-w-full rounded" controls>
+              <source src={previewSource} type="video/mp4" />
+            </video>
+          ) : (
+            <p className="text-sm text-muted-foreground">正在加载视频预览…</p>
+          )}
         </div>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           <Button onClick={() => void exportRecording('mp4')}><Save className="h-4 w-4" />导出 MP4</Button>
