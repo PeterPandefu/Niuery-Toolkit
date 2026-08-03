@@ -345,7 +345,7 @@ export function EditorCanvas({
       });
       setTempShape(null);
     }
-  }, [drawing, getPointerPosition, tool, currentPoints, drawStart, settings, annotations, execute, onAnnotationsChange]);
+  }, [drawing, getPointerPosition, tool, currentPoints, drawStart, settings, annotations, execute, onAnnotationsChange, image]);
 
   // 滚轮缩放
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -366,6 +366,10 @@ export function EditorCanvas({
       y: pointer.y - mousePointTo.y * clampedScale,
     });
   }, [scale, position, stageRef]);
+
+  const handleStageDragEnd = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
+    setPosition(e.target.position());
+  }, []);
 
   // 节点拖拽结束
   const handleDragEnd = useCallback(
@@ -594,6 +598,8 @@ export function EditorCanvas({
         scaleY={scale}
         x={position.x}
         y={position.y}
+        draggable={tool === 'select'}
+        onDragEnd={handleStageDragEnd}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

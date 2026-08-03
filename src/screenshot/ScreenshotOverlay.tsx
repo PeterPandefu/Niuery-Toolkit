@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type Konva from 'konva';
 import { SelectionBox } from './SelectionBox';
+import { toast } from 'sonner';
 import { AnnotationLayer } from './AnnotationLayer';
 import { EditToolbar } from './EditToolbar';
 import {
@@ -139,7 +140,11 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH }: ScreenshotO
   const handleSave = useCallback(async () => {
     const b64 = exportBase64();
     if (b64) {
-      try { await invoke('save_image_dialog', { base64Data: b64 }); }
+      try {
+        const savedPath = await invoke<string | null>('save_image_dialog', { base64Data: b64, format: 'png' });
+        if (savedPath) toast.success(`已保存到：${savedPath}`);
+        else toast.info('已取消保存');
+      }
       catch (e) { console.error('保存失败', e); }
     }
     await invoke('close_screenshot_window');

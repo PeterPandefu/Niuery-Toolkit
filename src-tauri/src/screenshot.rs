@@ -450,25 +450,30 @@ pub fn copy_image_to_clipboard(base64_data: String) -> Result<(), String> {
     Ok(())
 }
 
-/// 弹出保存对话框，将 base64 PNG 保存到文件
+/// 弹出保存对话框，将 base64 图片保存到文件并返回实际路径
 #[tauri::command]
-pub fn save_image_dialog(base64_data: String) -> Result<bool, String> {
+pub fn save_image_dialog(base64_data: String, format: Option<String>) -> Result<Option<String>, String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(base64_data.as_bytes())
         .map_err(|e| format!("解码 base64 失败: {e}"))?;
 
+    let format = format.as_deref().unwrap_or("png");
+    let (filter_name, extensions, default_extension) = match format {
+        "jpeg" => ("JPEG 图片", &["jpg", "jpeg"][..], "jpg"),
+        "webp" => ("WebP 图片", &["webp"][..], "webp"),
+        _ => ("PNG 图片", &["png"][..], "png"),
+    };
     let path = rfd::FileDialog::new()
-        .add_filter("PNG 图片", &["png"])
-        .add_filter("JPEG 图片", &["jpg", "jpeg"])
-        .set_file_name("screenshot")
+        .add_filter(filter_name, extensions)
+        .set_file_name(format!("screenshot.{default_extension}"))
         .save_file();
 
     match path {
         Some(path) => {
             std::fs::write(&path, &bytes).map_err(|e| format!("保存失败: {e}"))?;
-            Ok(true)
+            Ok(Some(path.to_string_lossy().into_owned()))
         }
-        None => Ok(false),
+        None => Ok(None),
     }
 }
 
