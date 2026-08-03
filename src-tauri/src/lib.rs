@@ -19,37 +19,9 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_global_shortcut::ShortcutState;
 use ws_server::WsServerState;
 
-/// 关闭行为配置
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct AppConfig {
-    /// None = 未选择, Some(true) = 退出, Some(false) = 最小化到托盘
-    close_to_exit: Option<bool>,
-}
-
-fn load_config(app: &tauri::AppHandle) -> AppConfig {
-    let path = config_path(app);
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or(AppConfig {
-            close_to_exit: None,
-        })
-}
-
-fn save_config(app: &tauri::AppHandle, config: &AppConfig) {
-    let path = config_path(app);
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let _ = std::fs::write(&path, serde_json::to_string_pretty(config).unwrap_or_default());
-}
-
-fn config_path(app: &tauri::AppHandle) -> std::path::PathBuf {
-    app.path()
-        .app_config_dir()
-        .unwrap_or_else(|_| std::path::PathBuf::from("."))
-        .join("settings.json")
-}
+/// 关闭行为状态（仅在本次运行期间有效，不持久化）
+#[derive(Default)]
+struct CloseBehaviorState(std::sync::Mutex<Option<bool>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -110,6 +82,7 @@ pub fn run() {
         .manage(ClipboardHistoryState::default())
         .manage(SystemMonitorState::default())
         .manage(HotkeyState::default())
+        .manage(CloseBehaviorState::default())
         .invoke_handler(tauri::generate_handler![
             ws_server::start_ws_server,
             ws_server::stop_ws_server,
@@ -230,9 +203,13 @@ pub fn run() {
                     return;
                 }
                 let app = window.app_handle();
-                let config = load_config(app);
+                let close_to_exit = {
+                    let state = app.state::<CloseBehaviorState>();
+                    let value = *state.0.lock().unwrap();
+                    value
+                };
 
-                match config.close_to_exit {
+                match close_to_exit {
                     Some(true) => {
                         // 用户选择了退出，不阻止关闭
                     }
@@ -253,9 +230,11 @@ pub fn run() {
                                 "最小化到托盘".to_string(),
                             ))
                             .show(move |exit| {
-                                let mut cfg = load_config(&app_handle);
-                                cfg.close_to_exit = Some(exit);
-                                save_config(&app_handle, &cfg);
+                                // 仅在本次运行期间记住选择，下次启动重新询问
+                                {
+                                    let state = app_handle.state::<CloseBehaviorState>();
+                                    *state.0.lock().unwrap() = Some(exit);
+                                }
 
                                 if exit {
                                     app_handle.exit(0);
