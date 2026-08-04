@@ -35,7 +35,24 @@
       "options": {
         "cwd": "${workspaceFolder}"
       },
-      "problemMatcher": "$rustc"
+      "problemMatcher": {
+        "owner": "rust",
+        "fileLocation": ["relative", "${workspaceFolder}/src-tauri"],
+        "pattern": [
+          {
+            "regexp": "^(warning|warn|error)(\\[(\\S*)\\])?: (.*)$",
+            "severity": 1,
+            "code": 3,
+            "message": 4
+          },
+          {
+            "regexp": "^([ \\t]*)--> (\\S+):(\\d+):(\\d+)$",
+            "file": 2,
+            "line": 3,
+            "column": 4
+          }
+        ]
+      }
     },
     {
       "label": "准备 Tauri 调试环境",
