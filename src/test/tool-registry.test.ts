@@ -7,14 +7,14 @@ import {
 } from '@/registry/tool-registry';
 
 describe('Tool Registry', () => {
-  it('registers all 38 tools', () => {
+  it('registers all 39 tools', () => {
     const tools = getAllTools();
-    expect(tools.length).toBe(38);
+    expect(tools.length).toBe(39);
   });
 
-  it('has 8 categories', () => {
+  it('has 10 categories', () => {
     const categories = getAvailableCategories();
-    expect(categories.length).toBe(8);
+    expect(categories.length).toBe(10);
     expect(categories).toContain('converter');
     expect(categories).toContain('encoder');
     expect(categories).toContain('formatter');
@@ -23,6 +23,8 @@ describe('Tool Registry', () => {
     expect(categories).toContain('graphic');
     expect(categories).toContain('network');
     expect(categories).toContain('system');
+    expect(categories).toContain('translate');
+    expect(categories).toContain('pdf');
   });
 
   it('has 7 converters', () => {
@@ -45,8 +47,17 @@ describe('Tool Registry', () => {
     expect(getToolsByCategory('text').length).toBe(6);
   });
 
-  it('has 6 graphic tools', () => {
-    expect(getToolsByCategory('graphic').length).toBe(6);
+  it('has 5 graphic tools', () => {
+    expect(getToolsByCategory('graphic').length).toBe(5);
+    expect(getToolsByCategory('graphic').map((tool) => tool.id)).toContain('image-studio');
+  });
+
+  it('has a translator', () => {
+    expect(getToolsByCategory('translate').map((tool) => tool.id)).toEqual(['translator']);
+  });
+
+  it('has a pdf toolkit', () => {
+    expect(getToolsByCategory('pdf').map((tool) => tool.id)).toEqual(['pdf-toolkit']);
   });
 
   it('has 2 network tools', () => {

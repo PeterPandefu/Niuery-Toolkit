@@ -17,6 +17,7 @@ import {
   Fingerprint,
   Globe,
   Hash,
+  ImagePlus,
   KeyRound,
   Languages,
   Link2,
@@ -361,6 +362,16 @@ registerTool({
 });
 
 // === 图形工具 ===
+registerTool({
+  id: 'image-studio',
+  name: '图片处理',
+  icon: ImagePlus,
+  category: 'graphic',
+  component: lazy(() => import('@/tools/graphic/image-studio')),
+  keywords: ['image', 'compress', 'convert', 'resize', 'watermark', 'crop', 'rotate', 'gif', 'pdf', '图片', '压缩', '转换', '尺寸', '水印', '圆角', '裁剪', '旋转', '翻转', '合并'],
+  description: '图片压缩/转换/尺寸/水印/圆角/裁剪/旋转/合并等一站式处理',
+});
+
 registerTool({
   id: 'svg-optimizer',
   name: 'SVG 优化',
