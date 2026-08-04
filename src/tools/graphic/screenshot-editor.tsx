@@ -6,7 +6,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Button } from '@/components/ui/button';
 import {
   DEFAULT_SCREENSHOT_HOTKEY,
+  DEFAULT_LONGSHOT_HOTKEY,
   getScreenshotHotkey,
+  getLongshotHotkey,
   HOTKEYS_CHANGED_EVENT,
   type HotkeyBindings,
 } from '@/lib/hotkeys';
@@ -48,6 +50,7 @@ function ScreenshotEditorInner() {
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [screenshotHotkey, setScreenshotHotkey] = useState(DEFAULT_SCREENSHOT_HOTKEY);
+  const [longshotHotkey, setLongshotHotkey] = useState(DEFAULT_LONGSHOT_HOTKEY);
   const hasReceivedHotkeyUpdate = useRef(false);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [tool, setTool] = useState<ToolType>('select');
@@ -72,10 +75,13 @@ function ScreenshotEditorInner() {
     if (!isTauri) return;
     let cancelled = false;
     const handleHotkeysChanged = (event: Event) => {
-      const { screenshot } = (event as CustomEvent<HotkeyBindings>).detail;
+      const { screenshot, longshot } = (event as CustomEvent<HotkeyBindings>).detail;
       if (screenshot) {
         hasReceivedHotkeyUpdate.current = true;
         setScreenshotHotkey(screenshot);
+      }
+      if (longshot) {
+        setLongshotHotkey(longshot);
       }
     };
 
@@ -84,6 +90,7 @@ function ScreenshotEditorInner() {
       .then((hotkeys) => {
         if (!cancelled && !hasReceivedHotkeyUpdate.current) {
           setScreenshotHotkey(getScreenshotHotkey(hotkeys));
+          setLongshotHotkey(getLongshotHotkey(hotkeys));
         }
       })
       .catch(() => {});
@@ -188,8 +195,10 @@ function ScreenshotEditorInner() {
   }, []);
 
   // 长截图入口：打开框选窗口（长截图模式）
+  // 从界面按钮启动时先最小化主窗口，避免遮挡待框选的内容（拼接完成后会自动恢复）
   const handleLongshotEntry = useCallback(async () => {
     try {
+      await getCurrentWindow().minimize();
       await invoke('start_screenshot', { mode: 'longshot' });
     } catch (e) {
       toast.error(`${t('screenshotEditor.longshot.entry')}: ${e}`);
@@ -225,8 +234,9 @@ function ScreenshotEditorInner() {
         } else {
           toast.success(t('screenshotEditor.longshot.complete'));
         }
-        // 面板关闭后聚焦主窗口（可能处于最小化/失焦状态）
+        // 面板关闭后恢复主窗口（可能处于最小化/隐藏/失焦状态）
         const win = getCurrentWindow();
+        win.show().catch(() => {});
         win.unminimize().catch(() => {});
         win.setFocus().catch(() => {});
       };
@@ -458,7 +468,7 @@ function ScreenshotEditorInner() {
               <Scroll className="h-8 w-8" />
               <span className="text-xs">{t('screenshotEditor.longshot.entry')}</span>
               <span className="text-[10px] text-muted-foreground">
-                {t('screenshotEditor.longshot.entryHint')}
+                {t('screenshotEditor.hotkey')}: <kbd>{longshotHotkey}</kbd>
               </span>
             </Button>
           )}

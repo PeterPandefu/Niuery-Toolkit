@@ -41,6 +41,8 @@
     "showWindowDesc": "Press this shortcut from any app to show the main window",
     "screenshot": "Screenshot",
     "screenshotDesc": "Global screenshot shortcut, similar to WeChat capture",
+    "longshot": "Long Screenshot",
+    "longshotDesc": "Global long screenshot shortcut, capture a scrolling area and stitch",
     "screenRecorder": "Screen recorder",
     "screenRecorderDesc": "Open the screen recorder, or stop the active recording",
     "hint": "Click the shortcut area then press a new key combination to rebind",

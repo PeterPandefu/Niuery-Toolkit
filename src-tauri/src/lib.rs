@@ -89,7 +89,7 @@ mod dev_server {
 }
 
 use clipboard::ClipboardHistoryState;
-use hotkey::{HotkeyState, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW};
+use hotkey::{HotkeyState, ACTION_LONGSHOT, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW};
 use recorder::RecorderState;
 use screenshot::ScreenshotState;
 use system_monitor::SystemMonitorState;
@@ -124,6 +124,22 @@ pub fn run() {
                                 let app = app.clone();
                                 tauri::async_runtime::spawn(async move {
                                     let _ = screenshot::start_screenshot(app, None).await;
+                                });
+                            }
+                            ACTION_LONGSHOT => {
+                                // 切换到截图编辑器工具，确保后续长截图事件能被监听
+                                let _ = app.emit("open-longshot-editor", ());
+                                // 主窗口可见时先最小化，避免遮挡待框选的内容
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let visible = window.is_visible().unwrap_or(false);
+                                    let minimized = window.is_minimized().unwrap_or(false);
+                                    if visible && !minimized {
+                                        let _ = window.minimize();
+                                    }
+                                }
+                                let app = app.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    let _ = screenshot::start_screenshot(app, Some("longshot".to_string())).await;
                                 });
                             }
                             ACTION_SHOW_WINDOW => {

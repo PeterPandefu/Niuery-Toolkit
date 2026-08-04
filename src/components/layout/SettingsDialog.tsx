@@ -53,6 +53,7 @@ function Toggle({
 const HOTKEY_ACTIONS = [
   { id: 'showWindow', labelKey: 'hotkeys.showWindow', descKey: 'hotkeys.showWindowDesc' },
   { id: 'screenshot', labelKey: 'hotkeys.screenshot', descKey: 'hotkeys.screenshotDesc' },
+  { id: 'longshot', labelKey: 'hotkeys.longshot', descKey: 'hotkeys.longshotDesc' },
   { id: 'screenRecorder', labelKey: 'hotkeys.screenRecorder', descKey: 'hotkeys.screenRecorderDesc' },
 ] as const;
 

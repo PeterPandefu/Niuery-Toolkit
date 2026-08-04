@@ -41,6 +41,8 @@
     "showWindowDesc": "在任何程序中按下快捷键即可唤出主窗口",
     "screenshot": "截图",
     "screenshotDesc": "全局截图快捷键，类似微信截图",
+    "longshot": "长截图",
+    "longshotDesc": "全局长截图快捷键，框选滚动区域连拍拼接",
     "screenRecorder": "屏幕录制",
     "screenRecorderDesc": "打开屏幕录制工具，或停止当前录制",
     "hint": "点击快捷键区域后按下新的组合键即可重新绑定",

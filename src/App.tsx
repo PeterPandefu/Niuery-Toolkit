@@ -40,11 +40,20 @@ export default function App() {
 
   useEffect(() => {
     if (!(typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window)) return;
-    let cleanup: (() => void) | undefined;
+    const cleanups: (() => void)[] = [];
+    let disposed = false;
     void listen('open-screen-recorder', () => handleSelectTool('screen-recorder')).then((unlisten) => {
-      cleanup = unlisten;
+      if (disposed) unlisten();
+      else cleanups.push(unlisten);
     });
-    return () => cleanup?.();
+    void listen('open-longshot-editor', () => handleSelectTool('screenshot-editor')).then((unlisten) => {
+      if (disposed) unlisten();
+      else cleanups.push(unlisten);
+    });
+    return () => {
+      disposed = true;
+      cleanups.forEach((un) => un());
+    };
   }, [handleSelectTool]);
 
   return (

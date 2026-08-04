@@ -6,6 +6,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 /// 快捷键动作类型
 pub const ACTION_SHOW_WINDOW: &str = "showWindow";
 pub const ACTION_SCREENSHOT: &str = "screenshot";
+pub const ACTION_LONGSHOT: &str = "longshot";
 pub const ACTION_SCREEN_RECORDER: &str = "screenRecorder";
 
 /// 默认快捷键绑定
@@ -13,6 +14,7 @@ pub fn default_bindings() -> HashMap<String, String> {
     let mut m = HashMap::new();
     m.insert(ACTION_SHOW_WINDOW.to_string(), "Ctrl+Shift+T".to_string());
     m.insert(ACTION_SCREENSHOT.to_string(), "Ctrl+Alt+A".to_string());
+    m.insert(ACTION_LONGSHOT.to_string(), "Ctrl+Alt+S".to_string());
     m.insert(ACTION_SCREEN_RECORDER.to_string(), "Ctrl+Shift+R".to_string());
     m
 }
@@ -30,13 +32,17 @@ impl Default for HotkeyState {
     }
 }
 
-/// 从配置文件加载快捷键绑定
+/// 从配置文件加载快捷键绑定（缺失的新增动作以默认值补齐）
 pub fn load_hotkey_bindings(app: &tauri::AppHandle) -> HashMap<String, String> {
     let path = hotkey_config_path(app);
-    std::fs::read_to_string(&path)
+    let mut bindings = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_else(default_bindings)
+        .unwrap_or_else(default_bindings);
+    for (action, shortcut) in default_bindings() {
+        bindings.entry(action).or_insert(shortcut);
+    }
+    bindings
 }
 
 /// 保存快捷键绑定到配置文件
