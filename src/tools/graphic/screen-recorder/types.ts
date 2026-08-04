@@ -14,7 +14,7 @@ export interface CaptureTarget {
   rect?: CaptureRect;
 }
 
-export type RecordingStatus = 'idle' | 'countdown' | 'recording' | 'paused' | 'stopping' | 'preview' | 'error';
+export type RecordingStatus = 'idle' | 'countdown' | 'recording' | 'paused' | 'stopping' | 'stopped' | 'preview' | 'error';
 
 export interface RecordingSettings {
   fps: 15 | 30 | 60;
@@ -79,6 +79,7 @@ export interface RecordingStatusEvent {
   fps: number;
   droppedFrames: number;
   error?: string;
+  artifact?: RecordingArtifact;
 }
 
 export interface GifAnnotation {

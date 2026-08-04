@@ -7,6 +7,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tauri::ipc::Response;
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -131,6 +132,7 @@ struct RecordingStatusEvent {
     fps: u32,
     dropped_frames: u64,
     error: Option<String>,
+    artifact: Option<RecordingArtifact>,
 }
 
 struct ActiveRecording {
@@ -491,6 +493,7 @@ pub async fn start_recording(
                     fps,
                     dropped_frames: 0,
                     error: Some(error.clone()),
+                    artifact: None,
                 },
             );
         }
@@ -525,6 +528,7 @@ pub async fn start_recording(
             fps,
             dropped_frames: 0,
             error: None,
+            artifact: None,
         },
     );
     Ok(session)
@@ -551,6 +555,7 @@ pub fn pause_recording(app: AppHandle, session_id: String) -> Result<(), String>
             fps: 0,
             dropped_frames: 0,
             error: None,
+            artifact: None,
         },
     );
     Ok(())
@@ -577,6 +582,7 @@ pub fn resume_recording(app: AppHandle, session_id: String) -> Result<(), String
             fps: 0,
             dropped_frames: 0,
             error: None,
+            artifact: None,
         },
     );
     Ok(())
@@ -641,7 +647,7 @@ pub async fn export_recording(
 }
 
 #[tauri::command]
-pub fn get_recording_preview(app: AppHandle, session_id: String) -> Result<Vec<u8>, String> {
+pub fn get_recording_preview(app: AppHandle, session_id: String) -> Result<Response, String> {
     let state = app.state::<RecorderState>();
     let artifact = state
         .artifacts
@@ -650,7 +656,9 @@ pub fn get_recording_preview(app: AppHandle, session_id: String) -> Result<Vec<u
         .get(&session_id)
         .cloned()
         .ok_or_else(|| "录制预览已过期，请重新录制".to_string())?;
-    std::fs::read(&artifact.path).map_err(|error| format!("无法读取录制预览: {error}"))
+    let bytes =
+        std::fs::read(&artifact.path).map_err(|error| format!("无法读取录制预览: {error}"))?;
+    Ok(Response::new(bytes))
 }
 
 #[tauri::command]
@@ -724,6 +732,18 @@ async fn finish_recording(
                     .lock()
                     .map_err(|_| "录制结果不可用".to_string())?
                     .insert(session_id.clone(), artifact.clone());
+                let _ = app.emit(
+                    "recording-status",
+                    RecordingStatusEvent {
+                        session_id: session_id.clone(),
+                        status: "stopped".to_string(),
+                        elapsed_ms: artifact.duration_ms,
+                        fps: 0,
+                        dropped_frames: 0,
+                        error: None,
+                        artifact: Some(artifact.clone()),
+                    },
+                );
             }
             return Ok(artifact);
         }
@@ -818,6 +838,7 @@ fn capture_loop(
                     fps,
                     dropped_frames,
                     error: None,
+                    artifact: None,
                 },
             );
         }
@@ -863,6 +884,7 @@ fn capture_loop(
             fps,
             dropped_frames,
             error: None,
+            artifact: None,
         },
     );
     Ok(artifact)

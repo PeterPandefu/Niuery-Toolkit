@@ -32,8 +32,14 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
     void listen<RecordingStatusEvent>('recording-status', (event) => {
-      setStatus(event.payload);
-      onStatusRef.current?.(event.payload);
+      const nextStatus = event.payload;
+      if (nextStatus.status === 'stopped' && nextStatus.artifact) {
+        lastSessionIdRef.current = nextStatus.sessionId;
+        setSession(null);
+        setArtifact(nextStatus.artifact);
+      }
+      setStatus(nextStatus);
+      onStatusRef.current?.(nextStatus);
     }).then((cleanup) => {
       unlisten = cleanup;
     });
@@ -164,8 +170,8 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     const currentSessionId = lastSessionIdRef.current;
     if (!currentSessionId) return null;
     try {
-      const bytes = await invoke<number[]>('get_recording_preview', { sessionId: currentSessionId });
-      return URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'video/mp4' }));
+      const bytes = await invoke<ArrayBuffer>('get_recording_preview', { sessionId: currentSessionId });
+      return URL.createObjectURL(new Blob([bytes], { type: 'video/mp4' }));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
       return null;

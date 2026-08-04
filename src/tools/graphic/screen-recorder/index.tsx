@@ -36,10 +36,12 @@ export default function ScreenRecorder() {
       setElapsedMs(event.elapsedMs);
       if (event.status === 'paused') dispatch({ type: 'paused' });
       if (event.status === 'recording' && state.status === 'paused') dispatch({ type: 'resumed' });
+      if (event.status === 'stopped' && event.artifact) dispatch({ type: 'stopped', artifact: event.artifact });
       if (event.error) dispatch({ type: 'error', message: event.error });
     },
   });
   const refreshSources = recorder.refreshSources;
+  const loadPreview = recorder.loadPreview;
 
   useEffect(() => {
     void refreshSources().then((sources) => {
@@ -66,7 +68,7 @@ export default function ScreenRecorder() {
     }
     let active = true;
     let source: string | null = null;
-    void recorder.loadPreview().then((nextSource) => {
+    void loadPreview().then((nextSource) => {
       if (!nextSource) return;
       if (!active) {
         URL.revokeObjectURL(nextSource);
@@ -79,7 +81,7 @@ export default function ScreenRecorder() {
       active = false;
       if (source) URL.revokeObjectURL(source);
     };
-  }, [recorder.loadPreview, state.artifact, state.status]);
+  }, [loadPreview, state.artifact, state.status]);
 
   const target = useMemo<CaptureTarget | null>(() => {
     if (mode === 'window') return windowId ? { mode, windowId: Number(windowId) } : null;
