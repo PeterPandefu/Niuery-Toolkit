@@ -16,8 +16,8 @@ const isScreenshotWindow = hash === '#/screenshot' || hash.startsWith('#/screens
 // 长截图悬浮控制面板（#/longshot-panel?x=..&y=..&w=..&h=..）
 const isLongshotPanel = hash.startsWith('#/longshot-panel')
 
-// 截图窗口需要透明背景，覆盖 index.css 中的 bg-background
-if (isScreenshotWindow) {
+// 截图窗口/长截图边框窗口需要透明背景，覆盖 index.css 中的 bg-background
+if (isScreenshotWindow || isLongshotPanel) {
   document.documentElement.style.background = 'transparent'
   document.body.style.background = 'transparent'
   document.body.style.overflow = 'hidden'

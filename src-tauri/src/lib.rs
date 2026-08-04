@@ -117,6 +117,13 @@ pub fn run() {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
+                    // 长截图会话临时 Esc：结束并拼接（仅当边框窗口存在时处理）
+                    if screenshot::is_longshot_esc(shortcut) {
+                        if let Some(win) = app.get_webview_window("longshot-panel") {
+                            let _ = win.emit("longshot-esc", ());
+                        }
+                        return;
+                    }
                     // 动态查找快捷键对应的动作
                     if let Some(action) = hotkey::find_action(app, shortcut) {
                         match action.as_str() {
@@ -193,6 +200,7 @@ pub fn run() {
             screenshot::close_screenshot_window,
             screenshot::show_screenshot_window,
             screenshot::capture_screen_region,
+            screenshot::send_scroll_wheel,
             screenshot::start_longshot_panel,
             screenshot::close_longshot_panel,
             recorder::list_capture_monitors,
@@ -301,6 +309,14 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            // 长截图边框窗口销毁时注销临时 Esc、恢复系统光标，防止泄漏
+            if window.label() == "longshot-panel" {
+                if let WindowEvent::Destroyed = event {
+                    screenshot::unregister_longshot_esc(window.app_handle());
+                    screenshot::restore_cursor_for_longshot();
+                }
+                return;
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 // 只对主窗口应用关闭拦截逻辑，截图窗口等其他窗口允许正常关闭
                 if window.label() != "main" {

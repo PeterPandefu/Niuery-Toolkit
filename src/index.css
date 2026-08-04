@@ -237,6 +237,26 @@
   @apply mt-1 h-4 w-4 rounded border-border accent-primary;
 }
 
+/* 长截图捕获区域呼吸边框：透明窗口外环，不进入连拍帧 */
+.longshot-border {
+  position: fixed;
+  inset: 0;
+  border: 3px solid #4488ff;
+  background: transparent;
+  pointer-events: none;
+  animation: longshot-breathe 1.2s ease-in-out infinite;
+}
+
+@keyframes longshot-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
 /* 减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -211,11 +211,11 @@ function ScreenshotEditorInner() {
     let disposed = false;
     const unlisteners: (() => void)[] = [];
 
-    listen<{ x: number; y: number; width: number; height: number }>(
+    listen<{ x: number; y: number; width: number; height: number; intervalMs?: number; autoScroll?: boolean }>(
       'longshot-region-selected',
       (event) => {
-        const { x, y, width, height } = event.payload;
-        invoke('start_longshot_panel', { x, y, width, height }).catch((e) =>
+        const { x, y, width, height, intervalMs, autoScroll } = event.payload;
+        invoke('start_longshot_panel', { x, y, width, height, intervalMs, autoScroll }).catch((e) =>
           toast.error(`长截图启动失败: ${e}`)
         );
       }

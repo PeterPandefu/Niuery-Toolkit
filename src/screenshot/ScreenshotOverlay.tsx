@@ -39,6 +39,10 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
   const [history, setHistory] = useState<AnnotationItem[][]>([]);
   const [redoStack, setRedoStack] = useState<AnnotationItem[][]>([]);
   const [numberCounter, setNumberCounter] = useState(1);
+  /** 长截图捕获间隔（框选阶段配置，确认后锁定） */
+  const [longshotIntervalMs, setLongshotIntervalMs] = useState(1000);
+  /** 长截图滚动模式：自动滚动（默认）/ 手动滚动，框选阶段配置，确认后锁定 */
+  const [longshotAutoScroll, setLongshotAutoScroll] = useState(true);
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const selStart = useRef<{ x: number; y: number } | null>(null);
@@ -165,9 +169,11 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
       y: Math.round(selection.y),
       width: Math.round(selection.width),
       height: Math.round(selection.height),
+      intervalMs: longshotIntervalMs,
+      autoScroll: longshotAutoScroll,
     }).catch((e) => console.error('发送长截图选区失败', e));
     invoke('close_screenshot_window');
-  }, [selection]);
+  }, [selection, longshotIntervalMs, longshotAutoScroll]);
 
   const confirmLongshotRef = useRef(confirmLongshot);
   confirmLongshotRef.current = confirmLongshot;
@@ -329,12 +335,12 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
   // ── 工具栏位置（选区下方，空间不足则上方）────────────────
   const toolbarPos = useMemo(() => {
     if (!selection) return { x: 0, y: 0 };
-    const TW = 530, TH = 42;
+    const TW = longshotMode ? 570 : 530, TH = 42;
     const tx = Math.max(4, Math.min(selection.x + selection.width / 2 - TW / 2, screenW - TW - 4));
     const below = selection.y + selection.height + 8;
     const ty = below + TH < screenH ? below : Math.max(4, selection.y - TH - 8);
     return { x: tx, y: ty };
-  }, [selection, screenW, screenH]);
+  }, [selection, screenW, screenH, longshotMode]);
 
   const handleSelectionChange = useCallback((nextSelection: SelectionRect) => {
     setSelection(nextSelection);
@@ -408,6 +414,40 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
               style={{ left: toolbarPos.x, top: toolbarPos.y }}
               onMouseDown={(e) => e.stopPropagation()}
             >
+              {/* 滚动模式切换：仅在框选阶段可调，确认后锁定 */}
+              <div className="flex items-center rounded bg-white/10 p-0.5 text-xs">
+                <button
+                  className={`rounded px-2 py-0.5 ${longshotAutoScroll ? 'bg-[#4488ff] text-white' : 'text-white/70 hover:text-white'}`}
+                  onClick={() => setLongshotAutoScroll(true)}
+                >
+                  自动
+                </button>
+                <button
+                  className={`rounded px-2 py-0.5 ${!longshotAutoScroll ? 'bg-[#4488ff] text-white' : 'text-white/70 hover:text-white'}`}
+                  onClick={() => setLongshotAutoScroll(false)}
+                >
+                  手动
+                </button>
+              </div>
+              <div className="h-4 w-px bg-white/20" />
+              {/* 捕获间隔配置：仅在框选阶段可调，确认后锁定 */}
+              <label className="flex items-center gap-1.5 pl-1 text-xs text-white/70">
+                间隔
+                <input
+                  type="range"
+                  min={300}
+                  max={3000}
+                  step={100}
+                  value={longshotIntervalMs}
+                  onChange={(e) => setLongshotIntervalMs(Number(e.target.value))}
+                  className="h-1 w-28 accent-[#4488ff]"
+                  aria-label="捕获间隔"
+                />
+                <span className="w-8 text-right font-mono text-white/85">
+                  {(longshotIntervalMs / 1000).toFixed(1)}s
+                </span>
+              </label>
+              <div className="h-4 w-px bg-white/20" />
               <button
                 className="rounded bg-[#4488ff] px-3 py-1 text-sm text-white hover:bg-[#3377ee]"
                 onClick={confirmLongshot}

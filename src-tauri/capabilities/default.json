@@ -6,6 +6,10 @@
   "permissions": [
     "core:default",
     "core:event:allow-emit-to",
+    "core:window:allow-minimize",
+    "core:window:allow-unminimize",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     "opener:default",
     "http:default",
     "global-shortcut:default",

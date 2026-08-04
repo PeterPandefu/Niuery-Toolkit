@@ -68,6 +68,16 @@ describe('findVerticalOffset', () => {
     const f2 = makeFrame(W, H + 4, patternRow(1));
     expect(findVerticalOffset(f1, f2)).toBeNull();
   });
+
+  it('自动滚轮的小步滚动即使重叠超过视口 90% 也能对齐', () => {
+    const frameHeight = 400;
+    const dy = 24;
+    const f1 = makeFrame(W, frameHeight, patternRow(12));
+    const f2 = makeFrame(W, frameHeight, (row) => patternRow(12)(row + dy));
+    const match = findVerticalOffset(f1, f2);
+    expect(match).not.toBeNull();
+    expect(match!.dy).toBe(dy);
+  });
 });
 
 describe('planStitch', () => {
@@ -110,6 +120,94 @@ describe('planStitch', () => {
 
   it('空输入', () => {
     expect(planStitch([])).toEqual({ offsets: [], droppedIndices: [] });
+  });
+});
+
+describe('重复纹理场景（稳健化门控）', () => {
+  /** 模拟代码类内容：每 8 行一个结构相同的块，块间行灰度不同 */
+  function blockContent(seed: number): (row: number) => number {
+    return (row) => {
+      const block = Math.floor(row / 8) + 1 + seed;
+      const line = (row % 8) + 1;
+      let h = Math.imul(block, 374761393) ^ Math.imul(line, 668265263);
+      h = Math.imul(h ^ (h >>> 13), 1274126177);
+      h = h ^ (h >>> 16);
+      return Math.abs(h) % 251;
+    };
+  }
+
+  it('结构相似但内容不同的重复块不会误判偏移', () => {
+    const dy = 16;
+    const f1 = makeFrame(W, H, blockContent(1));
+    const f2 = makeFrame(W, H, (row) => blockContent(1)(row + dy));
+    const match = findVerticalOffset(f1, f2);
+    expect(match).not.toBeNull();
+    expect(match!.dy).toBe(dy);
+  });
+
+  it('重叠区内含空白段仍能找到真实偏移', () => {
+    const content = (row: number) => {
+      if (row >= 20 && row < 30) return 250; // 空白段
+      return patternRow(11)(row);
+    };
+    const dy = 20;
+    const f1 = makeFrame(W, 60, content);
+    const f2 = makeFrame(W, 60, (row) => content(row + dy));
+    const match = findVerticalOffset(f1, f2);
+    expect(match).not.toBeNull();
+    expect(match!.dy).toBe(dy);
+  });
+
+  it('inlier 占比不足（局部内容变化）时保守丢弃', () => {
+    const dy = 10;
+    const f1 = makeFrame(W, H, patternRow(21));
+    // 20% 的行发生内容变化（如动画/光标），超过离群容忍 10%
+    const f2 = makeFrame(W, H, (row) => {
+      const base = patternRow(21)(row + dy);
+      return row % 5 === 0 ? (base + 100) % 251 : base;
+    });
+    expect(findVerticalOffset(f1, f2)).toBeNull();
+  });
+});
+
+describe('时间连续性先验', () => {
+  it('hint 窗口内含真实偏移时直接命中', () => {
+    const dy = 10;
+    const f1 = makeFrame(W, H, patternRow(40));
+    const f2 = makeFrame(W, H, (row) => patternRow(40)(row + dy));
+    const match = findVerticalOffset(f1, f2, { dy: 10, tol: 0.3 });
+    expect(match).not.toBeNull();
+    expect(match!.dy).toBe(dy);
+  });
+
+  it('hint 窗口偏离真实偏移时回退全范围，不致盲', () => {
+    const dy = 10;
+    const f1 = makeFrame(W, H, patternRow(41));
+    const f2 = makeFrame(W, H, (row) => patternRow(41)(row + dy));
+    // hint 指向 25，窗口 [19,31] 不含 10 → 回退全范围仍找到真实 dy
+    const match = findVerticalOffset(f1, f2, { dy: 25, tol: 0.1 });
+    expect(match).not.toBeNull();
+    expect(match!.dy).toBe(dy);
+  });
+
+  it('周期纹理下 hint 消除全范围最大重叠误判', () => {
+    // 完全周期（周期 8）的内容：全范围会取最大重叠 dy=8，真实 dy=16
+    const periodic = (row: number) => patternRow(4)(row % 8);
+    const f1 = makeFrame(W, H, periodic);
+    const f2 = makeFrame(W, H, (row) => periodic(row + 16));
+    expect(findVerticalOffset(f1, f2)!.dy).toBe(8);
+    const hinted = findVerticalOffset(f1, f2, { dy: 16, tol: 0.2 });
+    expect(hinted!.dy).toBe(16);
+  });
+
+  it('planStitch 速度突变时回退全范围仍对齐', () => {
+    const f1 = makeFrame(W, H, patternRow(30));
+    const f2 = makeFrame(W, H, (row) => patternRow(30)(row + 10));
+    const f3 = makeFrame(W, H, (row) => patternRow(30)(row + 20));
+    const f4 = makeFrame(W, H, (row) => patternRow(30)(row + 44)); // 突变 dy=24
+    const { offsets, droppedIndices } = planStitch([f1, f2, f3, f4]);
+    expect(droppedIndices).toEqual([]);
+    expect(offsets).toEqual([0, 10, 10, 24]);
   });
 });
 
