@@ -12,14 +12,14 @@ import {
   FileCode2,
   FileDigit,
   FileJson,
+  FileStack,
   FileText,
   Fingerprint,
   Globe,
   Hash,
-  Image,
   KeyRound,
+  Languages,
   Link2,
-  Minimize2,
   Paintbrush,
   Palette,
   QrCode,
@@ -362,26 +362,6 @@ registerTool({
 
 // === 图形工具 ===
 registerTool({
-  id: 'image-compressor',
-  name: '图片压缩',
-  icon: Minimize2,
-  category: 'graphic',
-  component: lazy(() => import('@/tools/graphic/image-compressor')),
-  keywords: ['image', 'compress', '图片', '压缩', 'png', 'jpg'],
-  description: 'PNG/JPEG 图片压缩',
-});
-
-registerTool({
-  id: 'image-converter',
-  name: '图片转换',
-  icon: Image,
-  category: 'graphic',
-  component: lazy(() => import('@/tools/graphic/image-converter')),
-  keywords: ['image', 'convert', '图片', '转换', 'webp', 'avif'],
-  description: '图片格式互转',
-});
-
-registerTool({
   id: 'svg-optimizer',
   name: 'SVG 优化',
   icon: Paintbrush,
@@ -451,4 +431,26 @@ registerTool({
   component: lazy(() => import('@/tools/network/api-tester')),
   keywords: ['api', 'http', 'rest', 'request', 'response', '接口', '请求', '调试', 'postman', 'apifox'],
   description: 'HTTP API 接口调试测试',
+});
+
+// === 翻译工具 ===
+registerTool({
+  id: 'translator',
+  name: '翻译',
+  icon: Languages,
+  category: 'translate',
+  component: lazy(() => import('@/tools/translate')),
+  keywords: ['translate', 'translation', 'baidu', 'language', '翻译', '译文', '语言'],
+  description: '百度翻译：多语种互译，自动检测源语言',
+});
+
+// === PDF 工具 ===
+registerTool({
+  id: 'pdf-toolkit',
+  name: 'PDF 工具',
+  icon: FileStack,
+  category: 'pdf',
+  component: lazy(() => import('@/tools/pdf')),
+  keywords: ['pdf', 'merge', 'split', 'watermark', 'compress', '合并', '拆分', '水印', '压缩', '提取图片', '转图片'],
+  description: 'PDF 合并/拆分/水印/压缩/转图片/提取图片，全程本地处理',
 });

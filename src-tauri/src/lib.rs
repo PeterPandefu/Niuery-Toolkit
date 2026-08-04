@@ -1,5 +1,6 @@
 mod capture_guard;
 mod clipboard;
+mod file_saver;
 mod hotkey;
 pub mod recorder;
 mod screenshot;
@@ -264,6 +265,7 @@ pub fn run() {
             hotkey::get_hotkeys,
             hotkey::reset_hotkeys,
             system_monitor::get_system_stats,
+            file_saver::save_file_dialog,
         ])
         .setup(move |app| {
             // 开发模式下：开机自启动等独立启动场景自动拉起前端 dev 服务

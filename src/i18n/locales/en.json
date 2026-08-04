@@ -58,7 +58,9 @@
     "text": "Text Tools",
     "graphic": "Graphic Tools",
     "network": "Network Tools",
-    "system": "System Tools"
+    "system": "System Tools",
+    "translate": "Translation",
+    "pdf": "PDF Tools"
   },
   "tools": {
     "json-yaml": "JSON ↔ YAML",
@@ -98,6 +100,8 @@
     "screen-recorder": "Screen Recorder",
     "socket-tool": "Socket Debugger",
     "api-tester": "API Tester",
+    "translator": "Translator",
+    "pdf-toolkit": "PDF Toolkit",
     "system-monitor": "System Monitor"
   },
   "actions": {

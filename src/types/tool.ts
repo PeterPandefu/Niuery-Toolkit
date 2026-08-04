@@ -3,6 +3,8 @@ import {
   ArrowLeftRight,
   Code2,
   FileJson,
+  FileStack,
+  Languages,
   Sparkles,
   Type,
   Image,
@@ -18,7 +20,9 @@ export type ToolCategory =
   | 'text'
   | 'graphic'
   | 'network'
-  | 'system';
+  | 'system'
+  | 'translate'
+  | 'pdf';
 
 /** 分类显示名称映射 */
 export const CATEGORY_NAMES: Record<ToolCategory, string> = {
@@ -30,6 +34,8 @@ export const CATEGORY_NAMES: Record<ToolCategory, string> = {
   graphic: '图形工具',
   network: '网络工具',
   system: '系统工具',
+  translate: '翻译工具',
+  pdf: 'PDF 工具',
 };
 
 /** 分类图标映射 */
@@ -42,6 +48,8 @@ export const CATEGORY_ICONS: Record<ToolCategory, ComponentType<{ className?: st
   graphic: Image,
   network: Globe,
   system: Globe,
+  translate: Languages,
+  pdf: FileStack,
 };
 
 /** 工具定义接口 */
