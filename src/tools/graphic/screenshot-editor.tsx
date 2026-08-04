@@ -185,9 +185,10 @@ function ScreenshotEditorInner() {
     toast.info('请按 Ctrl+V 粘贴剪贴板中的图片');
   }, []);
 
-  // 微信风格截图（Tauri 桌面端）
+  // 微信风格截图（Tauri 桌面端）：先最小化主窗口，避免主窗口被截入画面
   const handleWechatScreenshot = useCallback(async () => {
     try {
+      await getCurrentWindow().minimize();
       await invoke('start_screenshot');
     } catch (e) {
       toast.error(`截图失败: ${e}`);

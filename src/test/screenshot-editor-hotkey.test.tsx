@@ -1,8 +1,11 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ScreenshotEditor from '@/tools/graphic/screenshot-editor';
 
-const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
+const { invokeMock, minimizeMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  minimizeMock: vi.fn(() => Promise.resolve()),
+}));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('@tauri-apps/api/event', () => ({
@@ -10,7 +13,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   emitTo: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: () => ({ unminimize: vi.fn(), setFocus: vi.fn() }),
+  getCurrentWindow: () => ({ minimize: minimizeMock, unminimize: vi.fn(), setFocus: vi.fn() }),
 }));
 vi.mock('@/tools/graphic/screenshot/HistoryProvider', () => ({
   HistoryProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -40,6 +43,7 @@ describe('ScreenshotEditor screenshot hotkey hint', () => {
   afterEach(() => {
     delete (window as typeof window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
     invokeMock.mockReset();
+    minimizeMock.mockClear();
   });
 
   it('renders the configured shortcut and applies later configuration changes', async () => {
@@ -64,6 +68,21 @@ describe('ScreenshotEditor screenshot hotkey hint', () => {
 
     expect(screen.queryByText('screenshotEditor.subtitle')).not.toBeInTheDocument();
     expect(screen.queryByText('screenshotEditor.dragHint')).not.toBeInTheDocument();
+  });
+
+  it('minimizes the main window before starting a screenshot from the button', async () => {
+    render(<ScreenshotEditor />);
+
+    fireEvent.click(await screen.findByText('screenshotEditor.capture'));
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith('start_screenshot');
+    });
+    const startScreenshotCall = invokeMock.mock.calls.findIndex(([command]) => command === 'start_screenshot');
+    expect(minimizeMock).toHaveBeenCalledTimes(1);
+    expect(minimizeMock.mock.invocationCallOrder[0]).toBeLessThan(
+      invokeMock.mock.invocationCallOrder[startScreenshotCall]
+    );
   });
 
   it('keeps a newer configuration event when the initial load resolves late', async () => {

@@ -19,12 +19,15 @@ export default function ScreenshotApp() {
   const [screen, setScreen] = useState<ScreenData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const hasShownWindow = useRef(false);
+  const hasClosedFailedWindow = useRef(false);
 
   useEffect(() => {
-    if ((!screen && !error) || hasShownWindow.current) return;
+    if (!screen || hasShownWindow.current) return;
     hasShownWindow.current = true;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let firstFrame: number | null = null;
+    let secondFrame: number | null = null;
 
     const tryShow = (retries = 3) => {
       invoke('show_screenshot_window').catch(() => {
@@ -35,13 +38,33 @@ export default function ScreenshotApp() {
         }, 100);
       });
     };
-    tryShow();
+
+    // 隐藏的 WebView 提交 React 内容后，再等待两帧交给系统合成器，
+    // 避免透明置顶窗口先显示、截图提示尚未绘制而看起来像整个桌面卡死。
+    firstFrame = requestAnimationFrame(() => {
+      firstFrame = null;
+      secondFrame = requestAnimationFrame(() => {
+        secondFrame = null;
+        if (!cancelled) tryShow();
+      });
+    });
 
     return () => {
       cancelled = true;
+      if (firstFrame !== null) cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) cancelAnimationFrame(secondFrame);
       if (retryTimer !== null) clearTimeout(retryTimer);
     };
-  }, [error, screen]);
+  }, [screen]);
+
+  useEffect(() => {
+    if (!error || hasClosedFailedWindow.current) return;
+    hasClosedFailedWindow.current = true;
+    // 图片加载失败时窗口仍处于隐藏状态，直接关闭，绝不留下透明置顶拦截层。
+    invoke('close_screenshot_window').catch((reason) => {
+      console.error('关闭失败的截图窗口时出错', reason);
+    });
+  }, [error]);
 
   useEffect(() => {
     let cancelled = false;

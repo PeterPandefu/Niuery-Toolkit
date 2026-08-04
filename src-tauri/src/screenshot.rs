@@ -1,8 +1,13 @@
 use base64::Engine;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+
+/// 截图窗口必须在该时限内完成首帧渲染并主动显示，否则自动清理隐藏窗口。
+const SCREENSHOT_READY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+/// 原生捕获或窗口创建超过该时限时放弃本次会话，防止快捷键永久处于忙碌状态。
+const SCREENSHOT_START_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(12);
 
 /// 长截图边框外扩宽度（CSS 像素）：边框画在窗口外环，内洞恰为捕获区域，
 /// 保证置顶边框不会被拍进连拍帧
@@ -60,8 +65,12 @@ pub fn restore_cursor_for_longshot() {
 /// 截图状态：保存最近一次全屏截图的 base64 PNG 数据
 pub struct ScreenshotState {
     pub screen_data: Mutex<Option<String>>,
-    /// 防止并发调用 start_screenshot 导致竞态卡死
-    pub in_progress: AtomicBool,
+    /// 从开始捕获到截图窗口销毁期间始终保持占用，防止快捷键重入重建置顶窗口。
+    in_progress: AtomicBool,
+    /// 前端首帧完成后由 show_screenshot_window 标记，用于识别半初始化窗口。
+    window_ready: AtomicBool,
+    /// 区分前后两次会话，避免旧看门狗误清理新会话。
+    generation: AtomicU64,
 }
 
 impl Default for ScreenshotState {
@@ -69,7 +78,47 @@ impl Default for ScreenshotState {
         Self {
             screen_data: Mutex::new(None),
             in_progress: AtomicBool::new(false),
+            window_ready: AtomicBool::new(false),
+            generation: AtomicU64::new(0),
         }
+    }
+}
+
+impl ScreenshotState {
+    fn try_begin_session(&self) -> Option<u64> {
+        self.in_progress
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()?;
+        self.window_ready.store(false, Ordering::Release);
+        Some(self.generation.fetch_add(1, Ordering::AcqRel) + 1)
+    }
+
+    fn mark_current_ready(&self) {
+        if self.in_progress.load(Ordering::Acquire) {
+            self.window_ready.store(true, Ordering::Release);
+        }
+    }
+
+    fn should_cleanup(&self, generation: u64) -> bool {
+        self.in_progress.load(Ordering::Acquire)
+            && self.generation.load(Ordering::Acquire) == generation
+            && !self.window_ready.load(Ordering::Acquire)
+    }
+
+    fn release_if_generation(&self, generation: u64) {
+        if self.generation.load(Ordering::Acquire) == generation {
+            self.window_ready.store(false, Ordering::Release);
+            self.in_progress.store(false, Ordering::Release);
+        }
+    }
+
+    fn release_current(&self) {
+        self.window_ready.store(false, Ordering::Release);
+        self.in_progress.store(false, Ordering::Release);
+    }
+
+    fn is_active(&self) -> bool {
+        self.in_progress.load(Ordering::Acquire)
     }
 }
 
@@ -77,17 +126,66 @@ impl Default for ScreenshotState {
 /// mode 为 "longshot" 时进入长截图框选模式
 #[tauri::command]
 pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<(), String> {
-    // 防重入：如果已有截图流程正在执行，直接返回，避免并发竞态导致卡死
-    let state = app.state::<ScreenshotState>();
-    if state.in_progress.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_err() {
+    // 长截图连拍期间不允许再打开全屏截图层，避免两个置顶捕获界面互相覆盖。
+    if app.get_webview_window("longshot-panel").is_some() {
         return Ok(());
     }
 
-    // 确保无论成功还是失败，最终都释放标志
-    let result = do_start_screenshot(app.clone(), mode).await;
-    let state = app.state::<ScreenshotState>();
-    state.in_progress.store(false, Ordering::Release);
-    result
+    // 防重入范围覆盖完整截图会话，而不只是捕获和建窗阶段。
+    let generation = {
+        let state = app.state::<ScreenshotState>();
+        match state.try_begin_session() {
+            Some(generation) => generation,
+            None => return Ok(()),
+        }
+    };
+
+    match tokio::time::timeout(
+        SCREENSHOT_START_TIMEOUT,
+        do_start_screenshot(app.clone(), mode),
+    )
+    .await
+    {
+        Ok(Ok(())) => {
+            let watchdog_app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(SCREENSHOT_READY_TIMEOUT).await;
+                let should_cleanup = watchdog_app
+                    .state::<ScreenshotState>()
+                    .should_cleanup(generation);
+                if !should_cleanup {
+                    return;
+                }
+                if let Some(window) = watchdog_app.get_webview_window("screenshot") {
+                    let _ = window.close();
+                }
+                watchdog_app
+                    .state::<ScreenshotState>()
+                    .release_if_generation(generation);
+            });
+            Ok(())
+        }
+        Ok(Err(error)) => {
+            app.state::<ScreenshotState>()
+                .release_if_generation(generation);
+            Err(error)
+        }
+        Err(_) => {
+            app.state::<ScreenshotState>()
+                .release_if_generation(generation);
+            Err("截图启动超时，请稍后重试".to_string())
+        }
+    }
+}
+
+/// 当前是否已有截图框选窗口或正在初始化的截图会话。
+pub fn is_screenshot_session_active(app: &AppHandle) -> bool {
+    app.state::<ScreenshotState>().is_active() || app.get_webview_window("screenshot").is_some()
+}
+
+/// 截图窗口销毁时释放会话占用，供统一窗口事件处理调用。
+pub fn release_screenshot_session(app: &AppHandle) {
+    app.state::<ScreenshotState>().release_current();
 }
 
 async fn do_start_screenshot(app: AppHandle, mode: Option<String>) -> Result<(), String> {
@@ -234,7 +332,14 @@ pub fn save_image_dialog(base64_data: String, format: Option<String>) -> Result<
 #[tauri::command]
 pub fn close_screenshot_window(app: AppHandle) -> Result<(), String> {
     if let Some(win) = app.get_webview_window("screenshot") {
-        win.close().map_err(|e| format!("关闭窗口失败: {e}"))?;
+        if let Err(error) = win.close() {
+            // 关闭失败时至少隐藏置顶窗口并释放会话，避免继续拦截整个桌面的输入。
+            let _ = win.hide();
+            app.state::<ScreenshotState>().release_current();
+            return Err(format!("关闭窗口失败: {error}"));
+        }
+    } else {
+        app.state::<ScreenshotState>().release_current();
     }
     Ok(())
 }
@@ -429,12 +534,45 @@ pub fn close_longshot_panel(app: AppHandle) -> Result<(), String> {
 /// 前端渲染就绪后全屏并显示截图窗口
 #[tauri::command]
 pub fn show_screenshot_window(app: AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("screenshot") {
-        // 先设置全屏，再显示，最后聚焦
-        win.set_fullscreen(true)
-            .map_err(|e| format!("全屏失败: {e}"))?;
-        win.show().map_err(|e| format!("显示窗口失败: {e}"))?;
-        win.set_focus().map_err(|e| format!("聚焦窗口失败: {e}"))?;
-    }
+    let win = app
+        .get_webview_window("screenshot")
+        .ok_or_else(|| "截图窗口不存在".to_string())?;
+    // 前端确认首帧已提交后再全屏、显示和聚焦。
+    win.set_fullscreen(true)
+        .map_err(|e| format!("全屏失败: {e}"))?;
+    win.show().map_err(|e| format!("显示窗口失败: {e}"))?;
+    win.set_focus().map_err(|e| format!("聚焦窗口失败: {e}"))?;
+    app.state::<ScreenshotState>().mark_current_ready();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ScreenshotState;
+
+    #[test]
+    fn screenshot_session_stays_active_until_released() {
+        let state = ScreenshotState::default();
+        let generation = state.try_begin_session().expect("首次会话应成功开始");
+
+        assert!(state.is_active());
+        assert!(state.try_begin_session().is_none());
+
+        state.release_if_generation(generation);
+        assert!(!state.is_active());
+        assert!(state.try_begin_session().is_some());
+    }
+
+    #[test]
+    fn stale_watchdog_cannot_release_a_new_session() {
+        let state = ScreenshotState::default();
+        let old_generation = state.try_begin_session().expect("首次会话应成功开始");
+        state.release_if_generation(old_generation);
+        let new_generation = state.try_begin_session().expect("新会话应成功开始");
+
+        state.release_if_generation(old_generation);
+
+        assert!(state.is_active());
+        assert_ne!(old_generation, new_generation);
+    }
 }

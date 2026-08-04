@@ -362,6 +362,14 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
         alt=""
       />
 
+      {/* 空闲时明确标识全屏截图层，避免静态屏幕画面被误认为应用或浏览器卡死 */}
+      {phase === 'idle' && (
+        <div
+          data-testid="screenshot-idle-mask"
+          className="pointer-events-none fixed inset-0 z-10 bg-black/20"
+        />
+      )}
+
       {/* 手绘轨迹渲染 */}
       {phase === 'drawing' && freehandPoints.length > 1 && (
         <svg
@@ -519,14 +527,27 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
 
       {/* 空闲 / 手绘提示 */}
       {phase === 'idle' && (
-        <div className="pointer-events-none fixed inset-x-0 top-10 z-10 flex justify-center">
-          <span className="rounded-full bg-black/65 px-5 py-2 text-sm text-white/90 select-none">
-            {longshotMode
-              ? '拖动鼠标框选可滚动区域\u2002·\u2002Enter 开始长截图\u2002·\u2002Esc 取消'
-              : mode === 'freehand'
-                ? '按住鼠标绘制截图区域\u2002·\u2002Enter 确认\u2002·\u2002M 切换矩形\u2002·\u2002Esc 取消'
-                : '拖动鼠标框选截图区域\u2002·\u2002M 切换手绘\u2002·\u2002Esc 取消'}
-          </span>
+        <div className="pointer-events-none fixed inset-x-0 top-8 z-50 flex justify-center px-4">
+          <div
+            className="pointer-events-auto flex items-center gap-3 rounded-xl border border-white/15 bg-[#202124]/95 px-4 py-2.5 text-sm text-white shadow-2xl select-none"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <span className="font-semibold text-white">正在截图</span>
+            <span className="text-white/80">
+              {longshotMode
+                ? '拖动框选可滚动区域 · Enter 开始长截图'
+                : mode === 'freehand'
+                  ? '按住鼠标绘制截图区域 · Enter 确认 · M 切换矩形'
+                  : '拖动鼠标框选截图区域 · M 切换手绘'}
+            </span>
+            <button
+              type="button"
+              className="rounded-md bg-white/10 px-2.5 py-1 text-xs text-white/90 transition-colors hover:bg-white/20"
+              onClick={handleCancel}
+            >
+              取消截图（Esc）
+            </button>
+          </div>
         </div>
       )}
 

@@ -30,6 +30,10 @@ describe('ScreenshotApp', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.stubGlobal('Image', PendingImage);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      window.setTimeout(() => callback(performance.now()), 16)
+    );
+    vi.stubGlobal('cancelAnimationFrame', (handle: number) => window.clearTimeout(handle));
     invokeMock.mockImplementation((command: string) => {
       if (command === 'get_screen_capture') return Promise.resolve('captured-screen');
       return Promise.resolve();
@@ -53,8 +57,7 @@ describe('ScreenshotApp', () => {
     expect(invokeMock).not.toHaveBeenCalledWith('show_screenshot_window');
   });
 
-  it('shows the native window only after the screenshot overlay has committed', async () => {
-    vi.useRealTimers();
+  it('shows the native window only after the screenshot overlay has committed for two frames', async () => {
     vi.stubGlobal('Image', LoadedImage);
     let overlayWasCommitted = false;
     invokeMock.mockImplementation((command: string) => {
@@ -67,33 +70,39 @@ describe('ScreenshotApp', () => {
 
     render(<ScreenshotApp />);
 
-    await waitFor(() => {
-      expect(invokeMock).toHaveBeenCalledWith('show_screenshot_window');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(invokeMock).not.toHaveBeenCalledWith('show_screenshot_window');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31);
+    });
+    expect(invokeMock).not.toHaveBeenCalledWith('show_screenshot_window');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
     });
 
+    expect(invokeMock).toHaveBeenCalledWith('show_screenshot_window');
     expect(overlayWasCommitted).toBe(true);
   });
 
-  it('shows the native window only after the loading error has committed', async () => {
+  it('closes the hidden native window when loading the screenshot fails', async () => {
     vi.useRealTimers();
-    let errorWasCommitted = false;
-    let getRenderedText = () => '';
     invokeMock.mockImplementation((command: string) => {
       if (command === 'get_screen_capture') return Promise.reject(new Error('capture unavailable'));
-      if (command === 'show_screenshot_window') {
-        errorWasCommitted = getRenderedText().includes('capture unavailable');
-      }
       return Promise.resolve();
     });
 
-    const { container } = render(<ScreenshotApp />);
-    getRenderedText = () => container.textContent ?? '';
+    render(<ScreenshotApp />);
 
     await waitFor(() => {
-      expect(invokeMock).toHaveBeenCalledWith('show_screenshot_window');
+      expect(invokeMock).toHaveBeenCalledWith('close_screenshot_window');
     });
 
-    expect(errorWasCommitted).toBe(true);
+    expect(invokeMock).not.toHaveBeenCalledWith('show_screenshot_window');
   });
 
   it('cancels a scheduled window-show retry when unmounted', async () => {
@@ -114,6 +123,9 @@ describe('ScreenshotApp', () => {
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(32);
     });
     expect(showCalls).toBe(1);
 

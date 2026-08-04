@@ -134,6 +134,11 @@ pub fn run() {
                                 });
                             }
                             ACTION_LONGSHOT => {
+                                if screenshot::is_screenshot_session_active(app)
+                                    || app.get_webview_window("longshot-panel").is_some()
+                                {
+                                    return;
+                                }
                                 // 切换到截图编辑器工具，确保后续长截图事件能被监听
                                 let _ = app.emit("open-longshot-editor", ());
                                 // 主窗口可见时先最小化，避免遮挡待框选的内容
@@ -163,6 +168,12 @@ pub fn run() {
                                         let _ = recorder::stop_recording(app, session_id).await;
                                     });
                                 } else {
+                                    // 截图框选或长截图会话尚未结束时不再叠加新的快捷键工具。
+                                    if screenshot::is_screenshot_session_active(app)
+                                        || app.get_webview_window("longshot-panel").is_some()
+                                    {
+                                        return;
+                                    }
                                     if let Some(window) = app.get_webview_window("main") {
                                         let _ = window.show();
                                         let _ = window.unminimize();
@@ -309,6 +320,13 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            // 截图窗口真正销毁后才解除会话占用，避免关闭与重建标签发生竞态。
+            if window.label() == "screenshot" {
+                if let WindowEvent::Destroyed = event {
+                    screenshot::release_screenshot_session(window.app_handle());
+                }
+                return;
+            }
             // 长截图边框窗口销毁时注销临时 Esc、恢复系统光标，防止泄漏
             if window.label() == "longshot-panel" {
                 if let WindowEvent::Destroyed = event {

@@ -34,10 +34,19 @@ describe('ScreenshotOverlay selection mode', () => {
     render(<ScreenshotOverlay screenImage={{ src: 'screen' } as HTMLImageElement} screenW={100} screenH={100} />);
 
     expect(screen.getByText(/拖动鼠标框选截图区域/)).toBeInTheDocument();
+    expect(screen.getByTestId('screenshot-idle-mask')).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: 'm' });
 
     expect(screen.getByText(/按住鼠标绘制截图区域/)).toBeInTheDocument();
+  });
+
+  it('provides a visible cancel action while the full-screen layer is idle', () => {
+    render(<ScreenshotOverlay screenImage={{ src: 'screen' } as HTMLImageElement} screenW={100} screenH={100} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '取消截图（Esc）' }));
+
+    expect(invokeMock).toHaveBeenCalledWith('close_screenshot_window');
   });
 
   it('keeps the screen visible outside the hand-drawn selection rectangle', async () => {
