@@ -443,6 +443,14 @@ pub async fn start_recording(
     }
     let (width, height) = target_dimensions(&target)?;
     let ffmpeg = find_ffmpeg(&app)?;
+    // 在共享入口锁内检查其他捕获会话并占用录屏状态，防止界面命令绕过快捷键保护。
+    let guard_state = app.state::<crate::capture_guard::CaptureGuardState>();
+    let _capture_guard = guard_state.lock()?;
+    if crate::screenshot::is_screenshot_session_active(&app)
+        || app.get_webview_window("longshot-panel").is_some()
+    {
+        return Err("截图或长截图正在进行，暂时无法开始录屏".to_string());
+    }
     let state = app.state::<RecorderState>();
     let mut active = state
         .active

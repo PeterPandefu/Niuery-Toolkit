@@ -126,13 +126,17 @@ impl ScreenshotState {
 /// mode 为 "longshot" 时进入长截图框选模式
 #[tauri::command]
 pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<(), String> {
-    // 长截图连拍期间不允许再打开全屏截图层，避免两个置顶捕获界面互相覆盖。
-    if app.get_webview_window("longshot-panel").is_some() {
-        return Ok(());
-    }
-
-    // 防重入范围覆盖完整截图会话，而不只是捕获和建窗阶段。
+    // 在共享入口锁内完成冲突检查和会话占用，避免截图与录屏并发启动。
     let generation = {
+        let guard_state = app.state::<crate::capture_guard::CaptureGuardState>();
+        let _capture_guard = guard_state.lock()?;
+        if crate::recorder::active_session_id(&app).is_some()
+            || app.get_webview_window("longshot-panel").is_some()
+        {
+            return Ok(());
+        }
+
+        // 防重入范围覆盖完整截图会话，而不只是捕获和建窗阶段。
         let state = app.state::<ScreenshotState>();
         match state.try_begin_session() {
             Some(generation) => generation,
@@ -455,15 +459,13 @@ pub async fn start_longshot_panel(
     interval_ms: Option<u32>,
     auto_scroll: Option<bool>,
 ) -> Result<(), String> {
-    // 关闭已有边框窗口，轮询等待标签释放（窗口销毁事件会同时注销 Esc）
-    if let Some(win) = app.get_webview_window("longshot-panel") {
-        let _ = win.close();
-        for _ in 0..40 {
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-            if app.get_webview_window("longshot-panel").is_none() {
-                break;
-            }
-        }
+    // 长截图面板与录屏的检查、建窗必须串行；已有会话时安全忽略重复入口。
+    let guard_state = app.state::<crate::capture_guard::CaptureGuardState>();
+    let _capture_guard = guard_state.lock()?;
+    if crate::recorder::active_session_id(&app).is_some()
+        || app.get_webview_window("longshot-panel").is_some()
+    {
+        return Ok(());
     }
 
     // 窗口相对选区外扩一个边框宽度：边框画在外环、内洞恰为捕获区域，

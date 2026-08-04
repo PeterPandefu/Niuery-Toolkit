@@ -1,3 +1,4 @@
+mod capture_guard;
 mod clipboard;
 mod hotkey;
 pub mod recorder;
@@ -88,6 +89,7 @@ mod dev_server {
     }
 }
 
+use capture_guard::{CaptureActivity, CaptureGuardState, CaptureShortcut, ShortcutDecision};
 use clipboard::ClipboardHistoryState;
 use hotkey::{HotkeyState, ACTION_LONGSHOT, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW};
 use recorder::RecorderState;
@@ -105,6 +107,18 @@ use ws_server::WsServerState;
 /// 关闭行为状态（仅在本次运行期间有效，不持久化）
 #[derive(Default)]
 struct CloseBehaviorState(std::sync::Mutex<Option<bool>>);
+
+fn current_capture_activity(app: &tauri::AppHandle) -> CaptureActivity {
+    if recorder::active_session_id(app).is_some() {
+        CaptureActivity::Recording
+    } else if app.get_webview_window("longshot-panel").is_some() {
+        CaptureActivity::Longshot
+    } else if screenshot::is_screenshot_session_active(app) {
+        CaptureActivity::Screenshot
+    } else {
+        CaptureActivity::Idle
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -128,14 +142,23 @@ pub fn run() {
                     if let Some(action) = hotkey::find_action(app, shortcut) {
                         match action.as_str() {
                             ACTION_SCREENSHOT => {
+                                if capture_guard::decide_shortcut(
+                                    current_capture_activity(app),
+                                    CaptureShortcut::Screenshot,
+                                ) != ShortcutDecision::Start
+                                {
+                                    return;
+                                }
                                 let app = app.clone();
                                 tauri::async_runtime::spawn(async move {
                                     let _ = screenshot::start_screenshot(app, None).await;
                                 });
                             }
                             ACTION_LONGSHOT => {
-                                if screenshot::is_screenshot_session_active(app)
-                                    || app.get_webview_window("longshot-panel").is_some()
+                                if capture_guard::decide_shortcut(
+                                    current_capture_activity(app),
+                                    CaptureShortcut::Longshot,
+                                ) != ShortcutDecision::Start
                                 {
                                     return;
                                 }
@@ -162,24 +185,27 @@ pub fn run() {
                                 }
                             }
                             ACTION_SCREEN_RECORDER => {
-                                if let Some(session_id) = recorder::active_session_id(app) {
-                                    let app = app.clone();
-                                    tauri::async_runtime::spawn(async move {
-                                        let _ = recorder::stop_recording(app, session_id).await;
-                                    });
-                                } else {
-                                    // 截图框选或长截图会话尚未结束时不再叠加新的快捷键工具。
-                                    if screenshot::is_screenshot_session_active(app)
-                                        || app.get_webview_window("longshot-panel").is_some()
-                                    {
-                                        return;
+                                match capture_guard::decide_shortcut(
+                                    current_capture_activity(app),
+                                    CaptureShortcut::Recording,
+                                ) {
+                                    ShortcutDecision::StopRecording => {
+                                        if let Some(session_id) = recorder::active_session_id(app) {
+                                            let app = app.clone();
+                                            tauri::async_runtime::spawn(async move {
+                                                let _ = recorder::stop_recording(app, session_id).await;
+                                            });
+                                        }
                                     }
-                                    if let Some(window) = app.get_webview_window("main") {
-                                        let _ = window.show();
-                                        let _ = window.unminimize();
-                                        let _ = window.set_focus();
+                                    ShortcutDecision::Ignore => {}
+                                    ShortcutDecision::Start => {
+                                        if let Some(window) = app.get_webview_window("main") {
+                                            let _ = window.show();
+                                            let _ = window.unminimize();
+                                            let _ = window.set_focus();
+                                        }
+                                        let _ = app.emit("open-screen-recorder", ());
                                     }
-                                    let _ = app.emit("open-screen-recorder", ());
                                 }
                             }
                             _ => {}
@@ -193,6 +219,7 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_dialog::init())
+        .manage(CaptureGuardState::default())
         .manage(WsServerState::default())
         .manage(ScreenshotState::default())
         .manage(RecorderState::default())
