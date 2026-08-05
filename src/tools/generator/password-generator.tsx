@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
 import { RefreshCw, Copy, Eye, EyeOff } from 'lucide-react';
 import { generatePassword, calculateEntropy, getStrengthLabel } from '@/lib/generator-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 export default function PasswordGenerator() {
   const [length, setLength] = useState(16);
@@ -18,10 +19,12 @@ export default function PasswordGenerator() {
   const [excludeAmbiguous, setExcludeAmbiguous] = useState(true);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(true);
+  const log = useToolLogger('password-generator');
 
   const generate = useCallback(() => {
     setPassword(generatePassword(length, options, excludeAmbiguous));
-  }, [length, options, excludeAmbiguous]);
+    log.info('生成密码', { length, options, excludeAmbiguous });
+  }, [length, options, excludeAmbiguous, log]);
 
   const entropy = useMemo(() => calculateEntropy(password), [password]);
   const strength = useMemo(() => {
@@ -33,9 +36,10 @@ export default function PasswordGenerator() {
   const handleCopy = useCallback(async () => {
     if (password) {
       await copyToClipboard(password);
+      log.info('复制密码', { length: password.length });
       toast.success('密码已复制');
     }
-  }, [password]);
+  }, [password, log]);
 
   return (
     <div className="h-full overflow-y-auto p-6">

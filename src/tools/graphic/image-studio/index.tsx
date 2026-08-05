@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { PrivacyNote } from '@/tools/pdf/common';
 import {
   CompressPanel,
@@ -125,16 +126,23 @@ function FeatureGroup({ title, features, active, onSelect }: { title: string; fe
 
 /** 图片处理工具箱：单入口 + 内部左侧栏 */
 export default function ImageStudio() {
+  const log = useToolLogger('image-studio');
   const [active, setActive] = useState<FeatureId>('compress');
   const ActivePanel = PANELS[active];
   const activeFeature = [...EDIT_FEATURES, ...MERGE_FEATURES, ...CUTOUT_FEATURES].find((f) => f.id === active)!;
 
+  const handleSelect = (id: FeatureId) => {
+    if (id === active) return;
+    setActive(id);
+    log.info('功能标签切换', { id });
+  };
+
   return (
     <div className="flex h-full">
       <aside className="w-44 shrink-0 overflow-y-auto border-r border-border bg-muted/20 p-2">
-        <FeatureGroup title="图片编辑" features={EDIT_FEATURES} active={active} onSelect={setActive} />
-        <FeatureGroup title="图片合并" features={MERGE_FEATURES} active={active} onSelect={setActive} />
-        <FeatureGroup title="抠图" features={CUTOUT_FEATURES} active={active} onSelect={setActive} />
+        <FeatureGroup title="图片编辑" features={EDIT_FEATURES} active={active} onSelect={handleSelect} />
+        <FeatureGroup title="图片合并" features={MERGE_FEATURES} active={active} onSelect={handleSelect} />
+        <FeatureGroup title="抠图" features={CUTOUT_FEATURES} active={active} onSelect={handleSelect} />
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto p-5">

@@ -4,6 +4,7 @@ import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { AlertCircle } from 'lucide-react';
 
 type SqlDialect =
@@ -40,6 +41,7 @@ export default function SqlFormatter() {
   const [input, setInput] = useState('');
   const [dialect, setDialect] = useState<SqlDialect>('sql');
   const [uppercase, setUppercase] = useState('true');
+  const log = useToolLogger('sql-formatter');
 
   const { output, error } = useMemo(() => {
     if (!input.trim()) return { output: '', error: null };
@@ -51,11 +53,17 @@ export default function SqlFormatter() {
         tabWidth: 2,
         linesBetweenQueries: 2,
       });
+      log.info('SQL 格式化成功', {
+        dialect,
+        inputLength: input.length,
+        outputLength: result.length,
+      });
       return { output: result, error: null };
     } catch (e) {
+      log.warn('SQL 格式化错误', { message: (e as Error).message });
       return { output: '', error: (e as Error).message };
     }
-  }, [input, dialect, uppercase]);
+  }, [input, dialect, uppercase, log]);
 
   const sampleSql = `SELECT u.id, u.name, u.email, COUNT(o.id) as order_count FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE u.created_at > '2024-01-01' AND u.status = 'active' GROUP BY u.id, u.name, u.email HAVING COUNT(o.id) > 5 ORDER BY order_count DESC LIMIT 10;`;
 
@@ -69,7 +77,11 @@ export default function SqlFormatter() {
         <div className="flex items-center gap-2">
           <Select
             value={dialect}
-            onChange={(e) => setDialect(e.target.value as SqlDialect)}
+            onChange={(e) => {
+              const value = e.target.value as SqlDialect;
+              setDialect(value);
+              log.info('切换 SQL 方言', { dialect: value });
+            }}
             options={DIALECTS}
             className="h-8 w-32 text-xs"
           />

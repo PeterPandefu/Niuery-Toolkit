@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Activity, Cpu, HardDrive, MemoryStick, Pause, Play, RefreshCw, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 interface SystemStats {
   cpu_usage: number;
@@ -98,6 +99,7 @@ export default function SystemMonitor() {
   const [running, setRunning] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const log = useToolLogger('system-monitor');
 
   const sample = useCallback(async () => {
     if (!isTauri) {
@@ -112,10 +114,23 @@ export default function SystemMonitor() {
       setError(null);
     } catch (cause) {
       setError(String(cause));
+      log.warn('系统采样失败', cause);
     } finally {
       setLoading(false);
     }
-  }, [isTauri]);
+  }, [isTauri, log]);
+
+  // 启动/停止刷新（不在每次轮询时记录）
+  const handleToggleRunning = useCallback(() => {
+    const next = !running;
+    setRunning(next);
+    log.info(next ? '启动刷新' : '停止刷新');
+  }, [running, log]);
+
+  const handleManualSample = useCallback(() => {
+    log.info('手动刷新');
+    void sample();
+  }, [sample, log]);
 
   useEffect(() => {
     void sample();
@@ -146,8 +161,8 @@ export default function SystemMonitor() {
               <span className={cn('h-1.5 w-1.5 rounded-full', running ? 'bg-emerald-500 animate-glow-pulse' : 'bg-muted-foreground/50')} />
               {running ? '实时采集中' : '已暂停'}
             </span>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => void sample()} title="立即刷新" aria-label="立即刷新"><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} /></Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setRunning((value) => !value)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleManualSample} title="立即刷新" aria-label="立即刷新"><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} /></Button>
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleToggleRunning}>
               {running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
               {running ? '暂停' : '继续'}
             </Button>

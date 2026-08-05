@@ -8,6 +8,9 @@ import { saveBytes } from '@/lib/file-save';
 import { saveImageResults, useBusyRun } from './common';
 import { Eraser, Loader2, Paintbrush, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('image-studio:merge');
 
 /* ==================== 合并为图片 ==================== */
 export function MergeImagePanel() {
@@ -18,27 +21,42 @@ export function MergeImagePanel() {
   const [bg, setBg] = useState('#ffffff');
   const { busy, progress, setProgress, run } = useBusyRun();
 
+  useEffect(() => {
+    if (files.length === 0) return;
+    log.info('图片加载', {
+      count: files.length,
+      files: files.map((f) => ({ name: f.name, size: f.size })),
+    });
+  }, [files]);
+
   const handleRun = () =>
     run(async () => {
-      if (files.length < 2) throw new Error('请至少选择两张图片');
-      setProgress('正在读取图片…');
-      const loaded = await Promise.all(files.map((f) => fileToCanvas(f)));
-      const layout = calcMergeLayout(
-        loaded.map(({ canvas }) => ({ width: canvas.width, height: canvas.height })),
-        { direction, gap, cols: parseInt(cols, 10) || 2 }
-      );
-      const out = document.createElement('canvas');
-      out.width = layout.canvas.width;
-      out.height = layout.canvas.height;
-      const ctx = out.getContext('2d')!;
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, out.width, out.height);
-      loaded.forEach(({ canvas }, i) => {
-        const p = layout.positions[i];
-        ctx.drawImage(canvas, p.x, p.y);
-      });
-      const blob = await canvasToBlob(out, 'image/png');
-      await saveImageResults([{ name: '合并图片.png', blob }]);
+      try {
+        if (files.length < 2) throw new Error('请至少选择两张图片');
+        log.info('合并为图片开始', { count: files.length, direction });
+        setProgress('正在读取图片…');
+        const loaded = await Promise.all(files.map((f) => fileToCanvas(f)));
+        const layout = calcMergeLayout(
+          loaded.map(({ canvas }) => ({ width: canvas.width, height: canvas.height })),
+          { direction, gap, cols: parseInt(cols, 10) || 2 }
+        );
+        const out = document.createElement('canvas');
+        out.width = layout.canvas.width;
+        out.height = layout.canvas.height;
+        const ctx = out.getContext('2d')!;
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, out.width, out.height);
+        loaded.forEach(({ canvas }, i) => {
+          const p = layout.positions[i];
+          ctx.drawImage(canvas, p.x, p.y);
+        });
+        const blob = await canvasToBlob(out, 'image/png');
+        await saveImageResults([{ name: '合并图片.png', blob }]);
+        log.info('合并为图片成功', { count: files.length, width: out.width, height: out.height, size: blob.size });
+      } catch (e) {
+        log.error('合并为图片失败', e);
+        throw e;
+      }
     });
 
   return (
@@ -83,11 +101,21 @@ export function MergePdfPanel() {
 
   const handleRun = () =>
     run(async () => {
-      if (files.length === 0) throw new Error('请先选择图片');
-      setProgress('正在生成 PDF…');
-      const bytes = await encodeImagesToPdf(files);
-      const path = await saveBytes('图片合并.pdf', bytes, 'PDF 文件', ['pdf']);
-      if (path) toast.success(`处理完成，共 ${files.length} 页`);
+      try {
+        if (files.length === 0) throw new Error('请先选择图片');
+        log.info('合并为 PDF 开始', {
+          count: files.length,
+          files: files.map((f) => ({ name: f.name, size: f.size })),
+        });
+        setProgress('正在生成 PDF…');
+        const bytes = await encodeImagesToPdf(files);
+        const path = await saveBytes('图片合并.pdf', bytes, 'PDF 文件', ['pdf']);
+        if (path) toast.success(`处理完成，共 ${files.length} 页`);
+        log.info('合并为 PDF 成功', { count: files.length, size: bytes.byteLength, path });
+      } catch (e) {
+        log.error('合并为 PDF 失败', e);
+        throw e;
+      }
     });
 
   return (
@@ -111,11 +139,18 @@ export function MergeGifPanel() {
 
   const handleRun = () =>
     run(async () => {
-      if (files.length === 0) throw new Error('请先选择图片');
-      setProgress('正在编码 GIF…');
-      const blob = await encodeImagesToGif(files, delayMs);
-      const path = await saveBytes('合并动图.gif', blob, 'GIF 动图', ['gif']);
-      if (path) toast.success(`处理完成，共 ${files.length} 帧`);
+      try {
+        if (files.length === 0) throw new Error('请先选择图片');
+        log.info('合并为 GIF 开始', { count: files.length, delayMs });
+        setProgress('正在编码 GIF…');
+        const blob = await encodeImagesToGif(files, delayMs);
+        const path = await saveBytes('合并动图.gif', blob, 'GIF 动图', ['gif']);
+        if (path) toast.success(`处理完成，共 ${files.length} 帧`);
+        log.info('合并为 GIF 成功', { count: files.length, size: blob.size, path });
+      } catch (e) {
+        log.error('合并为 GIF 失败', e);
+        throw e;
+      }
     });
 
   return (
@@ -165,9 +200,16 @@ export function CutoutPanel() {
         maskRef.current = mask;
         setImgSize({ width: img.naturalWidth, height: img.naturalHeight });
         setImgUrl(url);
+        log.info('图片加载', {
+          name: f.name,
+          size: f.size,
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        });
       })
       .catch(() => {
         URL.revokeObjectURL(url);
+        log.warn('图片加载失败', { name: f.name, size: f.size });
         toast.error('图片加载失败，文件可能已损坏');
       });
     return () => URL.revokeObjectURL(url);
@@ -253,24 +295,31 @@ export function CutoutPanel() {
 
   const handleRun = () =>
     run(async () => {
-      const mask = maskRef.current;
-      if (!mask) throw new Error('请先选择图片');
-      const maskData = mask.getContext('2d')!.getImageData(0, 0, mask.width, mask.height).data;
-      let hasMask = false;
-      for (let i = 3; i < maskData.length; i += 4) {
-        if (maskData[i] > 0) {
-          hasMask = true;
-          break;
+      try {
+        const mask = maskRef.current;
+        if (!mask) throw new Error('请先选择图片');
+        log.info('抠图开始', { name: file[0]?.name, width: mask.width, height: mask.height });
+        const maskData = mask.getContext('2d')!.getImageData(0, 0, mask.width, mask.height).data;
+        let hasMask = false;
+        for (let i = 3; i < maskData.length; i += 4) {
+          if (maskData[i] > 0) {
+            hasMask = true;
+            break;
+          }
         }
+        if (!hasMask) throw new Error('请先用画笔涂抹要保留的区域');
+        setProgress('正在输出…');
+        const { canvas, ctx, img } = await fileToCanvas(file[0]);
+        ctx.drawImage(img, 0, 0);
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(mask, 0, 0);
+        const blob = await canvasToBlob(canvas, 'image/png');
+        await saveImageResults([{ name: '抠图结果.png', blob }]);
+        log.info('抠图成功', { size: blob.size });
+      } catch (e) {
+        log.error('抠图失败', e);
+        throw e;
       }
-      if (!hasMask) throw new Error('请先用画笔涂抹要保留的区域');
-      setProgress('正在输出…');
-      const { canvas, ctx, img } = await fileToCanvas(file[0]);
-      ctx.drawImage(img, 0, 0);
-      ctx.globalCompositeOperation = 'destination-in';
-      ctx.drawImage(mask, 0, 0);
-      const blob = await canvasToBlob(canvas, 'image/png');
-      await saveImageResults([{ name: '抠图结果.png', blob }]);
     });
 
   return (

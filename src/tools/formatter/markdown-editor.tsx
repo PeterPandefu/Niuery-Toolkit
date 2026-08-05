@@ -8,6 +8,7 @@ import { StatusBar } from '@/components/markdown/StatusBar';
 import { Outline } from '@/components/markdown/Outline';
 import { Button } from '@/components/ui/button';
 import { useIsDark } from '@/hooks/use-theme';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { toast } from 'sonner';
 import {
   Columns2,
@@ -79,6 +80,7 @@ export default function MarkdownEditor() {
   const isEditorScrolling = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const isDark = useIsDark();
+  const log = useToolLogger('markdown-editor');
 
   // 预览使用 debounce 150ms (NF-02)
   const debouncedContent = useDebouncedValue(content, 150);
@@ -271,30 +273,38 @@ export default function MarkdownEditor() {
       if (!file) return;
       const text = await file.text();
       setContent(text);
+      log.info('导入文件成功', { name: file.name, size: file.size });
       toast.success(t('markdownEditor.imported', { name: file.name }));
     };
     input.click();
-  }, [t]);
+  }, [t, log]);
 
   // 导出 Markdown
   const handleExportMd = useCallback(() => {
     downloadFile(content, 'document.md', 'text/markdown');
+    log.info('导出 Markdown 文件', { length: content.length });
     toast.success(t('markdownEditor.exportedMd'));
-  }, [content, t]);
+  }, [content, t, log]);
 
   // 导出 HTML
   const handleExportHtml = useCallback(() => {
     const html = generateExportHtml(renderMarkdown(content));
     downloadFile(html, 'document.html', 'text/html');
+    log.info('导出 HTML 文件', { length: html.length });
     toast.success(t('markdownEditor.exportedHtml'));
-  }, [content, t]);
+  }, [content, t, log]);
 
   // 复制 HTML
   const handleCopyHtml = useCallback(async () => {
     const html = renderMarkdown(content);
     const success = await copyToClipboard(html);
-    if (success) toast.success(t('markdownEditor.copiedHtml'));
-  }, [content, t]);
+    if (success) {
+      log.info('复制 HTML 到剪贴板', { length: html.length });
+      toast.success(t('markdownEditor.copiedHtml'));
+    } else {
+      log.warn('复制 HTML 失败');
+    }
+  }, [content, t, log]);
 
   // 拖放导入
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -303,10 +313,11 @@ export default function MarkdownEditor() {
     if (file && /\.(md|markdown|txt)$/i.test(file.name)) {
       file.text().then((text) => {
         setContent(text);
+        log.info('拖拽导入文件成功', { name: file.name, size: file.size });
         toast.success(t('markdownEditor.imported', { name: file.name }));
       });
     }
-  }, [t]);
+  }, [t, log]);
 
   // 大纲跳转
   const handleJumpToLine = useCallback((line: number) => {

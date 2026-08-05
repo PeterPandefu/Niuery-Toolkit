@@ -4,12 +4,14 @@ import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { AlertCircle } from 'lucide-react';
 
 export default function XmlFormatter() {
   const [input, setInput] = useState('');
   const [indent, setIndent] = useState('2');
   const [mode, setMode] = useState<'format' | 'minify'>('format');
+  const log = useToolLogger('xml-formatter');
 
   const { output, error } = useMemo(() => {
     if (!input.trim()) return { output: '', error: null };
@@ -31,11 +33,17 @@ export default function XmlFormatter() {
       });
 
       const result = builder.build(parsed);
+      log.info('XML 转换成功', {
+        mode,
+        inputLength: input.length,
+        outputLength: result.length,
+      });
       return { output: result, error: null };
     } catch (e) {
+      log.warn('XML 解析错误', { message: (e as Error).message });
       return { output: '', error: (e as Error).message };
     }
-  }, [input, indent, mode]);
+  }, [input, indent, mode, log]);
 
   const sampleXml = `<root><item id="1"><name>Test</name><value>123</value></item><item id="2"><name>Test2</name><value>456</value></item></root>`;
 
@@ -44,12 +52,19 @@ export default function XmlFormatter() {
       inputTitle="XML 输入"
       outputTitle={mode === 'format' ? '格式化结果' : '压缩结果'}
       outputValue={output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        log.info('清空输入');
+      }}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value as 'format' | 'minify')}
+            onChange={(e) => {
+              const value = e.target.value as 'format' | 'minify';
+              setMode(value);
+              log.info('切换模式', { mode: value });
+            }}
             options={[
               { value: 'format', label: '格式化' },
               { value: 'minify', label: '压缩' },
@@ -59,7 +74,10 @@ export default function XmlFormatter() {
           {mode === 'format' && (
             <Select
               value={indent}
-              onChange={(e) => setIndent(e.target.value)}
+              onChange={(e) => {
+                setIndent(e.target.value);
+                log.info('切换缩进', { indent: e.target.value });
+              }}
               options={[
                 { value: '2', label: '2 空格' },
                 { value: '4', label: '4 空格' },
@@ -67,7 +85,14 @@ export default function XmlFormatter() {
               className="h-8 w-20 text-xs"
             />
           )}
-          <Button variant="ghost" size="sm" onClick={() => setInput(sampleXml)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setInput(sampleXml);
+              log.info('填充示例 XML');
+            }}
+          >
             示例
           </Button>
         </div>

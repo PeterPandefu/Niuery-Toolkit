@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { Copy, Upload } from 'lucide-react';
 
 type HashAlgorithm = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
@@ -46,6 +47,7 @@ export default function HashGenerator() {
   const [hmacKey, setHmacKey] = useState('');
   const [hashes, setHashes] = useState<Record<string, string>>({});
   const [computing, setComputing] = useState(false);
+  const log = useToolLogger('hash-generator');
 
   const compute = useCallback(async () => {
     if (!input) return;
@@ -63,12 +65,18 @@ export default function HashGenerator() {
       }
 
       setHashes(results);
+      log.info('哈希计算完成', {
+        inputLength: input.length,
+        hmac: hmacKey.length > 0,
+        algorithms: ALGORITHMS.length,
+      });
     } catch (e) {
+      log.error('哈希计算失败', e);
       toast.error('计算失败: ' + (e as Error).message);
     } finally {
       setComputing(false);
     }
-  }, [input, hmacKey]);
+  }, [input, hmacKey, log]);
 
   const handleFileDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -76,10 +84,12 @@ export default function HashGenerator() {
     if (!file) return;
 
     if (file.size > 50 * 1024 * 1024) {
+      log.warn('文件超过大小限制', { name: file.name, size: file.size });
       toast.error('文件大小不能超过 50MB');
       return;
     }
 
+    log.info('选择文件', { name: file.name, size: file.size });
     setComputing(true);
     try {
       const buffer = await file.arrayBuffer();
@@ -90,18 +100,21 @@ export default function HashGenerator() {
       }
 
       setHashes(results);
+      log.info('文件哈希计算完成', { name: file.name, size: file.size });
       toast.success(`已计算文件: ${file.name}`);
     } catch (e) {
+      log.error('文件哈希计算失败', e);
       toast.error('计算失败: ' + (e as Error).message);
     } finally {
       setComputing(false);
     }
-  }, []);
+  }, [log]);
 
   const handleCopy = useCallback(async (algo: string, value: string) => {
     await copyToClipboard(value);
+    log.info('复制哈希值', { algorithm: algo });
     toast.success(`已复制 ${algo}`);
-  }, []);
+  }, [log]);
 
   return (
     <div className="h-full overflow-y-auto p-6">
@@ -121,6 +134,7 @@ export default function HashGenerator() {
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
+                  log.info('选择文件', { name: file.name, size: file.size });
                   const buffer = await file.arrayBuffer();
                   setComputing(true);
                   const results: Record<string, string> = {};
@@ -129,6 +143,7 @@ export default function HashGenerator() {
                   }
                   setHashes(results);
                   setComputing(false);
+                  log.info('文件哈希计算完成', { name: file.name, size: file.size });
                   toast.success(`已计算文件: ${file.name}`);
                 }}
               />

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AlertCircle } from 'lucide-react';
 import { testRegex, highlightMatches } from '@/lib/text-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 const COMMON_PATTERNS = [
   { name: '邮箱', pattern: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}' },
@@ -20,10 +21,17 @@ export default function RegexTester() {
   const [pattern, setPattern] = useState('');
   const [flags, setFlags] = useState('g');
   const [testString, setTestString] = useState('');
+  const log = useToolLogger('regex-tester');
 
   const { matches, error } = useMemo(() => {
-    return testRegex(pattern, flags, testString);
-  }, [pattern, flags, testString]);
+    const result = testRegex(pattern, flags, testString);
+    if (result.error) {
+      log.warn('无效正则表达式', { pattern, error: result.error });
+    } else if (pattern) {
+      log.info('匹配完成', { matchCount: result.matches.length, flags });
+    }
+    return result;
+  }, [pattern, flags, testString, log]);
 
   // 高亮匹配文本
   const highlightedText = useMemo(() => {
@@ -75,9 +83,11 @@ export default function RegexTester() {
           {flagOptions.map(({ flag, label }) => (
             <button
               key={flag}
-              onClick={() =>
-                setFlags((f) => (f.includes(flag) ? f.replace(flag, '') : f + flag))
-              }
+              onClick={() => {
+                const enabled = !flags.includes(flag);
+                setFlags(enabled ? flags + flag : flags.replace(flag, ''));
+                log.info('切换 flag', { flag, enabled });
+              }}
               className={cn(
                 'rounded-md px-2 py-1 text-xs font-medium transition-colors',
                 flags.includes(flag)

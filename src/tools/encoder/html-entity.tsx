@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Mode = 'encode' | 'decode';
 type EntityType = 'named' | 'decimal' | 'hex';
@@ -42,32 +43,55 @@ function decodeHtml(str: string): string {
 }
 
 export default function HtmlEntityTool() {
+  const log = useToolLogger('html-entity');
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<Mode>('encode');
   const [entityType, setEntityType] = useState<EntityType>('named');
 
   const output = useMemo(() => {
     if (!input.trim()) return '';
-    return mode === 'encode' ? encodeHtml(input, entityType) : decodeHtml(input);
-  }, [input, mode, entityType]);
+    try {
+      const result = mode === 'encode' ? encodeHtml(input, entityType) : decodeHtml(input);
+      log.info(mode === 'encode' ? 'HTML 实体编码成功' : 'HTML 实体解码成功', {
+        entityType,
+        inputLength: input.length,
+        outputLength: result.length,
+      });
+      return result;
+    } catch (e) {
+      log.warn(mode === 'encode' ? 'HTML 实体编码失败' : 'HTML 实体解码失败', {
+        entityType,
+        inputLength: input.length,
+        error: (e as Error).message,
+      });
+      return '';
+    }
+  }, [input, mode, entityType, log]);
 
   return (
     <ToolLayout
       inputTitle={mode === 'encode' ? '原始文本' : 'HTML 实体'}
       outputTitle={mode === 'encode' ? 'HTML 实体' : '解码结果'}
       outputValue={output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        log.info('清空输入');
+      }}
       onSwap={() => {
         if (output) {
           setInput(output);
           setMode(mode === 'encode' ? 'decode' : 'encode');
+          log.info('交换输入输出', { newMode: mode === 'encode' ? 'decode' : 'encode' });
         }
       }}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
+            onChange={(e) => {
+              setMode(e.target.value as Mode);
+              log.info(`切换模式: ${e.target.value === 'encode' ? '编码' : '解码'}`);
+            }}
             options={[
               { value: 'encode', label: '编码' },
               { value: 'decode', label: '解码' },
@@ -77,7 +101,10 @@ export default function HtmlEntityTool() {
           {mode === 'encode' && (
             <Select
               value={entityType}
-              onChange={(e) => setEntityType(e.target.value as EntityType)}
+              onChange={(e) => {
+                setEntityType(e.target.value as EntityType);
+                log.info(`切换实体格式: ${e.target.value}`);
+              }}
               options={[
                 { value: 'named', label: '命名实体' },
                 { value: 'decimal', label: '十进制' },

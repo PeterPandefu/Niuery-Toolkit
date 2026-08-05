@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { Upload, FileIcon, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 type HashAlgorithm = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
@@ -23,6 +24,7 @@ export default function ChecksumTool() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const log = useToolLogger('checksum');
 
   const computeHash = useCallback(async (file: File, algo: HashAlgorithm): Promise<FileResult> => {
     const start = performance.now();
@@ -40,34 +42,52 @@ export default function ChecksumTool() {
     setProgress(0);
     setResults([]);
 
-    const newResults: FileResult[] = [];
-    for (let i = 0; i < fileList.length; i++) {
-      const result = await computeHash(fileList[i], algorithm);
-      newResults.push(result);
-      setProgress(Math.round(((i + 1) / fileList.length) * 100));
-      setResults([...newResults]);
+    try {
+      const newResults: FileResult[] = [];
+      for (let i = 0; i < fileList.length; i++) {
+        const result = await computeHash(fileList[i], algorithm);
+        newResults.push(result);
+        setProgress(Math.round(((i + 1) / fileList.length) * 100));
+        setResults([...newResults]);
+        log.info('文件哈希计算完成', {
+          fileName: result.fileName,
+          fileSize: result.fileSize,
+          algorithm,
+          timeMs: Math.round(result.timeMs * 10) / 10,
+        });
+      }
+    } catch (e) {
+      log.error('文件哈希计算失败', e);
+    } finally {
+      setProcessing(false);
     }
-
-    setProcessing(false);
-  }, [algorithm, computeHash]);
+  }, [algorithm, computeHash, log]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (droppedFiles.length > 0) {
+      log.info('选择文件', {
+        count: droppedFiles.length,
+        files: droppedFiles.map((f) => ({ name: f.name, size: f.size })),
+      });
       setFiles(droppedFiles);
       processFiles(droppedFiles);
     }
-  }, [processFiles]);
+  }, [processFiles, log]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length > 0) {
+      log.info('选择文件', {
+        count: selectedFiles.length,
+        files: selectedFiles.map((f) => ({ name: f.name, size: f.size })),
+      });
       setFiles(selectedFiles);
       processFiles(selectedFiles);
     }
-  }, [processFiles]);
+  }, [processFiles, log]);
 
   const formatSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
@@ -90,7 +110,9 @@ export default function ChecksumTool() {
           <Select
             value={algorithm}
             onChange={(e) => {
-              setAlgorithm(e.target.value as HashAlgorithm);
+              const value = e.target.value as HashAlgorithm;
+              setAlgorithm(value);
+              log.info('切换哈希算法', { algorithm: value });
               if (files.length > 0) processFiles(files);
             }}
             options={[

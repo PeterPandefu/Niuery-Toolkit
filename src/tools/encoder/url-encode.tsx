@@ -3,11 +3,13 @@ import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { AlertCircle } from 'lucide-react';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Mode = 'encode' | 'decode';
 type EncodeType = 'component' | 'uri';
 
 export default function UrlEncodeTool() {
+  const log = useToolLogger('url-encode');
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<Mode>('encode');
   const [encodeType, setEncodeType] = useState<EncodeType>('component');
@@ -22,11 +24,17 @@ export default function UrlEncodeTool() {
       } else {
         result = decodeURIComponent(input);
       }
+      log.info(mode === 'encode' ? 'URL 编码成功' : 'URL 解码成功', {
+        encodeType,
+        inputLength: input.length,
+        outputLength: result.length,
+      });
       return { output: result, error: null };
     } catch (e) {
+      log.warn('URL 解码失败', { inputLength: input.length, error: (e as Error).message });
       return { output: '', error: (e as Error).message };
     }
-  }, [input, mode, encodeType]);
+  }, [input, mode, encodeType, log]);
 
   // 批量处理（每行一个）
   const batchOutput = useMemo(() => {
@@ -52,18 +60,25 @@ export default function UrlEncodeTool() {
       inputTitle={mode === 'encode' ? '原始文本' : 'URL 编码'}
       outputTitle={mode === 'encode' ? 'URL 编码' : '解码结果'}
       outputValue={batchOutput || output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        log.info('清空输入');
+      }}
       onSwap={() => {
         if (output) {
           setInput(output);
           setMode(mode === 'encode' ? 'decode' : 'encode');
+          log.info('交换输入输出', { newMode: mode === 'encode' ? 'decode' : 'encode' });
         }
       }}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
+            onChange={(e) => {
+              setMode(e.target.value as Mode);
+              log.info(`切换模式: ${e.target.value === 'encode' ? '编码' : '解码'}`);
+            }}
             options={[
               { value: 'encode', label: '编码' },
               { value: 'decode', label: '解码' },
@@ -73,7 +88,10 @@ export default function UrlEncodeTool() {
           {mode === 'encode' && (
             <Select
               value={encodeType}
-              onChange={(e) => setEncodeType(e.target.value as EncodeType)}
+              onChange={(e) => {
+                setEncodeType(e.target.value as EncodeType);
+                log.info(`切换编码类型: ${e.target.value}`);
+              }}
               options={[
                 { value: 'component', label: 'Component' },
                 { value: 'uri', label: 'URI' },

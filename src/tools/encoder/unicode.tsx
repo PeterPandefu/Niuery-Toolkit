@@ -3,11 +3,13 @@ import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { encodeUnicode, decodeUnicode, type UnicodeFormat } from '@/lib/codec-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Mode = 'encode' | 'decode';
 type Format = UnicodeFormat;
 
 export default function UnicodeTool() {
+  const log = useToolLogger('unicode');
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<Mode>('encode');
   const [format, setFormat] = useState<Format>('u4');
@@ -15,29 +17,43 @@ export default function UnicodeTool() {
   const output = useMemo(() => {
     if (!input.trim()) return '';
     try {
-      return mode === 'encode' ? encodeUnicode(input, format) : decodeUnicode(input);
-    } catch {
+      const result = mode === 'encode' ? encodeUnicode(input, format) : decodeUnicode(input);
+      log.info(mode === 'encode' ? 'Unicode 转义成功' : 'Unicode 反转义成功', {
+        format,
+        inputLength: input.length,
+        outputLength: result.length,
+      });
+      return result;
+    } catch (e) {
+      log.warn('Unicode 解码失败', { format, inputLength: input.length, error: (e as Error).message });
       return '[解码错误]';
     }
-  }, [input, mode, format]);
+  }, [input, mode, format, log]);
 
   return (
     <ToolLayout
       inputTitle={mode === 'encode' ? '原始文本' : 'Unicode 转义'}
       outputTitle={mode === 'encode' ? 'Unicode 转义' : '解码结果'}
       outputValue={output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        log.info('清空输入');
+      }}
       onSwap={() => {
         if (output) {
           setInput(output);
           setMode(mode === 'encode' ? 'decode' : 'encode');
+          log.info('交换输入输出', { newMode: mode === 'encode' ? 'decode' : 'encode' });
         }
       }}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
+            onChange={(e) => {
+              setMode(e.target.value as Mode);
+              log.info(`切换模式: ${e.target.value === 'encode' ? '转义' : '反转义'}`);
+            }}
             options={[
               { value: 'encode', label: '转义' },
               { value: 'decode', label: '反转义' },
@@ -47,7 +63,10 @@ export default function UnicodeTool() {
           {mode === 'encode' && (
             <Select
               value={format}
-              onChange={(e) => setFormat(e.target.value as Format)}
+              onChange={(e) => {
+                setFormat(e.target.value as Format);
+                log.info(`切换转义格式: ${e.target.value}`);
+              }}
               options={[
                 { value: 'u4', label: '\\uXXXX' },
                 { value: 'u8', label: '\\UXXXXXXXX' },

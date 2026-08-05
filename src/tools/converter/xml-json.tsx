@@ -5,10 +5,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Direction = 'xml-to-json' | 'json-to-xml';
 
 export default function XmlJsonConverter() {
+  const log = useToolLogger('xml-json');
   const [input, setInput] = useState('');
   const [direction, setDirection] = useState<Direction>('xml-to-json');
   const [ignoreAttrs, setIgnoreAttrs] = useState('false');
@@ -24,6 +26,7 @@ export default function XmlJsonConverter() {
           textNodeName: '#text',
         });
         const result = parser.parse(input);
+        log.info('XML → JSON 转换成功', { inputLength: input.length });
         return { output: JSON.stringify(result, null, 2), error: null };
       } else {
         const parsed = JSON.parse(input);
@@ -34,12 +37,14 @@ export default function XmlJsonConverter() {
           format: true,
         });
         const result = builder.build(parsed);
+        log.info('JSON → XML 转换成功', { inputLength: input.length });
         return { output: result, error: null };
       }
     } catch (e) {
+      log.warn('转换失败', { direction, error: (e as Error).message });
       return { output: '', error: (e as Error).message };
     }
-  }, [input, direction, ignoreAttrs]);
+  }, [input, direction, ignoreAttrs, log]);
 
   const sampleXml = `<?xml version="1.0" encoding="UTF-8"?>
 <bookstore>
@@ -66,12 +71,18 @@ export default function XmlJsonConverter() {
       inputTitle={direction === 'xml-to-json' ? 'XML' : 'JSON'}
       outputTitle={direction === 'xml-to-json' ? 'JSON' : 'XML'}
       outputValue={output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        log.info('清空输入');
+      }}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
             value={direction}
-            onChange={(e) => setDirection(e.target.value as Direction)}
+            onChange={(e) => {
+              setDirection(e.target.value as Direction);
+              log.info(`切换转换方向: ${e.target.value}`);
+            }}
             options={[
               { value: 'xml-to-json', label: 'XML → JSON' },
               { value: 'json-to-xml', label: 'JSON → XML' },

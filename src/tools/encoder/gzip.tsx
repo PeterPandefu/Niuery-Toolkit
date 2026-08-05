@@ -3,6 +3,7 @@ import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { AlertCircle } from 'lucide-react';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Mode = 'compress' | 'decompress';
 type Encoding = 'gzip' | 'deflate';
@@ -24,6 +25,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 export default function GzipTool() {
+  const log = useToolLogger('gzip');
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<Mode>('compress');
   const [encoding, setEncoding] = useState<Encoding>('gzip');
@@ -51,6 +53,12 @@ export default function GzipTool() {
         setOutput(base64);
         setStats({ original: data.length, compressed: compressedBuffer.byteLength });
         setError(null);
+        log.info('压缩成功', {
+          encoding,
+          inputBytes: data.length,
+          outputBytes: compressedBuffer.byteLength,
+          outputLength: base64.length,
+        });
       } else {
         const buffer = base64ToArrayBuffer(input.trim());
         const stream = new Blob([buffer])
@@ -62,13 +70,23 @@ export default function GzipTool() {
         setOutput(text);
         setStats({ original: buffer.byteLength, compressed: decompressedBuffer.byteLength });
         setError(null);
+        log.info('解压成功', {
+          encoding,
+          inputLength: input.trim().length,
+          outputLength: text.length,
+        });
       }
     } catch (e) {
       setError(mode === 'decompress' ? '解压失败：无效的压缩数据' : '压缩失败');
       setOutput('');
       setStats(null);
+      log.warn(mode === 'decompress' ? '解压失败：无效的压缩数据' : '压缩失败', {
+        encoding,
+        inputLength: input.length,
+        error: (e as Error).message,
+      });
     }
-  }, [input, mode, encoding]);
+  }, [input, mode, encoding, log]);
 
   // Auto-process on input change
   useMemo(() => {
@@ -86,19 +104,20 @@ export default function GzipTool() {
       inputTitle={mode === 'compress' ? '原始文本' : 'Base64 压缩数据'}
       outputTitle={mode === 'compress' ? 'Base64 压缩结果' : '解压结果'}
       outputValue={output}
-      onClear={() => { setInput(''); setOutput(''); setStats(null); }}
+      onClear={() => { setInput(''); setOutput(''); setStats(null); log.info('清空输入'); }}
       onSwap={() => {
         if (output) {
           setInput(output);
           setMode(mode === 'compress' ? 'decompress' : 'compress');
           setOutput('');
+          log.info('交换输入输出', { newMode: mode === 'compress' ? 'decompress' : 'compress' });
         }
       }}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
             value={mode}
-            onChange={(e) => { setMode(e.target.value as Mode); setOutput(''); }}
+            onChange={(e) => { setMode(e.target.value as Mode); setOutput(''); log.info(`切换模式: ${e.target.value === 'compress' ? '压缩' : '解压'}`); }}
             options={[
               { value: 'compress', label: '压缩' },
               { value: 'decompress', label: '解压' },
@@ -107,7 +126,7 @@ export default function GzipTool() {
           />
           <Select
             value={encoding}
-            onChange={(e) => { setEncoding(e.target.value as Encoding); setOutput(''); }}
+            onChange={(e) => { setEncoding(e.target.value as Encoding); setOutput(''); log.info(`切换编码格式: ${e.target.value}`); }}
             options={[
               { value: 'gzip', label: 'GZip' },
               { value: 'deflate', label: 'Deflate' },

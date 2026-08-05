@@ -2,7 +2,10 @@ import { useCallback } from 'react';
 import { toast } from 'sonner';
 import Konva from 'konva';
 import { invoke } from '@tauri-apps/api/core';
+import { createLogger } from '@/lib/logger';
 import type { ExportFormat } from './types';
+
+const log = createLogger('screenshot-editor:export');
 
 interface UseExportOptions {
   stageRef: React.MutableRefObject<Konva.Stage | null>;
@@ -82,11 +85,13 @@ export function useExport({ stageRef, canvasSize }: UseExportOptions) {
   const exportImage = useCallback(
     async (format: ExportFormat, quality: number = 90) => {
       if (!stageRef.current) {
+        log.warn('导出失败：没有可导出的内容');
         toast.error('没有可导出的内容');
         return;
       }
 
       try {
+        log.info('导出图片开始', { format, quality });
         const dataURL = renderExportDataUrl(format, quality);
         if (!dataURL) throw new Error('没有可导出的内容');
         const filename = generateFilename(format);
@@ -97,8 +102,10 @@ export function useExport({ stageRef, canvasSize }: UseExportOptions) {
             format,
           });
           if (savedPath) {
+            log.info('图片已保存', { format, path: savedPath });
             toast.success(`已保存到：${savedPath}`);
           } else {
+            log.info('导出已取消', { format });
             toast.info('已取消导出');
           }
         } else {
@@ -106,9 +113,11 @@ export function useExport({ stageRef, canvasSize }: UseExportOptions) {
           link.download = filename;
           link.href = dataURL;
           link.click();
+          log.info('图片已下载', { format, filename });
           toast.success(`${filename} 已下载到浏览器默认下载目录`);
         }
-      } catch {
+      } catch (e) {
+        log.error('导出失败', e);
         toast.error('导出失败');
       }
     },
@@ -118,6 +127,7 @@ export function useExport({ stageRef, canvasSize }: UseExportOptions) {
   const copyToClipboard = useCallback(async () => {
     const stage = stageRef.current;
     if (!stage) {
+      log.warn('复制失败：没有可复制的内容');
       toast.error('没有可复制的内容');
       return;
     }
@@ -136,8 +146,10 @@ export function useExport({ stageRef, canvasSize }: UseExportOptions) {
         const blob = await (await fetch(dataURL)).blob();
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       }
+      log.info('图片已复制到剪贴板');
       toast.success('已复制到剪贴板');
-    } catch {
+    } catch (e) {
+      log.error('复制到剪贴板失败', e);
       toast.error(isTauri ? '复制失败，请检查系统剪贴板状态' : '复制失败，请在安全网页环境中授予剪贴板权限');
     }
   }, [stageRef, renderExportDataUrl, base64FromDataUrl, isTauri]);

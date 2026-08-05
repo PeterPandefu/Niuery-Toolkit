@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Upload, Download, Loader2 } from 'lucide-react';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 interface IconSize {
   name: string;
@@ -71,6 +72,7 @@ const PRESETS: IconPreset[] = [
 ];
 
 export default function IconGeneratorTool() {
+  const log = useToolLogger('icon-generator');
   const [sourceImage, setSourceImage] = useState<HTMLImageElement | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string>('');
   const [preset, setPreset] = useState('favicon');
@@ -88,9 +90,18 @@ export default function IconGeneratorTool() {
       setSourceImage(img);
       setSourceUrl(url);
       setGeneratedIcons([]);
+      log.info('图片加载', {
+        name: file.name,
+        size: file.size,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+    };
+    img.onerror = () => {
+      log.warn('图片加载失败', { name: file.name, size: file.size });
     };
     img.src = url;
-  }, []);
+  }, [log]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -112,7 +123,10 @@ export default function IconGeneratorTool() {
     setGeneratedIcons([]);
 
     const selectedPreset = PRESETS.find((p) => p.id === preset);
-    if (!selectedPreset) return;
+    if (!selectedPreset) {
+      log.warn('未找到图标预设', { preset });
+      return;
+    }
 
     const icons: { name: string; size: number; url: string }[] = [];
 
@@ -168,20 +182,23 @@ export default function IconGeneratorTool() {
 
     setGeneratedIcons(icons);
     setGenerating(false);
-  }, [sourceImage, preset, bgColor, borderRadius]);
+    log.info('图标生成完成', { preset, count: icons.length });
+  }, [sourceImage, preset, bgColor, borderRadius, log]);
 
   const downloadIcon = useCallback((icon: { name: string; size: number; url: string }) => {
     const a = document.createElement('a');
     a.href = icon.url;
     a.download = `${icon.name}-${icon.size}x${icon.size}.png`;
     a.click();
-  }, []);
+    log.info('图标下载', { name: icon.name, size: icon.size });
+  }, [log]);
 
   const downloadAll = useCallback(() => {
+    log.info('批量下载图标', { count: generatedIcons.length });
     generatedIcons.forEach((icon, i) => {
       setTimeout(() => downloadIcon(icon), i * 200);
     });
-  }, [generatedIcons, downloadIcon]);
+  }, [generatedIcons, downloadIcon, log]);
 
   return (
     <div className="flex h-full flex-col gap-4 p-4 overflow-y-auto">

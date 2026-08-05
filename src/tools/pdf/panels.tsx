@@ -16,6 +16,9 @@ import { saveBytes, saveResults } from '@/lib/file-save';
 import { formatBytes } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('pdf-toolkit:panels');
 
 const PDF_FILTER = { name: 'PDF 文件', extensions: ['pdf'] };
 
@@ -40,6 +43,24 @@ function useBusyRun() {
   return { busy, progress, setProgress, run };
 }
 
+/** 带日志的运行包装：失败时记录错误并透传给 toast */
+function useLoggedRun(operation: string) {
+  const { busy, progress, setProgress, run } = useBusyRun();
+
+  const loggedRun = async (fn: () => Promise<void>) => {
+    await run(async () => {
+      try {
+        await fn();
+      } catch (e) {
+        log.error('处理失败', { operation, error: e });
+        throw e;
+      }
+    });
+  };
+
+  return { busy, progress, setProgress, run: loggedRun };
+}
+
 /** 单 PDF 文件加载 */
 function useSinglePdf() {
   const [files, setFiles] = useState<File[]>([]);
@@ -56,11 +77,14 @@ function useSinglePdf() {
     }
     try {
       const buf = await file.arrayBuffer();
+      const pages = await getPdfPageCount(buf);
       setBuffer(buf);
-      setPageCount(await getPdfPageCount(buf));
-    } catch {
+      setPageCount(pages);
+      log.info('PDF 加载', { name: file.name, size: file.size, pageCount: pages });
+    } catch (e) {
       setBuffer(null);
       setPageCount(0);
+      log.warn('PDF 加载失败', { name: file.name, size: file.size, error: e });
       toast.error('PDF 读取失败，文件可能已损坏或加密');
     }
   };
@@ -85,19 +109,25 @@ function ProgressText({ text }: { text: string | null }) {
 /* ==================== 合并 ==================== */
 export function MergePanel() {
   const [files, setFiles] = useState<File[]>([]);
-  const { busy, run } = useBusyRun();
+  const { busy, run } = useLoggedRun('合并');
 
   const handleRun = () =>
     run(async () => {
       if (files.length < 2) {
+        log.warn('合并文件数不足', { count: files.length });
         toast.error('请至少选择两个 PDF 文件');
         return;
       }
+      log.info('合并开始', {
+        count: files.length,
+        totalSize: files.reduce((sum, f) => sum + f.size, 0),
+      });
       const buffers: ArrayBuffer[] = [];
       for (const file of files) buffers.push(await file.arrayBuffer());
       const bytes = await mergePdfs(buffers);
       const path = await saveBytes('合并.pdf', bytes, PDF_FILTER.name, PDF_FILTER.extensions);
       if (path) toast.success('合并完成并已保存');
+      log.info('合并成功', { count: files.length, sizeBytes: bytes.byteLength, path });
     });
 
   return (
@@ -115,11 +145,12 @@ export function SplitPanel() {
   const { files, handleChange, buffer, pageCount } = useSinglePdf();
   const [mode, setMode] = useState<'segments' | 'every'>('segments');
   const [segments, setSegments] = useState('1-1');
-  const { busy, run } = useBusyRun();
+  const { busy, run } = useLoggedRun('拆分');
 
   const handleRun = () =>
     run(async () => {
       if (!buffer) return;
+      log.info('拆分开始', { mode, pageCount, sizeBytes: buffer.byteLength });
       const outputs =
         mode === 'every'
           ? await splitEveryPage(buffer)
@@ -130,6 +161,7 @@ export function SplitPanel() {
         PDF_FILTER
       );
       if (path) toast.success(`拆分完成，共 ${outputs.length} 个文件`);
+      log.info('拆分成功', { mode, count: outputs.length, path });
     });
 
   return (
@@ -172,19 +204,22 @@ export function WatermarkPanel() {
   const [opacity, setOpacity] = useState(30);
   const [rotation, setRotation] = useState(45);
   const [tiled, setTiled] = useState(true);
-  const { busy, run } = useBusyRun();
+  const { busy, run } = useLoggedRun('水印');
 
   const handleRun = () =>
     run(async () => {
       if (!buffer) return;
       if (!text.trim()) {
+        log.warn('水印文字为空');
         toast.error('请输入水印文字');
         return;
       }
+      log.info('水印开始', { sizeBytes: buffer.byteLength, tiled });
       const png = renderWatermarkPng(text.trim(), { fontSize, opacity: opacity / 100, color: '#808080' });
       const bytes = await applyImageWatermark(buffer, png, { rotation, tiled, scale: tiled ? 0.35 : 0.6 });
       const path = await saveBytes('已加水印.pdf', bytes, PDF_FILTER.name, PDF_FILTER.extensions);
       if (path) toast.success('水印已添加并保存');
+      log.info('水印成功', { sizeBytes: bytes.byteLength, path });
     });
 
   return (
@@ -226,13 +261,14 @@ export function CompressPanel() {
   const [dpi, setDpi] = useState(150);
   const [quality, setQuality] = useState(70);
   const [result, setResult] = useState<{ original: number; compressed: number; bytes: Uint8Array } | null>(null);
-  const { busy, progress, setProgress, run } = useBusyRun();
+  const { busy, progress, setProgress, run } = useLoggedRun('压缩');
 
   const handleRun = () =>
     run(async () => {
       if (!buffer) return;
       setResult(null);
       const original = buffer.byteLength;
+      log.info('压缩开始', { mode, original });
       const bytes =
         mode === 'lossless'
           ? await compressLossless(buffer)
@@ -240,6 +276,7 @@ export function CompressPanel() {
               setProgress(`正在渲染第 ${done}/${total} 页…`)
             );
       setResult({ original, compressed: bytes.byteLength, bytes });
+      log.info('压缩成功', { mode, original, compressed: bytes.byteLength });
     });
 
   const handleSave = () =>
@@ -247,6 +284,7 @@ export function CompressPanel() {
       if (!result) return;
       const path = await saveBytes('已压缩.pdf', result.bytes, PDF_FILTER.name, PDF_FILTER.extensions);
       if (path) toast.success('已保存压缩结果');
+      log.info('压缩结果已保存', { path, sizeBytes: result.compressed });
     });
 
   const saved = result ? Math.round((1 - result.compressed / result.original) * 100) : 0;
@@ -317,11 +355,12 @@ export function ToImagesPanel() {
   const { files, handleChange, buffer } = useSinglePdf();
   const [format, setFormat] = useState<'png' | 'jpeg'>('png');
   const [dpi, setDpi] = useState(150);
-  const { busy, progress, setProgress, run } = useBusyRun();
+  const { busy, progress, setProgress, run } = useLoggedRun('转图片');
 
   const handleRun = () =>
     run(async () => {
       if (!buffer) return;
+      log.info('转图片开始', { format, dpi, sizeBytes: buffer.byteLength });
       const images = await renderPdfPages(buffer, { format, dpi, quality: 0.9 }, (done, total) =>
         setProgress(`正在渲染第 ${done}/${total} 页…`)
       );
@@ -331,6 +370,7 @@ export function ToImagesPanel() {
         format === 'png' ? { name: 'PNG 图片', extensions: ['png'] } : { name: 'JPEG 图片', extensions: ['jpg'] }
       );
       if (path) toast.success(`转换完成，共 ${images.length} 张图片`);
+      log.info('转图片成功', { format, count: images.length, path });
     });
 
   return (
@@ -366,20 +406,23 @@ export function ToImagesPanel() {
 /* ==================== 提取图片 ==================== */
 export function ExtractImagesPanel() {
   const { files, handleChange, buffer } = useSinglePdf();
-  const { busy, progress, setProgress, run } = useBusyRun();
+  const { busy, progress, setProgress, run } = useLoggedRun('提取图片');
 
   const handleRun = () =>
     run(async () => {
       if (!buffer) return;
+      log.info('提取图片开始', { sizeBytes: buffer.byteLength });
       const images = await extractEmbeddedImages(buffer, (done, total) =>
         setProgress(`正在扫描第 ${done}/${total} 页…`)
       );
       if (images.length === 0) {
+        log.warn('未提取到内嵌图片');
         toast.error('未提取到内嵌图片（矢量图形不在提取范围内）');
         return;
       }
       const path = await saveResults('提取图片.zip', images, { name: 'PNG 图片', extensions: ['png'] });
       if (path) toast.success(`提取完成，共 ${images.length} 张图片`);
+      log.info('提取图片成功', { count: images.length, path });
     });
 
   return (

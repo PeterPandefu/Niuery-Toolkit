@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { GifEditor } from './GifEditor';
 import { decodeGif } from './gif-worker';
 import { createInitialRecorderState, recorderReducer } from './recorder-reducer';
@@ -22,6 +23,7 @@ import {
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 export default function ScreenRecorder() {
+  const log = useToolLogger('screen-recorder');
   const [state, dispatch] = useReducer(recorderReducer, undefined, createInitialRecorderState);
   const [view, setView] = useState<'recorder' | 'gif'>('recorder');
   const [mode, setMode] = useState<CaptureMode>('region');
@@ -91,10 +93,12 @@ export default function ScreenRecorder() {
 
   const startRecording = async () => {
     if (!isTauri) {
+      log.warn('当前环境不支持录屏');
       toast.error('录屏仅可在 Windows 桌面版使用');
       return;
     }
     if (!target) {
+      log.warn('未选择录制目标', { mode });
       toast.error(mode === 'window' ? '请选择要录制的窗口' : '请选择要录制的显示器');
       return;
     }
@@ -104,7 +108,9 @@ export default function ScreenRecorder() {
     if (session) {
       setElapsedMs(0);
       dispatch({ type: 'started', session });
+      log.info('录制已开始', { mode, fps: settings.fps, quality: settings.quality });
     } else {
+      log.error('录制启动失败', recorder.error);
       dispatch({ type: 'error', message: recorder.error ?? '无法开始录制' });
     }
   };
@@ -120,20 +126,37 @@ export default function ScreenRecorder() {
   const stopRecording = async () => {
     dispatch({ type: 'stopping' });
     const artifact = await recorder.stop();
-    if (artifact) dispatch({ type: 'stopped', artifact });
-    else dispatch({ type: 'error', message: recorder.error ?? '录制停止失败' });
+    if (artifact) {
+      dispatch({ type: 'stopped', artifact });
+      log.info('录制已停止', {
+        durationMs: artifact.durationMs,
+        width: artifact.width,
+        height: artifact.height,
+        sizeBytes: artifact.sizeBytes,
+      });
+    } else {
+      log.error('停止录制失败', recorder.error);
+      dispatch({ type: 'error', message: recorder.error ?? '录制停止失败' });
+    }
   };
 
   const cancelRecording = async () => {
     if (await recorder.cancel()) {
+      log.info('录制已取消');
       dispatch({ type: 'cancelled' });
       setElapsedMs(0);
     }
   };
 
   const exportRecording = async (format: 'mp4' | 'gif') => {
+    log.info('导出录制开始', { format });
     const result = await recorder.exportRecording(format, format === 'gif' ? { fps: 12, maxWidth: 800, loopCount: 0 } : {});
-    if (result) toast.success(`${format.toUpperCase()} 已保存到 ${result.path}`);
+    if (result) {
+      log.info('导出录制成功', { format, path: result.path, sizeBytes: result.sizeBytes });
+      toast.success(`${format.toUpperCase()} 已保存到 ${result.path}`);
+    } else {
+      log.warn('导出录制失败或已取消', { format });
+    }
   };
 
   const openRecordingInGifEditor = async () => {
@@ -145,7 +168,9 @@ export default function ScreenRecorder() {
       const decoded = decodeGif(await response.arrayBuffer());
       dispatch({ type: 'gifLoaded', ...decoded });
       setView('gif');
+      log.info('录制已载入 GIF 编辑器', { frames: decoded.frames.length });
     } catch (reason) {
+      log.warn('GIF 项目载入失败', reason);
       toast.error(reason instanceof Error ? reason.message : String(reason));
     }
   };

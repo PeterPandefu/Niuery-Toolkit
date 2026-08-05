@@ -7,6 +7,9 @@ import { Select } from '@/components/ui/select';
 import type { GifAnnotation, GifProject, RecorderAction } from './types';
 import { decodeGif, encodeGif, type DecodedGif, type GifWorkerResponse } from './gif-worker';
 import { Timeline } from './Timeline';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('screen-recorder:gif-editor');
 
 interface GifEditorProps {
   project: GifProject;
@@ -59,12 +62,22 @@ export function GifEditor({ project, dispatch, onBack }: GifEditorProps) {
   const loadGif = async (file: File) => {
     setBusy(true);
     try {
+      log.info('GIF 加载开始', { name: file.name, size: file.size });
       const decoded = await decodeGifInWorker(await file.arrayBuffer());
       dispatch({ type: 'gifLoaded', ...decoded });
       setResizeW(String(decoded.width));
       setResizeH(String(decoded.height));
       setCropW(String(decoded.width));
       setCropH(String(decoded.height));
+      log.info('GIF 解析成功', {
+        name: file.name,
+        width: decoded.width,
+        height: decoded.height,
+        frames: decoded.frames.length,
+      });
+    } catch (e) {
+      log.error('GIF 加载失败', { name: file.name, error: e });
+      throw e;
     } finally {
       setBusy(false);
     }
@@ -108,12 +121,14 @@ export function GifEditor({ project, dispatch, onBack }: GifEditorProps) {
       return { ...frame, width, height, rgba: ctx?.getImageData(0, 0, width, height).data ?? frame.rgba };
     });
     dispatch({ type: 'gifLoaded', frames, width, height, loopCount: project.loopCount });
+    log.info('GIF 缩放完成', { width, height, frames: frames.length });
   };
 
   const exportGif = () => {
     if (!project.frames.length) return;
     setBusy(true);
     try {
+      log.info('GIF 导出开始', { frames: project.frames.length, loopCount });
       const blob = encodeGif(project.frames, loopCount, 800);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -122,6 +137,10 @@ export function GifEditor({ project, dispatch, onBack }: GifEditorProps) {
       link.click();
       URL.revokeObjectURL(url);
       dispatch({ type: 'gifLoopChanged', loopCount });
+      log.info('GIF 导出完成', { size: blob.size, frames: project.frames.length });
+    } catch (e) {
+      log.error('GIF 导出失败', e);
+      throw e;
     } finally {
       setBusy(false);
     }
@@ -142,6 +161,7 @@ export function GifEditor({ project, dispatch, onBack }: GifEditorProps) {
       return { ...frame, width, height, rgba: ctx?.getImageData(x, y, width, height).data ?? frame.rgba };
     });
     dispatch({ type: 'gifLoaded', frames, width, height, loopCount: project.loopCount });
+    log.info('GIF 裁剪完成', { width, height, frames: frames.length });
     setResizeW(String(width));
     setResizeH(String(height));
     setCropX('0');

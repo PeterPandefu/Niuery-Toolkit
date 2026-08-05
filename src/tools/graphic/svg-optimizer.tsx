@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ToolLayout } from '@/components/shared/ToolLayout';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -10,6 +11,7 @@ import { Copy, Download } from 'lucide-react';
 import { optimizeSvg, getSvgStats } from '@/lib/text-utils';
 
 export default function SvgOptimizer() {
+  const log = useToolLogger('svg-optimizer');
   const [input, setInput] = useState('');
   const [options, setOptions] = useState({
     removeComments: true,
@@ -31,6 +33,21 @@ export default function SvgOptimizer() {
     if (!input || !output) return null;
     return getSvgStats(input, output);
   }, [input, output]);
+
+  useEffect(() => {
+    if (!input.trim()) return;
+    if (!output) {
+      log.warn('SVG 解析失败');
+      return;
+    }
+    if (stats) {
+      log.info('SVG 优化成功', {
+        originalSize: stats.originalSize,
+        optimizedSize: stats.optimizedSize,
+        savings: stats.savings,
+      });
+    }
+  }, [input, output, stats, log]);
 
   const handleDownload = () => {
     if (!output) return;

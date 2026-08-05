@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { RefreshCw, Copy, Trash2 } from 'lucide-react';
 
 type UuidType = 'v1' | 'v4' | 'v5' | 'ulid' | 'nanoid';
@@ -29,6 +30,7 @@ export default function UuidGenerator() {
   const [namespace, setNamespace] = useState('');
   const [name, setName] = useState('');
   const [results, setResults] = useState<string[]>([]);
+  const log = useToolLogger('uuid-generator');
 
   const generate = useCallback(() => {
     const num = Math.min(Math.max(parseInt(count) || 1, 1), 1000);
@@ -63,12 +65,19 @@ export default function UuidGenerator() {
     }
 
     setResults(ids);
-  }, [type, count, uppercase, hyphens, namespace, name]);
+    log.info('生成唯一标识符', {
+      type,
+      count: num,
+      uppercase: uppercase === 'true',
+      hyphens: hyphens === 'true',
+    });
+  }, [type, count, uppercase, hyphens, namespace, name, log]);
 
   const handleCopyAll = useCallback(async () => {
     await copyToClipboard(results.join('\n'));
+    log.info('复制全部 ID', { count: results.length });
     toast.success(`已复制 ${results.length} 个 ID`);
-  }, [results]);
+  }, [results, log]);
 
   return (
     <div className="h-full overflow-y-auto p-6">

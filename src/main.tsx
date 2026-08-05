@@ -6,6 +6,8 @@ import '@fontsource-variable/jetbrains-mono'
 import './lib/monaco-setup'
 import './index.css'
 import './i18n'
+import './store/log-store'
+import { appLogger } from './lib/logger'
 import App from './App.tsx'
 import ScreenshotApp from './screenshot/ScreenshotApp.tsx'
 import LongshotPanel from './screenshot/longshot/LongshotPanel.tsx'
@@ -22,6 +24,20 @@ if (isScreenshotWindow || isLongshotPanel) {
   document.body.style.background = 'transparent'
   document.body.style.overflow = 'hidden'
 }
+
+// 全局错误捕获：未捕获异常统一写入日志，便于排查问题
+window.addEventListener('error', (event) => {
+  appLogger.error(`未捕获异常: ${event.message}`, { filename: event.filename, line: event.lineno, column: event.colno })
+})
+window.addEventListener('unhandledrejection', (event) => {
+  appLogger.error('未处理的 Promise 拒绝', event.reason)
+})
+
+appLogger.info('应用启动', {
+  pathname: window.location.pathname,
+  hash: window.location.hash,
+  userAgent: navigator.userAgent,
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

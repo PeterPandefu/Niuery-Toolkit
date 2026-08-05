@@ -7,8 +7,10 @@ import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 export default function QrCodeTool() {
+  const log = useToolLogger('qrcode');
   const [text, setText] = useState('');
   const [size, setSize] = useState('256');
   const [errorLevel, setErrorLevel] = useState<'L' | 'M' | 'Q' | 'H'>('M');
@@ -33,15 +35,24 @@ export default function QrCodeTool() {
         },
       },
       (error) => {
-        if (error) console.error(error);
+        if (error) {
+          log.error('二维码生成失败', error);
+        } else {
+          log.info('二维码生成成功', {
+            textLength: text.length,
+            size: parseInt(size),
+            errorLevel,
+          });
+        }
       }
     );
-  }, [text, size, errorLevel]);
+  }, [text, size, errorLevel, log]);
 
   const handleDownload = useCallback(
     (format: 'png' | 'svg') => {
       if (!text) {
         toast.error('请先输入内容');
+        log.warn('下载二维码失败：内容为空');
         return;
       }
 
@@ -51,6 +62,7 @@ export default function QrCodeTool() {
         link.href = canvasRef.current.toDataURL('image/png');
         link.click();
         toast.success('PNG 已下载');
+        log.info('下载二维码', { format: 'png', textLength: text.length });
       } else if (format === 'svg') {
         QRCode.toString(text, { type: 'svg', errorCorrectionLevel: errorLevel }).then(
           (svg) => {
@@ -61,33 +73,42 @@ export default function QrCodeTool() {
             link.click();
             URL.revokeObjectURL(link.href);
             toast.success('SVG 已下载');
+            log.info('下载二维码', { format: 'svg', textLength: text.length });
           }
         );
       }
     },
-    [text, errorLevel]
+    [text, errorLevel, log]
   );
 
-  const handleDecode = useCallback(async (file: File) => {
-    try {
-      const bitmap = await createImageBitmap(file);
-      if ('BarcodeDetector' in window) {
-        // @ts-expect-error BarcodeDetector API
-        const detector = new BarcodeDetector({ formats: ['qr_code'] });
-        const results = await detector.detect(bitmap);
-        if (results.length > 0) {
-          setDecodedText(results[0].rawValue);
-          toast.success('识别成功');
+  const handleDecode = useCallback(
+    async (file: File) => {
+      log.info('开始识别二维码', { name: file.name, size: file.size });
+      try {
+        const bitmap = await createImageBitmap(file);
+        if ('BarcodeDetector' in window) {
+          // @ts-expect-error BarcodeDetector API
+          const detector = new BarcodeDetector({ formats: ['qr_code'] });
+          const results = await detector.detect(bitmap);
+          if (results.length > 0) {
+            setDecodedText(results[0].rawValue);
+            toast.success('识别成功');
+            log.info('二维码识别成功', { resultLength: String(results[0].rawValue).length });
+          } else {
+            toast.error('未检测到二维码');
+            log.warn('未检测到二维码', { name: file.name });
+          }
         } else {
-          toast.error('未检测到二维码');
+          toast.error('浏览器不支持 BarcodeDetector API');
+          log.warn('浏览器不支持 BarcodeDetector API');
         }
-      } else {
-        toast.error('浏览器不支持 BarcodeDetector API');
+      } catch (e) {
+        toast.error('识别失败');
+        log.error('二维码识别失败', e);
       }
-    } catch {
-      toast.error('识别失败');
-    }
-  }, []);
+    },
+    [log]
+  );
 
   return (
     <div className="h-full overflow-y-auto p-6">

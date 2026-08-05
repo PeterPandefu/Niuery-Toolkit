@@ -1,5 +1,8 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('screenshot-editor:capture');
 
 /**
  * 屏幕捕获 Hook
@@ -14,10 +17,12 @@ export function useScreenCapture() {
 
   const capture = useCallback(async (): Promise<HTMLImageElement | null> => {
     if (!isSupported) {
+      log.warn('当前环境不支持屏幕捕获');
       toast.error('当前浏览器不支持屏幕捕获');
       return null;
     }
 
+    log.info('捕获屏幕开始');
     setCapturing(true);
     let stream: MediaStream | null = null;
 
@@ -61,12 +66,15 @@ export function useScreenCapture() {
       });
 
       toast.success('截屏成功');
+      log.info('捕获屏幕成功', { width, height });
       return img;
     } catch (err) {
       // 用户取消不提示错误
       if (err instanceof DOMException && err.name === 'NotAllowedError') {
+        log.info('捕获屏幕被用户取消');
         return null;
       }
+      log.error('捕获屏幕失败', err);
       toast.error('截屏失败');
       return null;
     } finally {

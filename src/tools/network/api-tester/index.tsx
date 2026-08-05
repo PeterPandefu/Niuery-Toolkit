@@ -21,6 +21,7 @@ import { sendRequest, buildUrl, kvToRecord } from '@/lib/api-client';
 import { executeScript } from '@/lib/script-sandbox';
 import { findMockRule, generateMockResponse } from '@/lib/mock-engine';
 import { parseCurl, toCurl } from '@/lib/curl-parser';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { RequestPanel } from './RequestPanel';
 import { ResponsePanel } from './ResponsePanel';
 import { CollectionSidebar } from './CollectionSidebar';
@@ -54,11 +55,17 @@ export default function ApiTester() {
   const [mockDialogOpen, setMockDialogOpen] = useState(false);
   const [docDialogOpen, setDocDialogOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const log = useToolLogger('api-tester');
 
   // 发送请求
   const handleSend = useCallback(async () => {
     const req = currentRequest;
-    if (!req.url.trim()) return;
+    if (!req.url.trim()) {
+      log.warn('请求 URL 为空，已跳过发送');
+      return;
+    }
+
+    log.info('发送请求', { method: req.method, url: req.url });
 
     setResponseLoading(true);
     setResponse(null);
@@ -159,6 +166,7 @@ export default function ApiTester() {
 
       setResponse(res);
       setScriptLogs(allLogs);
+      log.info('响应完成', { status: res.status, time: res.time });
 
       // 记录历史
       const historyEntry: HistoryEntry = {
@@ -171,11 +179,13 @@ export default function ApiTester() {
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         allLogs.push({ type: 'info', message: '请求已取消' });
+        log.info('请求已取消', { method: req.method, url: req.url });
       } else {
         allLogs.push({
           type: 'error',
           message: err instanceof Error ? err.message : '请求失败',
         });
+        log.error('请求失败', err);
         toast.error(err instanceof Error ? err.message : '请求失败');
       }
       setScriptLogs(allLogs);
@@ -183,7 +193,7 @@ export default function ApiTester() {
       setResponseLoading(false);
       abortRef.current = null;
     }
-  }, [currentRequest, resolveVariables, setVariable, mockEnabled, mockRules, setResponse, setResponseLoading, setScriptLogs, addHistory]);
+  }, [currentRequest, resolveVariables, setVariable, mockEnabled, mockRules, setResponse, setResponseLoading, setScriptLogs, addHistory, log]);
 
   // 取消请求
   const handleCancel = useCallback(() => {
@@ -196,8 +206,9 @@ export default function ApiTester() {
       setCurrentRequest(req);
       setResponse(null);
       setScriptLogs([]);
+      log.info('加载集合请求', { name: req.name, method: req.method });
     },
-    [setCurrentRequest, setResponse, setScriptLogs]
+    [setCurrentRequest, setResponse, setScriptLogs, log]
   );
 
   // 导入 cURL
@@ -207,21 +218,25 @@ export default function ApiTester() {
       if (text.trim().startsWith('curl')) {
         const parsed = parseCurl(text);
         setCurrentRequest(parsed);
+        log.info('导入 cURL 成功', { method: parsed.method, url: parsed.url });
         toast.success('已从剪贴板导入 cURL');
       } else {
+        log.warn('导入 cURL 失败：内容不是有效的 cURL 命令');
         toast.error('剪贴板内容不是有效的 cURL 命令');
       }
-    } catch {
+    } catch (e) {
+      log.warn('读取剪贴板失败', e);
       toast.error('无法读取剪贴板');
     }
-  }, [setCurrentRequest]);
+  }, [setCurrentRequest, log]);
 
   // 导出 cURL
   const handleExportCurl = useCallback(async () => {
     const curl = toCurl(currentRequest);
     await copyToClipboard(curl);
+    log.info('复制 cURL 命令', { method: currentRequest.method, url: currentRequest.url });
     toast.success('cURL 命令已复制');
-  }, [currentRequest]);
+  }, [currentRequest, log]);
 
   // Ctrl+Enter 快捷键
   useEffect(() => {

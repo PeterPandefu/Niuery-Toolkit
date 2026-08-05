@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { base64Encode, base64Decode } from '@/lib/codec-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Mode = 'encode' | 'decode';
 type Variant = 'standard' | 'urlsafe';
 
 export default function Base64Tool() {
+  const log = useToolLogger('base64');
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<Mode>('encode');
   const [variant, setVariant] = useState<Variant>('standard');
@@ -23,11 +25,17 @@ export default function Base64Tool() {
         mode === 'encode'
           ? base64Encode(input, variant === 'urlsafe')
           : base64Decode(input, variant === 'urlsafe');
+      log.info(mode === 'encode' ? 'Base64 编码成功' : 'Base64 解码成功', {
+        variant,
+        inputLength: input.length,
+        outputLength: result.length,
+      });
       return { output: result, error: null };
     } catch (e) {
+      log.warn('Base64 解码失败：无效字符串', { variant, inputLength: input.length, error: (e as Error).message });
       return { output: '', error: (e as Error).message };
     }
-  }, [input, mode, variant]);
+  }, [input, mode, variant, log]);
 
   const handleFileDrop = useCallback(
     async (e: React.DragEvent) => {
@@ -37,6 +45,7 @@ export default function Base64Tool() {
 
       if (file.size > 10 * 1024 * 1024) {
         toast.error('文件大小不能超过 10MB');
+        log.warn('文件超出大小限制', { name: file.name, size: file.size });
         return;
       }
 
@@ -46,10 +55,11 @@ export default function Base64Tool() {
         setInput(base64);
         setMode('decode');
         toast.success(`已加载文件: ${file.name}`);
+        log.info('加载文件为 Base64', { name: file.name, size: file.size });
       };
       reader.readAsDataURL(file);
     },
-    []
+    [log]
   );
 
   const handleFileSelect = useCallback(
@@ -59,6 +69,7 @@ export default function Base64Tool() {
 
       if (file.size > 10 * 1024 * 1024) {
         toast.error('文件大小不能超过 10MB');
+        log.warn('文件超出大小限制', { name: file.name, size: file.size });
         return;
       }
 
@@ -68,10 +79,11 @@ export default function Base64Tool() {
         setInput(base64);
         setMode('decode');
         toast.success(`已加载文件: ${file.name}`);
+        log.info('加载文件为 Base64', { name: file.name, size: file.size });
       };
       reader.readAsDataURL(file);
     },
-    []
+    [log]
   );
 
   // 检测是否为图片 Base64
@@ -85,18 +97,25 @@ export default function Base64Tool() {
       inputTitle={mode === 'encode' ? '原始文本' : 'Base64'}
       outputTitle={mode === 'encode' ? 'Base64' : '解码结果'}
       outputValue={output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        log.info('清空输入');
+      }}
       onSwap={() => {
         if (output) {
           setInput(output);
           setMode(mode === 'encode' ? 'decode' : 'encode');
+          log.info('交换输入输出', { newMode: mode === 'encode' ? 'decode' : 'encode' });
         }
       }}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
+            onChange={(e) => {
+              setMode(e.target.value as Mode);
+              log.info(`切换模式: ${e.target.value === 'encode' ? '编码' : '解码'}`);
+            }}
             options={[
               { value: 'encode', label: '编码' },
               { value: 'decode', label: '解码' },
@@ -105,7 +124,10 @@ export default function Base64Tool() {
           />
           <Select
             value={variant}
-            onChange={(e) => setVariant(e.target.value as Variant)}
+            onChange={(e) => {
+              setVariant(e.target.value as Variant);
+              log.info(`切换变体: ${e.target.value}`);
+            }}
             options={[
               { value: 'standard', label: '标准' },
               { value: 'urlsafe', label: 'URL安全' },

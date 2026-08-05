@@ -4,6 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { convertCase, type CaseType } from '@/lib/codec-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 const CASE_TYPES: CaseType[] = [
   'camelCase',
@@ -19,11 +20,19 @@ const CASE_TYPES: CaseType[] = [
 export default function CaseConverter() {
   const [input, setInput] = useState('');
   const [selectedCase, setSelectedCase] = useState<CaseType>('camelCase');
+  const log = useToolLogger('case-converter');
 
   const output = useMemo(() => {
     if (!input.trim()) return '';
-    return convertCase(input, selectedCase);
-  }, [input, selectedCase]);
+    try {
+      const result = convertCase(input, selectedCase);
+      log.info('转换完成', { targetCase: selectedCase, length: result.length });
+      return result;
+    } catch (e) {
+      log.error('转换失败', e);
+      throw e;
+    }
+  }, [input, selectedCase, log]);
 
   const allResults = useMemo(() => {
     if (!input.trim()) return [];

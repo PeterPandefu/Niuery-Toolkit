@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Mode = 'escape' | 'unescape';
 type Language = 'json' | 'javascript' | 'regex';
@@ -52,11 +53,24 @@ export default function EscapeUnescape() {
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<Mode>('escape');
   const [language, setLanguage] = useState<Language>('json');
+  const log = useToolLogger('escape-unescape');
 
   const output = useMemo(() => {
     if (!input) return '';
-    return mode === 'escape' ? escapeString(input, language) : unescapeString(input, language);
-  }, [input, mode, language]);
+    try {
+      const result =
+        mode === 'escape' ? escapeString(input, language) : unescapeString(input, language);
+      log.info(mode === 'escape' ? '转义完成' : '反转义完成', {
+        language,
+        inputLength: input.length,
+        outputLength: result.length,
+      });
+      return result;
+    } catch (e) {
+      log.warn(mode === 'escape' ? '转义失败' : '反转义失败', e);
+      throw e;
+    }
+  }, [input, mode, language, log]);
 
   return (
     <ToolLayout
@@ -74,7 +88,11 @@ export default function EscapeUnescape() {
         <div className="flex items-center gap-2">
           <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
+            onChange={(e) => {
+              const next = e.target.value as Mode;
+              setMode(next);
+              log.info('切换模式', { mode: next });
+            }}
             options={[
               { value: 'escape', label: '转义' },
               { value: 'unescape', label: '反转义' },

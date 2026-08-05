@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useIsDark } from '@/hooks/use-theme';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { Columns2, Rows3, Eraser } from 'lucide-react';
 
 type ViewMode = 'split' | 'unified';
@@ -31,6 +32,25 @@ export default function TextDiff() {
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
   const isDark = useIsDark();
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
+  const log = useToolLogger('text-diff');
+
+  // 对比统计（节流日志：message 固定，变量放 details）
+  useMemo(() => {
+    if (!original && !modified) return null;
+    const a = original.split('\n');
+    const b = modified.split('\n');
+    const max = Math.max(a.length, b.length);
+    let changedLines = 0;
+    for (let i = 0; i < max; i++) {
+      if (a[i] !== b[i]) changedLines++;
+    }
+    log.info('对比完成', {
+      changedLines,
+      originalLength: original.length,
+      modifiedLength: modified.length,
+    });
+    return changedLines;
+  }, [original, modified, log]);
 
   const handleEditorMount = useCallback((ed: editor.IStandaloneDiffEditor) => {
     editorRef.current = ed;
@@ -49,6 +69,7 @@ export default function TextDiff() {
   const handleClear = () => {
     setOriginal('');
     setModified('');
+    log.info('已清空对比内容');
     if (editorRef.current) {
       editorRef.current.getOriginalEditor().setValue('');
       editorRef.current.getModifiedEditor().setValue('');

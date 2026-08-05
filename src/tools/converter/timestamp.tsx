@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RefreshCw } from 'lucide-react';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -16,6 +17,7 @@ dayjs.locale('zh-cn');
 type Mode = 'to-date' | 'to-timestamp';
 
 export default function TimestampConverter() {
+  const log = useToolLogger('timestamp');
   const [mode, setMode] = useState<Mode>('to-date');
   const [timestamp, setTimestamp] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -28,7 +30,11 @@ export default function TimestampConverter() {
     if (!dateStr) return null;
     try {
       const d = dayjs(dateStr);
-      if (!d.isValid()) return { error: '无效日期' };
+      if (!d.isValid()) {
+        log.warn('无效日期输入', { dateStr });
+        return { error: '无效日期' };
+      }
+      log.info('日期 → 时间戳转换成功', { dateStr, seconds: d.unix() });
       return {
         seconds: d.unix(),
         milliseconds: d.valueOf(),
@@ -36,18 +42,26 @@ export default function TimestampConverter() {
         relative: d.fromNow(),
       };
     } catch {
+      log.warn('日期解析失败', { dateStr });
       return { error: '解析失败' };
     }
-  }, [dateStr]);
+  }, [dateStr, log]);
 
   const dateResult = useMemo(() => {
     if (!timestamp) return null;
     try {
       const num = Number(timestamp);
-      if (isNaN(num)) return { error: '无效时间戳' };
+      if (isNaN(num)) {
+        log.warn('无效时间戳输入', { timestamp });
+        return { error: '无效时间戳' };
+      }
       const ms = unit === 's' ? num * 1000 : num;
       const d = timezone === 'utc' ? dayjs.utc(ms) : dayjs(ms);
-      if (!d.isValid()) return { error: '无效时间戳' };
+      if (!d.isValid()) {
+        log.warn('时间戳无法解析为有效日期', { timestamp, unit });
+        return { error: '无效时间戳' };
+      }
+      log.info('时间戳 → 日期转换成功', { timestamp, unit, timezone });
       return {
         local: d.format('YYYY-MM-DD HH:mm:ss'),
         utc: d.utc().format('YYYY-MM-DD HH:mm:ss'),
@@ -55,9 +69,10 @@ export default function TimestampConverter() {
         relative: d.fromNow(),
       };
     } catch {
+      log.warn('时间戳解析失败', { timestamp });
       return { error: '解析失败' };
     }
-  }, [timestamp, unit, timezone]);
+  }, [timestamp, unit, timezone, log]);
 
   return (
     <div className="h-full overflow-y-auto p-6">
@@ -66,7 +81,10 @@ export default function TimestampConverter() {
         <div className="flex items-center gap-4">
           <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value as Mode)}
+            onChange={(e) => {
+              setMode(e.target.value as Mode);
+              log.info(`切换模式: ${e.target.value}`);
+            }}
             options={[
               { value: 'to-date', label: '时间戳 → 日期' },
               { value: 'to-timestamp', label: '日期 → 时间戳' },
@@ -76,6 +94,7 @@ export default function TimestampConverter() {
           <Button variant="outline" size="sm" onClick={() => {
             setTimestamp(String(now));
             setDateStr(dayjs().format('YYYY-MM-DDTHH:mm'));
+            log.info('填入当前时间', { timestamp: now });
           }}>
             <RefreshCw className="mr-2 h-4 w-4" />
             当前时间

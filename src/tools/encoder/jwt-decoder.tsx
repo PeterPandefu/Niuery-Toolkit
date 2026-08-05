@@ -5,14 +5,28 @@ import { cn } from '@/lib/utils';
 import dayjs from 'dayjs';
 import { AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { parseJwt } from '@/lib/codec-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 export default function JwtDecoder() {
+  const log = useToolLogger('jwt-decoder');
   const [token, setToken] = useState('');
 
   const result = useMemo(() => {
     if (!token.trim()) return null;
-    return parseJwt(token);
-  }, [token]);
+    const parsed = parseJwt(token);
+    if ('error' in parsed) {
+      log.warn('JWT 解析失败', { tokenLength: token.length, error: parsed.error });
+    } else {
+      log.info('JWT 解析成功', {
+        tokenLength: token.length,
+        headerKeys: Object.keys(parsed.header).length,
+        payloadKeys: Object.keys(parsed.payload).length,
+        alg: (parsed.header as Record<string, unknown>).alg,
+        signatureLength: parsed.signature.length,
+      });
+    }
+    return parsed;
+  }, [token, log]);
 
   const expiration = useMemo(() => {
     if (!result || 'error' in result) return null;
@@ -41,7 +55,10 @@ export default function JwtDecoder() {
           <div className="flex items-center justify-between">
             <Label>JWT Token</Label>
             <button
-              onClick={() => setToken(sampleJwt)}
+              onClick={() => {
+                setToken(sampleJwt);
+                log.info('使用示例 Token', { tokenLength: sampleJwt.length });
+              }}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
               使用示例

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { PrivacyNote } from './common';
 import { CompressPanel, ExtractImagesPanel, MergePanel, SplitPanel, ToImagesPanel, WatermarkPanel } from './panels';
 import { Combine, ImageDown, Images, Minimize2, Scissors, Stamp } from 'lucide-react';
@@ -26,9 +27,16 @@ const PANELS: Record<FeatureId, React.ComponentType> = {
 
 /** PDF 工具箱：单入口 + 内部左侧栏 */
 export default function PdfToolkit() {
+  const log = useToolLogger('pdf-toolkit');
   const [active, setActive] = useState<FeatureId>('compress');
   const ActivePanel = PANELS[active];
   const activeFeature = FEATURES.find((f) => f.id === active)!;
+
+  const handleSelect = (id: FeatureId) => {
+    if (id === active) return;
+    setActive(id);
+    log.info('功能标签切换', { id });
+  };
 
   return (
     <div className="flex h-full">
@@ -44,7 +52,7 @@ export default function PdfToolkit() {
             return (
               <button
                 key={feature.id}
-                onClick={() => setActive(feature.id)}
+                onClick={() => handleSelect(feature.id)}
                 className={cn(
                   'group relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-all duration-150',
                   'hover:bg-accent hover:translate-x-[2px]',

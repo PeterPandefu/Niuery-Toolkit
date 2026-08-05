@@ -3,17 +3,23 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { convertDataSize, formatDataSize, DATA_SIZE_UNITS, type DataSizeUnit } from '@/lib/converter-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 export default function DataSizeConverter() {
+  const log = useToolLogger('data-size');
   const [value, setValue] = useState('1');
   const [fromUnit, setFromUnit] = useState<DataSizeUnit>('GB');
   const [standard, setStandard] = useState<'1024' | '1000'>('1024');
 
   const results = useMemo(() => {
     const num = parseFloat(value);
-    if (isNaN(num)) return null;
+    if (isNaN(num)) {
+      if (value.trim()) log.warn('无效数值输入', { value });
+      return null;
+    }
+    log.info('数据大小转换成功', { value: num, unit: fromUnit, standard });
     return convertDataSize(num, fromUnit, parseInt(standard) as 1024 | 1000);
-  }, [value, fromUnit, standard]);
+  }, [value, fromUnit, standard, log]);
 
   return (
     <div className="h-full overflow-y-auto p-6">
@@ -34,7 +40,10 @@ export default function DataSizeConverter() {
               <Label>单位</Label>
               <Select
                 value={fromUnit}
-                onChange={(e) => setFromUnit(e.target.value as DataSizeUnit)}
+                onChange={(e) => {
+                  setFromUnit(e.target.value as DataSizeUnit);
+                  log.info(`切换单位: ${e.target.value}`);
+                }}
                 options={DATA_SIZE_UNITS.map((u) => ({ value: u, label: u }))}
               />
             </div>
@@ -42,7 +51,10 @@ export default function DataSizeConverter() {
               <Label>标准</Label>
               <Select
                 value={standard}
-                onChange={(e) => setStandard(e.target.value as '1024' | '1000')}
+                onChange={(e) => {
+                  setStandard(e.target.value as '1024' | '1000');
+                  log.info(`切换标准: ${e.target.value === '1024' ? 'IEC (1024)' : 'SI (1000)'}`);
+                }}
                 options={[
                   { value: '1024', label: 'IEC (1024)' },
                   { value: '1000', label: 'SI (1000)' },

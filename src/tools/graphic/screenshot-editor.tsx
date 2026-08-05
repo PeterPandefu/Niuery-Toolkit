@@ -14,6 +14,7 @@ import {
 } from '@/lib/hotkeys';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import {
   Download,
   Copy,
@@ -47,6 +48,7 @@ import {
 
 function ScreenshotEditorInner() {
   const { t } = useTranslation();
+  const log = useToolLogger('screenshot-editor');
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [screenshotHotkey, setScreenshotHotkey] = useState(DEFAULT_SCREENSHOT_HOTKEY);
@@ -140,6 +142,7 @@ function ScreenshotEditorInner() {
       const file = e.target.files?.[0];
       if (!file) return;
       if (!file.type.startsWith('image/')) {
+        log.warn('导入文件不是图片', { name: file.name });
         toast.error('请选择图片文件');
         return;
       }
@@ -148,15 +151,22 @@ function ScreenshotEditorInner() {
       img.onload = () => {
         URL.revokeObjectURL(url);
         loadImage(img);
+        log.info('导入图片', {
+          name: file.name,
+          size: file.size,
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        });
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
+        log.warn('图片导入失败', { name: file.name, size: file.size });
         toast.error('图片加载失败');
       };
       img.src = url;
       e.target.value = '';
     },
-    [loadImage]
+    [loadImage, log]
   );
 
   // 拖拽上传
@@ -174,10 +184,16 @@ function ScreenshotEditorInner() {
       img.onload = () => {
         URL.revokeObjectURL(url);
         loadImage(img);
+        log.info('导入图片', {
+          name: file.name,
+          size: file.size,
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        });
       };
       img.src = url;
     },
-    [loadImage]
+    [loadImage, log]
   );
 
   // 粘贴按钮（触发提示）
@@ -188,23 +204,27 @@ function ScreenshotEditorInner() {
   // 微信风格截图（Tauri 桌面端）：先最小化主窗口，避免主窗口被截入画面
   const handleWechatScreenshot = useCallback(async () => {
     try {
+      log.info('捕获屏幕开始');
       await getCurrentWindow().minimize();
       await invoke('start_screenshot');
     } catch (e) {
+      log.error('捕获屏幕失败', e);
       toast.error(`截图失败: ${e}`);
     }
-  }, []);
+  }, [log]);
 
   // 长截图入口：打开框选窗口（长截图模式）
   // 从界面按钮启动时先最小化主窗口，避免遮挡待框选的内容（拼接完成后会自动恢复）
   const handleLongshotEntry = useCallback(async () => {
     try {
+      log.info('长截图开始');
       await getCurrentWindow().minimize();
       await invoke('start_screenshot', { mode: 'longshot' });
     } catch (e) {
+      log.error('长截图启动失败', e);
       toast.error(`${t('screenshotEditor.longshot.entry')}: ${e}`);
     }
-  }, [t]);
+  }, [t, log]);
 
   // 长截图事件：选区确认 → 启动悬浮面板；拼接完成 → 载入编辑器
   useEffect(() => {
@@ -230,6 +250,11 @@ function ScreenshotEditorInner() {
       const img = new Image();
       img.onload = () => {
         loadImage(img);
+        log.info('长截图拼接完成', {
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          droppedCount,
+        });
         if (droppedCount > 0) {
           toast.warning(t('screenshotEditor.longshot.droppedToast', { count: droppedCount }));
         } else {
@@ -241,7 +266,10 @@ function ScreenshotEditorInner() {
         win.unminimize().catch(() => {});
         win.setFocus().catch(() => {});
       };
-      img.onerror = () => toast.error(t('screenshotEditor.longshot.failed'));
+      img.onerror = () => {
+        log.error('长截图图片加载失败');
+        toast.error(t('screenshotEditor.longshot.failed'));
+      };
       img.src = dataUrl;
     }).then((un) => {
       if (disposed) un();
@@ -252,7 +280,7 @@ function ScreenshotEditorInner() {
       disposed = true;
       unlisteners.forEach((un) => un());
     };
-  }, [isTauri, loadImage, t]);
+  }, [isTauri, loadImage, t, log]);
 
   // 工具切换时退出裁剪
   useEffect(() => {

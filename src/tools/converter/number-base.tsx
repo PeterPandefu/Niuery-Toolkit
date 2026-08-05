@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 interface BaseResult {
   binary: string;
@@ -11,6 +12,7 @@ interface BaseResult {
 }
 
 export default function NumberBaseConverter() {
+  const log = useToolLogger('number-base');
   const [input, setInput] = useState('');
   const [base, setBase] = useState<2 | 8 | 10 | 16>(10);
 
@@ -28,6 +30,7 @@ export default function NumberBaseConverter() {
 
       const cleanInput = input.trim().toLowerCase();
       if (!validChars[base].test(cleanInput)) {
+        log.warn(`无效的${base}进制数`, { input });
         return { error: `无效的${base}进制数` };
       }
 
@@ -42,16 +45,18 @@ export default function NumberBaseConverter() {
       const isNegative = decimal < 0n;
       const abs = isNegative ? -decimal : decimal;
 
+      log.info('进制转换成功', { base, input: cleanInput });
       return {
         binary: (isNegative ? '-' : '') + abs.toString(2),
         octal: (isNegative ? '-' : '') + abs.toString(8),
         decimal: (isNegative ? '-' : '') + abs.toString(10),
         hex: (isNegative ? '-' : '') + abs.toString(16).toUpperCase(),
       };
-    } catch {
+    } catch (e) {
+      log.warn('解析失败', { input, base, error: (e as Error).message });
       return { error: '解析失败' };
     }
-  }, [input, base]);
+  }, [input, base, log]);
 
   const bases = [
     { value: 2 as const, label: '二进制', prefix: '0b' },
@@ -71,6 +76,7 @@ export default function NumberBaseConverter() {
               onClick={() => {
                 setBase(b.value);
                 setInput('');
+                log.info(`切换进制: ${b.label}`);
               }}
               className={cn(
                 'rounded-md px-4 py-2 text-sm font-medium transition-colors',

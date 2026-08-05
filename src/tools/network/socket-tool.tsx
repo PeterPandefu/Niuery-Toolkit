@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useWebSocketClient, WsStatus } from '@/hooks/use-websocket-client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
+import { createLogger } from '@/lib/logger';
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -19,6 +21,10 @@ import {
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
+
+// 子面板日志（顶层入口 SocketTool 使用 useToolLogger）
+const clientLog = createLogger('socket-tool:client');
+const serverLog = createLogger('socket-tool:server');
 
 // ==================== Status Badge ====================
 function StatusBadge({ status, t }: { status: WsStatus; t: (key: string) => string }) {
@@ -46,16 +52,36 @@ function ClientPanel() {
   const [url, setUrl] = useState('ws://localhost:8080');
   const [inputMsg, setInputMsg] = useState('');
   const logEndRef = useRef<HTMLDivElement>(null);
+  const receivedCountRef = useRef(0);
 
   // Auto-scroll to bottom
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // 记录收到的消息（只记长度，不记全量内容）
+  useEffect(() => {
+    const received = messages.filter((m) => m.direction === 'received');
+    if (received.length > receivedCountRef.current) {
+      const latest = received[received.length - 1];
+      clientLog.info('收到消息', { length: latest.content.length });
+    }
+    receivedCountRef.current = received.length;
+  }, [messages]);
+
+  // 连接错误
+  useEffect(() => {
+    if (status === 'error' && errorMessage) {
+      clientLog.error('连接错误', { url, errorMessage });
+    }
+  }, [status, errorMessage, url]);
+
   const handleConnect = useCallback(() => {
     if (status === 'connected' || status === 'connecting') {
+      clientLog.info('断开连接', { url });
       disconnect();
     } else {
+      clientLog.info('发起连接', { url });
       connect(url);
     }
   }, [status, url, connect, disconnect]);
@@ -64,7 +90,10 @@ function ClientPanel() {
     const trimmed = inputMsg.trim();
     if (!trimmed) return;
     if (send(trimmed)) {
+      clientLog.info('发送消息', { length: trimmed.length });
       setInputMsg('');
+    } else {
+      clientLog.warn('发送消息失败', { length: trimmed.length });
     }
   }, [inputMsg, send]);
 
@@ -218,6 +247,7 @@ function ServerPanel() {
 
       const unlistenConnected = await listen<{ clientId: string }>('ws-client-connected', (event) => {
         if (cancelled) return;
+        serverLog.info('客户端连接', { clientId: event.payload.clientId });
         setClients((prev) => [...prev, { id: event.payload.clientId, connectedAt: Date.now() }]);
         setMessages((prev) => [
           ...prev,
@@ -233,6 +263,7 @@ function ServerPanel() {
 
       const unlistenDisconnected = await listen<{ clientId: string }>('ws-client-disconnected', (event) => {
         if (cancelled) return;
+        serverLog.info('客户端断开', { clientId: event.payload.clientId });
         setClients((prev) => prev.filter((c) => c.id !== event.payload.clientId));
         setMessages((prev) => [
           ...prev,
@@ -283,6 +314,7 @@ function ServerPanel() {
       await invoke('stop_ws_server');
       setRunning(false);
       setClients([]);
+      serverLog.info('服务器已停止', { port: parseInt(port, 10) });
     } else {
       const { invoke } = await import('@tauri-apps/api/core');
       try {
@@ -290,7 +322,9 @@ function ServerPanel() {
         setRunning(true);
         setMessages([]);
         setClients([]);
+        serverLog.info('服务器已启动', { port: parseInt(port, 10) });
       } catch (e) {
+        serverLog.error('服务器启动失败', e);
         setMessages((prev) => [
           ...prev,
           {
@@ -311,6 +345,7 @@ function ServerPanel() {
 
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('ws_broadcast', { message: trimmed });
+    serverLog.info('广播消息', { length: trimmed.length, clients: clients.length });
     setMessages((prev) => [
       ...prev,
       {
@@ -322,7 +357,7 @@ function ServerPanel() {
       },
     ]);
     setBroadcastMsg('');
-  }, [broadcastMsg, tauriAvailable]);
+  }, [broadcastMsg, tauriAvailable, clients.length]);
 
   // Non-Tauri fallback
   if (!tauriAvailable) {
@@ -450,13 +485,17 @@ function ServerPanel() {
 export default function SocketTool() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<'client' | 'server'>('client');
+  const log = useToolLogger('socket-tool');
 
   return (
     <div className="flex h-full flex-col p-4">
       {/* Tab Bar */}
       <div className="mb-4 flex items-center gap-1 rounded-lg bg-muted p-1 w-fit">
         <button
-          onClick={() => setTab('client')}
+          onClick={() => {
+            setTab('client');
+            log.info('切换面板', { tab: 'client' });
+          }}
           className={cn(
             'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
             tab === 'client'
@@ -468,7 +507,10 @@ export default function SocketTool() {
           {t('socketTool.client')}
         </button>
         <button
-          onClick={() => setTab('server')}
+          onClick={() => {
+            setTab('server');
+            log.info('切换面板', { tab: 'server' });
+          }}
           className={cn(
             'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
             tab === 'server'

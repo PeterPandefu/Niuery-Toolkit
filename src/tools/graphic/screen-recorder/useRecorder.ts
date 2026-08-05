@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { createLogger } from '@/lib/logger';
 import type {
   AudioSource,
   CaptureTarget,
@@ -15,6 +16,8 @@ import type {
 interface RecorderApiOptions {
   onStatus?: (event: RecordingStatusEvent) => void;
 }
+
+const log = createLogger('screen-recorder:recorder');
 
 export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
@@ -60,6 +63,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
       return { monitors: nextMonitors, windows: nextWindows, audioSources: nextAudio };
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
+      log.warn('获取录制来源失败', message);
       setError(message);
       return null;
     }
@@ -69,12 +73,15 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     setLoading(true);
     setError(null);
     try {
+      log.info('开始录制', { mode: target.mode, fps: settings.fps, quality: settings.quality });
       const nextSession = await invoke<RecordingSession>('start_recording', { target, settings });
       setSession(nextSession);
       setArtifact(null);
+      log.info('录制会话已创建', { sessionId: nextSession.id, mode: target.mode });
       return nextSession;
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
+      log.error('开始录制失败', { mode: target.mode, error: message });
       setError(message);
       return null;
     } finally {
@@ -88,6 +95,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
       await invoke('pause_recording', { sessionId: session.id });
       return true;
     } catch (reason) {
+      log.warn('暂停录制失败', reason);
       setError(reason instanceof Error ? reason.message : String(reason));
       return false;
     }
@@ -99,6 +107,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
       await invoke('resume_recording', { sessionId: session.id });
       return true;
     } catch (reason) {
+      log.warn('继续录制失败', reason);
       setError(reason instanceof Error ? reason.message : String(reason));
       return false;
     }
@@ -108,12 +117,20 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     if (!session) return null;
     setLoading(true);
     try {
+      log.info('停止录制', { sessionId: session.id });
       const nextArtifact = await invoke<RecordingArtifact>('stop_recording', { sessionId: session.id });
       setArtifact(nextArtifact);
       lastSessionIdRef.current = session.id;
       setSession(null);
+      log.info('录制文件已生成', {
+        durationMs: nextArtifact.durationMs,
+        width: nextArtifact.width,
+        height: nextArtifact.height,
+        sizeBytes: nextArtifact.sizeBytes,
+      });
       return nextArtifact;
     } catch (reason) {
+      log.error('停止录制失败', reason);
       setError(reason instanceof Error ? reason.message : String(reason));
       return null;
     } finally {
@@ -130,6 +147,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
       lastSessionIdRef.current = null;
       return true;
     } catch (reason) {
+      log.warn('取消录制失败', reason);
       setError(reason instanceof Error ? reason.message : String(reason));
       return false;
     }
@@ -150,6 +168,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
         outputPath,
       });
     } catch (reason) {
+      log.error('导出录制失败', { format, error: reason });
       setError(reason instanceof Error ? reason.message : String(reason));
       return null;
     }
@@ -161,6 +180,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     try {
       return await invoke<{ path: string; sizeBytes: number }>('prepare_gif_editor', { sessionId: currentSessionId });
     } catch (reason) {
+      log.warn('准备 GIF 编辑器失败', reason);
       setError(reason instanceof Error ? reason.message : String(reason));
       return null;
     }
@@ -173,6 +193,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
       const bytes = await invoke<ArrayBuffer>('get_recording_preview', { sessionId: currentSessionId });
       return URL.createObjectURL(new Blob([bytes], { type: 'video/mp4' }));
     } catch (reason) {
+      log.warn('加载录制预览失败', reason);
       setError(reason instanceof Error ? reason.message : String(reason));
       return null;
     }

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isTauri } from '@/lib/api-client';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 interface ClipboardEntryView {
   id: string;
@@ -52,6 +53,7 @@ export default function ClipboardHistory() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const unlistenRef = useRef<(() => void) | null>(null);
+  const log = useToolLogger('clipboard-history');
 
   // 加载历史记录
   const loadHistory = useCallback(async () => {
@@ -63,12 +65,14 @@ export default function ClipboardHistory() {
       const { invoke } = await import('@tauri-apps/api/core');
       const history = await invoke<ClipboardEntryView[]>('get_clipboard_history');
       setEntries(history);
+      log.info('历史加载完成', { count: history.length });
     } catch (e) {
+      log.error('加载剪贴板历史失败', e);
       toast.error(`加载剪贴板历史失败: ${e}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [log]);
 
   // 监听新条目事件
   useEffect(() => {
@@ -120,12 +124,14 @@ export default function ClipboardHistory() {
       }
 
       setCopiedId(entry.id);
+      log.info('已复制历史条目', { id: entry.id, type: entry.content_type });
       toast.success('已复制到剪贴板');
       setTimeout(() => setCopiedId(null), 2000);
     } catch (e) {
+      log.warn('复制历史条目失败', e);
       toast.error(`复制失败: ${e}`);
     }
-  }, []);
+  }, [log]);
 
   // 删除单条
   const handleDelete = useCallback(async (id: string) => {
@@ -134,11 +140,13 @@ export default function ClipboardHistory() {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('delete_clipboard_entry', { id });
       setEntries((prev) => prev.filter((e) => e.id !== id));
+      log.info('已删除历史条目', { id });
       toast.success('已删除');
     } catch (e) {
+      log.warn('删除历史条目失败', e);
       toast.error(`删除失败: ${e}`);
     }
-  }, []);
+  }, [log]);
 
   // 清空全部
   const handleClearAll = useCallback(async () => {
@@ -147,11 +155,13 @@ export default function ClipboardHistory() {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('clear_clipboard_history');
       setEntries([]);
+      log.info('已清空全部历史');
       toast.success('已清空所有记录');
     } catch (e) {
+      log.warn('清空历史失败', e);
       toast.error(`清空失败: ${e}`);
     }
-  }, []);
+  }, [log]);
 
   // 非 Tauri 环境提示
   if (!isTauri) {

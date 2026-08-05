@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { toDegrees, fromDegrees, formatAngle, type AngleUnit } from '@/lib/converter-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 const UNIT_LABELS: Record<AngleUnit, string> = {
   degree: '度 (°)',
@@ -20,16 +21,21 @@ const FORMULAS: Record<AngleUnit, string> = {
 };
 
 export default function AngleTool() {
+  const log = useToolLogger('angle');
   const [inputValue, setInputValue] = useState('90');
   const [fromUnit, setFromUnit] = useState<AngleUnit>('degree');
   const [toUnit, setToUnit] = useState<AngleUnit>('radian');
 
   const result = useMemo(() => {
     const num = parseFloat(inputValue);
-    if (isNaN(num)) return null;
+    if (isNaN(num)) {
+      if (inputValue.trim()) log.warn('无效角度输入', { inputValue });
+      return null;
+    }
     const degrees = toDegrees(num, fromUnit);
+    log.info('角度转换成功', { input: num, fromUnit, toUnit });
     return fromDegrees(degrees, toUnit);
-  }, [inputValue, fromUnit, toUnit]);
+  }, [inputValue, fromUnit, toUnit, log]);
 
   const allConversions = useMemo(() => {
     const num = parseFloat(inputValue);
@@ -50,7 +56,10 @@ export default function AngleTool() {
       inputTitle="输入角度"
       outputTitle="转换结果"
       outputValue={result !== null ? formatNumber(result) : ''}
-      onClear={() => setInputValue('')}
+      onClear={() => {
+        setInputValue('');
+        log.info('清空输入');
+      }}
       input={
         <div className="flex h-full flex-col gap-4 p-4">
           <div className="space-y-2">
@@ -68,7 +77,10 @@ export default function AngleTool() {
               <Label>从</Label>
               <Select
                 value={fromUnit}
-                onChange={(e) => setFromUnit(e.target.value as AngleUnit)}
+                onChange={(e) => {
+                  setFromUnit(e.target.value as AngleUnit);
+                  log.info(`切换源单位: ${e.target.value}`);
+                }}
                 options={Object.entries(UNIT_LABELS).map(([value, label]) => ({ value, label }))}
               />
             </div>
@@ -76,7 +88,10 @@ export default function AngleTool() {
               <Label>到</Label>
               <Select
                 value={toUnit}
-                onChange={(e) => setToUnit(e.target.value as AngleUnit)}
+                onChange={(e) => {
+                  setToUnit(e.target.value as AngleUnit);
+                  log.info(`切换目标单位: ${e.target.value}`);
+                }}
                 options={Object.entries(UNIT_LABELS).map(([value, label]) => ({ value, label }))}
               />
             </div>

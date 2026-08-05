@@ -8,24 +8,28 @@ import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
 import { RefreshCw, Copy } from 'lucide-react';
 import { generateLoremIpsum, type LoremType, type LoremLang } from '@/lib/generator-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 export default function LoremIpsum() {
   const [type, setType] = useState<LoremType>('paragraphs');
   const [count, setCount] = useState('3');
   const [lang, setLang] = useState<LoremLang>('en');
   const [output, setOutput] = useState('');
+  const log = useToolLogger('lorem-ipsum');
 
   const generate = useCallback(() => {
     const num = parseInt(count) || 1;
     setOutput(generateLoremIpsum(type, num, lang));
-  }, [type, count, lang]);
+    log.info('生成占位文本', { type, count: num, lang });
+  }, [type, count, lang, log]);
 
   const handleCopy = useCallback(async () => {
     if (output) {
       await copyToClipboard(output);
+      log.info('复制生成内容', { length: output.length });
       toast.success('已复制');
     }
-  }, [output]);
+  }, [output, log]);
 
   return (
     <div className="h-full overflow-y-auto p-6">

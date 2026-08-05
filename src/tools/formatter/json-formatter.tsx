@@ -4,6 +4,7 @@ import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useIsDark } from '@/hooks/use-theme';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 import { AlertCircle, CheckCircle2, Minimize2 } from 'lucide-react';
 
 type SortMode = 'none' | 'alpha' | 'alpha-desc';
@@ -30,6 +31,7 @@ export default function JsonFormatter() {
   const [sortMode, setSortMode] = useState<SortMode>('none');
   const [mode, setMode] = useState<'format' | 'minify'>('format');
   const isDark = useIsDark();
+  const log = useToolLogger('json-formatter');
 
   const { output, error, isValid } = useMemo(() => {
     if (!input.trim()) return { output: '', error: null, isValid: null };
@@ -41,11 +43,17 @@ export default function JsonFormatter() {
         mode === 'format'
           ? JSON.stringify(sorted, null, parseInt(indent))
           : JSON.stringify(sorted);
+      log.info('JSON 转换成功', {
+        mode,
+        inputLength: input.length,
+        outputLength: result.length,
+      });
       return { output: result, error: null, isValid: true };
     } catch (e) {
+      log.warn('JSON 解析错误', { message: (e as Error).message });
       return { output: '', error: (e as Error).message, isValid: false };
     }
-  }, [input, indent, sortMode, mode]);
+  }, [input, indent, sortMode, mode, log]);
 
   const sampleJson = `{"name":"Niuery Toolkit","version":"1.0.0","features":["offline","secure","fast"],"nested":{"key":"value","array":[1,2,3]}}`;
 
@@ -54,7 +62,10 @@ export default function JsonFormatter() {
       inputTitle="JSON 输入"
       outputTitle={mode === 'format' ? '格式化结果' : '压缩结果'}
       outputValue={output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        log.info('清空输入');
+      }}
       inputActions={
         <div className="flex items-center gap-2">
           <div className="flex rounded-md border">
@@ -62,7 +73,10 @@ export default function JsonFormatter() {
               variant={mode === 'format' ? 'default' : 'ghost'}
               size="sm"
               className="rounded-r-none"
-              onClick={() => setMode('format')}
+              onClick={() => {
+                setMode('format');
+                log.info('切换为格式化模式');
+              }}
             >
               格式化
             </Button>
@@ -70,7 +84,10 @@ export default function JsonFormatter() {
               variant={mode === 'minify' ? 'default' : 'ghost'}
               size="sm"
               className="rounded-l-none"
-              onClick={() => setMode('minify')}
+              onClick={() => {
+                setMode('minify');
+                log.info('切换为压缩模式');
+              }}
             >
               <Minimize2 className="mr-1 h-3 w-3" />
               压缩
@@ -80,7 +97,10 @@ export default function JsonFormatter() {
             <>
               <Select
                 value={indent}
-                onChange={(e) => setIndent(e.target.value)}
+                onChange={(e) => {
+                  setIndent(e.target.value);
+                  log.info('切换缩进', { indent: e.target.value });
+                }}
                 options={[
                   { value: '2', label: '2 空格' },
                   { value: '4', label: '4 空格' },
@@ -90,7 +110,11 @@ export default function JsonFormatter() {
               />
               <Select
                 value={sortMode}
-                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                onChange={(e) => {
+                  const value = e.target.value as SortMode;
+                  setSortMode(value);
+                  log.info('切换键排序', { sortMode: value });
+                }}
                 options={[
                   { value: 'none', label: '不排序' },
                   { value: 'alpha', label: 'A→Z' },
@@ -100,7 +124,14 @@ export default function JsonFormatter() {
               />
             </>
           )}
-          <Button variant="ghost" size="sm" onClick={() => setInput(sampleJson)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setInput(sampleJson);
+              log.info('填充示例 JSON');
+            }}
+          >
             示例
           </Button>
         </div>

@@ -7,6 +7,9 @@ import { calcCenterCrop, calcRatioCrop, calcResizeSize, canvasToBlob, fileToCanv
 import { baseName, saveImageResults, useBusyRun } from './common';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('image-studio:edit');
 
 type PerFile = (file: File) => Promise<{ blob: Blob; ext: string }>;
 
@@ -14,19 +17,35 @@ type PerFile = (file: File) => Promise<{ blob: Blob; ext: string }>;
 function useBatch(files: File[]) {
   const { busy, progress, setProgress, run } = useBusyRun();
 
-  const runBatch = (perFile: PerFile, zipName: string) =>
+  useEffect(() => {
+    if (files.length === 0) return;
+    log.info('图片加载', {
+      count: files.length,
+      files: files.map((f) => ({ name: f.name, size: f.size })),
+    });
+  }, [files]);
+
+  const runBatch = (perFile: PerFile, zipName: string, operation: string) =>
     run(async () => {
-      if (files.length === 0) {
-        toast.error('请先选择图片');
-        return;
+      try {
+        if (files.length === 0) {
+          log.warn('未选择图片', { operation });
+          toast.error('请先选择图片');
+          return;
+        }
+        log.info('操作开始', { operation, count: files.length });
+        const results = [];
+        for (let i = 0; i < files.length; i++) {
+          setProgress(files.length > 1 ? `正在处理 ${i + 1}/${files.length}…` : null);
+          const { blob, ext } = await perFile(files[i]);
+          results.push({ name: `${baseName(files[i].name)}-处理.${ext}`, blob });
+        }
+        await saveImageResults(results, zipName);
+        log.info('操作成功', { operation, count: files.length });
+      } catch (e) {
+        log.error('操作失败', { operation, error: e });
+        throw e;
       }
-      const results = [];
-      for (let i = 0; i < files.length; i++) {
-        setProgress(files.length > 1 ? `正在处理 ${i + 1}/${files.length}…` : null);
-        const { blob, ext } = await perFile(files[i]);
-        results.push({ name: `${baseName(files[i].name)}-处理.${ext}`, blob });
-      }
-      await saveImageResults(results, zipName);
     });
 
   return { busy, progress, runBatch };
@@ -76,7 +95,7 @@ export function CompressPanel() {
         }
       }
       return { blob, ext: format === 'image/webp' ? 'webp' : 'jpg' };
-    }, '压缩结果.zip');
+    }, '压缩结果.zip', '压缩');
 
   return (
     <div className="space-y-4">
@@ -128,7 +147,7 @@ export function ConvertPanel() {
       ctx.drawImage(img, 0, 0);
       const blob = await canvasToBlob(canvas, format, quality / 100);
       return { blob, ext };
-    }, '转换结果.zip');
+    }, '转换结果.zip', '格式转换');
 
   return (
     <div className="space-y-4">
@@ -196,7 +215,7 @@ export function ResizePanel() {
       out.height = size.height;
       out.getContext('2d')!.drawImage(canvas, 0, 0, size.width, size.height);
       return { blob: await canvasToBlob(out, 'image/png'), ext: 'png' };
-    }, '缩放结果.zip');
+    }, '缩放结果.zip', '修改尺寸');
 
   return (
     <div className="space-y-4">
@@ -275,7 +294,7 @@ export function WatermarkPanel() {
         drawStamp(x, y);
       }
       return { blob: await canvasToBlob(canvas, 'image/png'), ext: 'png' };
-    }, '水印结果.zip');
+    }, '水印结果.zip', '水印');
 
   return (
     <div className="space-y-4">
@@ -336,7 +355,7 @@ export function RoundedPanel() {
       ctx.clip();
       ctx.drawImage(img, 0, 0);
       return { blob: await canvasToBlob(canvas, 'image/png'), ext: 'png' };
-    }, '圆角结果.zip');
+    }, '圆角结果.zip', '圆角');
 
   return (
     <div className="space-y-4">
@@ -370,7 +389,7 @@ export function PaddingPanel() {
       outCtx.fillRect(0, 0, out.width, out.height);
       outCtx.drawImage(canvas, padding, padding);
       return { blob: await canvasToBlob(out, 'image/png'), ext: 'png' };
-    }, '补边结果.zip');
+    }, '补边结果.zip', '补边留白');
 
   return (
     <div className="space-y-4">
@@ -410,7 +429,7 @@ export function CropPanel() {
       out.height = rect.height;
       out.getContext('2d')!.drawImage(canvas, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height);
       return { blob: await canvasToBlob(out, 'image/png'), ext: 'png' };
-    }, '裁剪结果.zip');
+    }, '裁剪结果.zip', '裁剪');
 
   return (
     <div className="space-y-4">
@@ -465,7 +484,7 @@ export function RotatePanel() {
       outCtx.rotate(rad);
       outCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
       return { blob: await canvasToBlob(out, 'image/png'), ext: 'png' };
-    }, '旋转结果.zip');
+    }, '旋转结果.zip', '旋转');
 
   return (
     <div className="space-y-4">
@@ -496,7 +515,7 @@ export function FlipPanel() {
       ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
       ctx.drawImage(img, 0, 0);
       return { blob: await canvasToBlob(canvas, 'image/png'), ext: 'png' };
-    }, '翻转结果.zip');
+    }, '翻转结果.zip', '翻转');
 
   return (
     <div className="space-y-4">

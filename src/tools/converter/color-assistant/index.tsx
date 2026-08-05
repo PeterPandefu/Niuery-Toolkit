@@ -7,6 +7,7 @@ import ImageColorTab from './ImageColorTab';
 import TraditionalColorTab from './TraditionalColorTab';
 import GradientTab from './GradientTab';
 import FavoriteColorsTab from './FavoriteColorsTab';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type TabId = 'color' | 'ui-palette' | 'image-color' | 'traditional' | 'gradient' | 'favorites';
 
@@ -35,6 +36,7 @@ function saveFavorites(favorites: string[]) {
 }
 
 export default function ColorAssistant() {
+  const log = useToolLogger('color-picker');
   const [activeTab, setActiveTab] = useState<TabId>('color');
   const [favorites, setFavorites] = useState<string[]>(loadFavorites);
   const [removeHash, setRemoveHash] = useState(false);
@@ -43,22 +45,25 @@ export default function ColorAssistant() {
     setFavorites(prev => {
       if (prev.includes(hex)) {
         toast.info('该颜色已收藏');
+        log.info('收藏跳过（已存在）', { hex });
         return prev;
       }
       const next = [...prev, hex];
       saveFavorites(next);
       toast.success('已收藏');
+      log.info('收藏颜色', { hex });
       return next;
     });
-  }, []);
+  }, [log]);
 
   const handleRemoveFavorite = useCallback((hex: string) => {
     setFavorites(prev => {
       const next = prev.filter(c => c !== hex);
       saveFavorites(next);
+      log.info('移除收藏颜色', { hex });
       return next;
     });
-  }, []);
+  }, [log]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -87,7 +92,10 @@ export default function ColorAssistant() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                log.info(`切换标签页: ${tab.label}`);
+              }}
               className={`flex items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors ${
                 isActive
                   ? 'bg-background text-foreground font-medium shadow-sm border-r-2 border-primary'
@@ -106,7 +114,10 @@ export default function ColorAssistant() {
               type="checkbox"
               className="rounded"
               checked={removeHash}
-              onChange={(e) => setRemoveHash(e.target.checked)}
+              onChange={(e) => {
+                setRemoveHash(e.target.checked);
+                log.info(`色值去 # 开关: ${e.target.checked ? '开启' : '关闭'}`);
+              }}
             />
             色值去 &quot;#&quot;
           </label>

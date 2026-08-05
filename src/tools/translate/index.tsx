@@ -7,6 +7,7 @@ import { TranslateSettingsDialog } from './translate-settings';
 import { ArrowRightLeft, Check, Copy, Loader2, PawPrint, Settings2 } from 'lucide-react';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 /** 翻译工具：百度翻译，手动触发，上输入下结果，中间语言栏 */
 export default function TranslatorTool() {
@@ -24,15 +25,18 @@ export default function TranslatorTool() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
+  const log = useToolLogger('translator');
 
   const handleTranslate = useCallback(async () => {
     const text = input.trim();
     if (!text) return;
     if (!configured) {
+      log.warn('翻译服务未配置');
       toast.error('请先配置百度翻译 APP ID 与密钥');
       setSettingsOpen(true);
       return;
     }
+    log.info('发起翻译请求', { fromLang, toLang, textLength: text.length });
     setLoading(true);
     try {
       const fetchFn = await resolveFetch();
@@ -44,12 +48,14 @@ export default function TranslatorTool() {
         fetchFn
       );
       setOutput(result.text);
+      log.info('翻译成功', { fromLang, toLang, resultLength: result.text.length });
     } catch (e) {
+      log.error('翻译失败', e);
       toast.error(e instanceof Error ? e.message : '翻译失败，请稍后重试');
     } finally {
       setLoading(false);
     }
-  }, [input, configured, fromLang, toLang, baiduAppId, baiduSecret]);
+  }, [input, configured, fromLang, toLang, baiduAppId, baiduSecret, log]);
 
   const handleSwap = useCallback(() => {
     const newFrom = toLang;

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('lifecycle');
 
 /**
  * 工具生命周期管理 Store
@@ -36,6 +39,7 @@ export const useToolLifecycleStore = create<ToolLifecycleStore>()(
       startTool: (toolId) =>
         set((state) => {
           if (state.activeTools.includes(toolId)) return state;
+          log.info(`启动工具: ${toolId}`);
           return { activeTools: [...state.activeTools, toolId] };
         }),
 
@@ -43,6 +47,7 @@ export const useToolLifecycleStore = create<ToolLifecycleStore>()(
         set((state) => {
           // 常驻工具不可通过开关停止
           if (state.alwaysOnTools.includes(toolId)) return state;
+          log.info(`停止工具: ${toolId}`);
           return { activeTools: state.activeTools.filter((id) => id !== toolId) };
         }),
 
@@ -61,6 +66,7 @@ export const useToolLifecycleStore = create<ToolLifecycleStore>()(
 
       setAlwaysOn: (toolId, alwaysOn) =>
         set((state) => {
+          log.info(`常驻设置: ${toolId} → ${alwaysOn ? '常驻' : '取消常驻'}`);
           if (alwaysOn) {
             const alwaysOnTools = state.alwaysOnTools.includes(toolId)
               ? state.alwaysOnTools
@@ -81,6 +87,9 @@ export const useToolLifecycleStore = create<ToolLifecycleStore>()(
       initAlwaysOnTools: () =>
         set((state) => {
           const merged = new Set([...state.activeTools, ...state.alwaysOnTools]);
+          if (state.alwaysOnTools.length > 0) {
+            log.info(`初始化常驻工具: ${state.alwaysOnTools.join(', ')}`);
+          }
           return { activeTools: Array.from(merged) };
         }),
     }),

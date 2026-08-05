@@ -5,10 +5,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Direction = 'json-to-yaml' | 'yaml-to-json';
 
 export default function JsonYamlConverter() {
+  const log = useToolLogger('json-yaml');
   const [input, setInput] = useState('');
   const [direction, setDirection] = useState<Direction>('json-to-yaml');
   const [indent, setIndent] = useState('2');
@@ -24,23 +26,27 @@ export default function JsonYamlConverter() {
           lineWidth: -1,
           noRefs: true,
         });
+        log.info('JSON → YAML 转换成功', { inputLength: input.length, outputLength: result.length });
         return { output: result, error: null };
       } else {
         const parsed = yaml.load(input);
         const result = JSON.stringify(parsed, null, parseInt(indent));
+        log.info('YAML → JSON 转换成功', { inputLength: input.length, outputLength: result.length });
         return { output: result, error: null };
       }
     } catch (e) {
+      log.warn('转换失败', { direction, error: (e as Error).message });
       return { output: '', error: (e as Error).message };
     }
-  }, [input, direction, indent]);
+  }, [input, direction, indent, log]);
 
   const handleSwap = useCallback(() => {
     if (output) {
       setInput(output);
       setDirection(direction === 'json-to-yaml' ? 'yaml-to-json' : 'json-to-yaml');
+      log.info('交换输入输出', { newDirection: direction === 'json-to-yaml' ? 'yaml-to-json' : 'json-to-yaml' });
     }
-  }, [output, direction]);
+  }, [output, direction, log]);
 
   const sampleJson = `{
   "name": "Niuery Toolkit",
@@ -67,13 +73,19 @@ author:
       inputTitle={direction === 'json-to-yaml' ? 'JSON' : 'YAML'}
       outputTitle={direction === 'json-to-yaml' ? 'YAML' : 'JSON'}
       outputValue={output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        log.info('清空输入');
+      }}
       onSwap={handleSwap}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
             value={direction}
-            onChange={(e) => setDirection(e.target.value as Direction)}
+            onChange={(e) => {
+              setDirection(e.target.value as Direction);
+              log.info(`切换转换方向: ${e.target.value}`);
+            }}
             options={[
               { value: 'json-to-yaml', label: 'JSON → YAML' },
               { value: 'yaml-to-json', label: 'YAML → JSON' },

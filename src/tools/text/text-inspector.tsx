@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { analyzeText, getCharFrequency, getReadingTime } from '@/lib/text-utils';
+import { useToolLogger } from '@/hooks/use-tool-logger';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -11,8 +12,20 @@ function formatBytes(bytes: number): string {
 
 export default function TextInspector() {
   const [input, setInput] = useState('');
+  const log = useToolLogger('text-inspector');
 
-  const stats = useMemo(() => analyzeText(input), [input]);
+  const stats = useMemo(() => {
+    const result = analyzeText(input);
+    if (input) {
+      // 内置节流：高频输入时相同 message 400ms 内只记一条
+      log.info('分析完成', {
+        characters: result.characters,
+        words: result.words,
+        lines: result.lines,
+      });
+    }
+    return result;
+  }, [input, log]);
 
   // 字符频率分析
   const charFrequency = useMemo(() => getCharFrequency(input, 20), [input]);

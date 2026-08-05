@@ -12,7 +12,9 @@ import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useTheme } from '@/hooks/use-theme';
 import { Button } from '@/components/ui/button';
 import { BrandMark } from '@/components/shared/BrandMark';
-import { Search, Moon, Sun, Monitor, Loader2, Languages, Sparkles, Power, Pin, Settings, Zap } from 'lucide-react';
+import { LogPanel } from '@/components/layout/LogPanel';
+import { useLogStore } from '@/store/log-store';
+import { ScrollText, Search, Moon, Sun, Monitor, Loader2, Languages, Sparkles, Power, Pin, Settings, Zap } from 'lucide-react';
 
 interface ToolPanelProps {
   toolId: string | null;
@@ -286,6 +288,17 @@ function ToolPowerSwitch({ toolId }: { toolId: string }) {
   );
 }
 
+/** 日志未读数徽标 */
+function UnreadLogBadge() {
+  const unreadCount = useLogStore((s) => s.unreadCount);
+  if (unreadCount === 0) return null;
+  return (
+    <span className="ml-0.5 rounded-full bg-primary/15 px-1 text-[9px] font-semibold leading-4 text-primary">
+      {unreadCount > 99 ? '99+' : unreadCount}
+    </span>
+  );
+}
+
 export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
@@ -406,12 +419,27 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
         )}
       </main>
 
+      {/* 日志面板 */}
+      <LogPanel />
+
       {/* 状态栏 */}
       <footer className="flex h-[26px] shrink-0 items-center justify-between border-t border-border/80 bg-background/70 px-3 font-mono text-[10.5px] text-muted-foreground">
         <div className="flex min-w-0 items-center gap-3">
           {tool && <span className="truncate">{t(`tools.${tool.id}`, tool.name)}</span>}
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => useLogStore.getState().setPanelOpen(!useLogStore.getState().panelOpen)}
+            className={cn(
+              'relative flex items-center gap-1 rounded px-1 transition-colors hover:text-foreground',
+              useLogStore((s) => s.panelOpen) && 'text-primary'
+            )}
+            title={t('app.logs', '日志')}
+          >
+            <ScrollText className="h-3 w-3" />
+            <span>{t('app.logs', '日志')}</span>
+            <UnreadLogBadge />
+          </button>
           <span>UTF-8</span>
           <span className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-glow-pulse" />
