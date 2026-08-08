@@ -450,7 +450,7 @@ pub fn get_screen_capture(app: AppHandle) -> Result<String, String> {
 
 /// 将 base64 PNG 图片写入系统剪贴板
 #[tauri::command]
-pub fn copy_image_to_clipboard(base64_data: String) -> Result<(), String> {
+pub fn copy_image_to_clipboard(app: AppHandle, base64_data: String) -> Result<(), String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(base64_data.as_bytes())
         .map_err(|e| format!("解码 base64 失败: {e}"))?;
@@ -462,6 +462,13 @@ pub fn copy_image_to_clipboard(base64_data: String) -> Result<(), String> {
         width: w as usize,
         height: h as usize,
     };
+    // 剪贴板历史监控与截图复制共享系统剪贴板句柄。使用同一把锁，避免录屏打开时
+    // 后台监控恰好持有句柄导致截图确认复制失败。
+    let state = app.state::<crate::clipboard::ClipboardHistoryState>();
+    let _guard = state
+        .clipboard_lock
+        .lock()
+        .map_err(|_| "剪贴板锁不可用".to_string())?;
     let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("打开剪贴板失败: {e}"))?;
     clipboard
         .set_image(img_data)
@@ -471,7 +478,11 @@ pub fn copy_image_to_clipboard(base64_data: String) -> Result<(), String> {
 
 /// 弹出保存对话框，将 base64 图片保存到文件并返回实际路径
 #[tauri::command]
-pub fn save_image_dialog(base64_data: String, format: Option<String>) -> Result<Option<String>, String> {
+pub fn save_image_dialog(
+    app: AppHandle,
+    base64_data: String,
+    format: Option<String>,
+) -> Result<Option<String>, String> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(base64_data.as_bytes())
         .map_err(|e| format!("解码 base64 失败: {e}"))?;
@@ -482,6 +493,10 @@ pub fn save_image_dialog(base64_data: String, format: Option<String>) -> Result<
         "webp" => ("WebP 图片", &["webp"][..], "webp"),
         _ => ("PNG 图片", &["png"][..], "png"),
     };
+    // 截图窗口是全屏置顶且会拦截鼠标。必须先隐藏它，原生保存对话框才能接收输入。
+    if let Some(window) = app.get_webview_window("screenshot") {
+        let _ = window.hide();
+    }
     let path = rfd::FileDialog::new()
         .add_filter(filter_name, extensions)
         .set_file_name(format!("screenshot.{default_extension}"))

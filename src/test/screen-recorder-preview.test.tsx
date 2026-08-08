@@ -71,6 +71,51 @@ describe('screen recording preview', () => {
     expect(createObjectUrlMock).toHaveBeenCalledWith(expect.any(Blob));
   });
 
+  it('通过受限会话 ID 请求在文件夹中定位录制缓存文件', async () => {
+    const { result } = renderHook(() => useRecorder());
+
+    await act(async () => { await result.current.start(target, settings); });
+    await act(async () => { await result.current.stop(); });
+    await act(async () => { await result.current.revealInFolder(); });
+
+    expect(invokeMock).toHaveBeenCalledWith('reveal_recording_in_folder', { sessionId: 'session-1' });
+  });
+
+  it('保留 GIF 导出的具体后端错误，供预览界面与日志展示', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'start_recording') {
+        return Promise.resolve({ id: 'session-1', width: 320, height: 180, startedAt: 1 });
+      }
+      if (command === 'stop_recording') {
+        return Promise.resolve({ path: 'C:\\recording.mp4', durationMs: 1_000, width: 320, height: 180 });
+      }
+      if (command === 'export_recording') {
+        return Promise.reject(new Error('GIF 导出失败（FFmpeg 退出码 1）：Invalid data found when processing input'));
+      }
+      return Promise.resolve();
+    });
+    const { result } = renderHook(() => useRecorder());
+
+    await act(async () => { await result.current.start(target, settings); });
+    await act(async () => { await result.current.stop(); });
+    let failure: unknown;
+    await act(async () => {
+      try {
+        await result.current.exportRecording('gif');
+      } catch (reason) {
+        failure = reason;
+      }
+    });
+
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain('FFmpeg 退出码 1');
+    expect(result.current.error).toContain('Invalid data found when processing input');
+    expect(invokeMock).toHaveBeenCalledWith('export_recording', expect.objectContaining({
+      sessionId: 'session-1',
+      format: 'gif',
+    }));
+  });
+
   it('全局录屏快捷键停止后同步录制成品', async () => {
     const onStatus = vi.fn();
     const { result } = renderHook(() => useRecorder({ onStatus }));

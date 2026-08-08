@@ -272,6 +272,7 @@ pub fn run() {
             recorder::stop_recording,
             recorder::cancel_recording,
             recorder::get_recording_preview,
+            recorder::reveal_recording_in_folder,
             recorder::export_recording,
             recorder::prepare_gif_editor,
             clipboard::init_clipboard_history,

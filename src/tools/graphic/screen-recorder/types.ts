@@ -67,6 +67,10 @@ export interface RecordingSession {
 export interface RecordingArtifact {
   path: string;
   durationMs: number;
+  requestedFps?: number;
+  fps?: number;
+  quality?: RecordingSettings['quality'];
+  captureBackend?: string;
   width: number;
   height: number;
   sizeBytes?: number;

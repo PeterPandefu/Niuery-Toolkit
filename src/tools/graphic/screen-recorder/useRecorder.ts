@@ -123,7 +123,12 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
       lastSessionIdRef.current = session.id;
       setSession(null);
       log.info('录制文件已生成', {
+        path: nextArtifact.path,
         durationMs: nextArtifact.durationMs,
+        requestedFps: nextArtifact.requestedFps,
+        fps: nextArtifact.fps,
+        quality: nextArtifact.quality,
+        captureBackend: nextArtifact.captureBackend,
         width: nextArtifact.width,
         height: nextArtifact.height,
         sizeBytes: nextArtifact.sizeBytes,
@@ -135,6 +140,20 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
       return null;
     } finally {
       setLoading(false);
+    }
+  }, [session]);
+
+  const revealInFolder = useCallback(async () => {
+    const currentSessionId = session?.id ?? lastSessionIdRef.current;
+    if (!currentSessionId) return false;
+    try {
+      await invoke('reveal_recording_in_folder', { sessionId: currentSessionId });
+      return true;
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      log.warn('定位录制文件失败', { sessionId: currentSessionId, error: message });
+      setError(message);
+      return false;
     }
   }, [session]);
 
@@ -160,17 +179,21 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
   ) => {
     const currentSessionId = session?.id ?? lastSessionIdRef.current;
     if (!currentSessionId && !artifact) return null;
+    setError(null);
     try {
-      return await invoke<{ path: string; format: 'mp4' | 'gif'; sizeBytes?: number }>('export_recording', {
+      return await invoke<{ path: string; format: 'mp4' | 'gif'; sizeBytes?: number; warning?: string }>('export_recording', {
         sessionId: currentSessionId ?? '',
         format,
         options,
         outputPath,
       });
     } catch (reason) {
-      log.error('导出录制失败', { format, error: reason });
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return null;
+      const message = reason instanceof Error ? reason.message : String(reason);
+      // 后端会将 FFmpeg 的末尾诊断整理为可操作的错误文本；日志和界面必须保留它，
+      // 不能再把真实失败原因折叠成泛化的“GIF 导出失败”。
+      log.error('导出录制失败', { format, error: message });
+      setError(message);
+      throw new Error(message);
     }
   }, [artifact, session]);
 
@@ -178,7 +201,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     const currentSessionId = session?.id ?? lastSessionIdRef.current;
     if (!currentSessionId) return null;
     try {
-      return await invoke<{ path: string; sizeBytes: number }>('prepare_gif_editor', { sessionId: currentSessionId });
+      return await invoke<{ path: string; sizeBytes: number; warning?: string }>('prepare_gif_editor', { sessionId: currentSessionId });
     } catch (reason) {
       log.warn('准备 GIF 编辑器失败', reason);
       setError(reason instanceof Error ? reason.message : String(reason));
@@ -215,6 +238,7 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     stop,
     cancel,
     exportRecording,
+    revealInFolder,
     prepareGifEditor,
     loadPreview,
     clearError: () => setError(null),

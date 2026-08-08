@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { AppWindow, AudioLines, Check, CircleStop, Clock3, ExternalLink, FileImage, Monitor, MonitorUp, Pause, Play, RefreshCw, Save, Video, Volume2, VolumeX } from 'lucide-react';
+import { AppWindow, AudioLines, Check, CircleStop, Clock3, ExternalLink, FileImage, FolderOpen, Monitor, MonitorUp, Pause, Play, RefreshCw, Save, Video, Volume2, VolumeX } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -150,18 +150,47 @@ export default function ScreenRecorder() {
 
   const exportRecording = async (format: 'mp4' | 'gif') => {
     log.info('导出录制开始', { format });
-    const result = await recorder.exportRecording(format, format === 'gif' ? { fps: 12, maxWidth: 800, loopCount: 0 } : {});
-    if (result) {
-      log.info('导出录制成功', { format, path: result.path, sizeBytes: result.sizeBytes });
-      toast.success(`${format.toUpperCase()} 已保存到 ${result.path}`);
-    } else {
-      log.warn('导出录制失败或已取消', { format });
+    try {
+      const result = await recorder.exportRecording(format, format === 'gif' ? { fps: 12, maxWidth: 800, loopCount: 0 } : {});
+      if (result) {
+        log.info('导出录制成功', { format, path: result.path, sizeBytes: result.sizeBytes });
+        if (result.warning) {
+          log.warn('导出录制完成但需要清理', { format, path: result.path, warning: result.warning });
+          toast.warning(result.warning);
+        } else {
+          toast.success(`${format.toUpperCase()} 已保存到 ${result.path}`);
+        }
+      } else {
+        log.info('导出录制已取消', { format });
+      }
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      log.error('导出录制失败', { format, error: message });
+      toast.error(message);
     }
   };
+
+  const revealRecordingInFolder = async () => {
+    if (await recorder.revealInFolder()) {
+      log.info('已定位录制缓存文件', { path: state.artifact?.path });
+    } else {
+      toast.error(recorder.error ?? '无法打开录制文件所在目录');
+    }
+  };
+
+  const qualityLabel = (quality?: RecordingSettings['quality']) => ({
+    high: '高质量',
+    balanced: '均衡',
+    small: '小文件',
+  }[quality ?? 'balanced']);
 
   const openRecordingInGifEditor = async () => {
     const prepared = await recorder.prepareGifEditor();
     if (!prepared) return;
+    if (prepared.warning) {
+      log.warn('GIF 编辑器准备完成但需要清理', { path: prepared.path, warning: prepared.warning });
+      toast.warning(prepared.warning);
+    }
     try {
       const response = await fetch(convertFileSrc(prepared.path));
       if (!response.ok) throw new Error('无法读取临时 GIF');
@@ -188,7 +217,7 @@ export default function ScreenRecorder() {
           </span>
           <h2 className="mt-4 font-heading text-xl font-bold">{state.status === 'paused' ? '录制已暂停' : state.status === 'stopping' ? '正在生成预览…' : '正在录制'}</h2>
           <p className="mt-2 font-mono text-3xl tabular-nums text-foreground">{formatDuration(elapsedMs)}</p>
-          <p className="mt-2 text-sm text-muted-foreground">{recorder.status?.fps ?? settings.fps} FPS · 已丢弃 {recorder.status?.droppedFrames ?? 0} 帧</p>
+          <p className="mt-2 text-sm text-muted-foreground">目标 {settings.fps} FPS · {recorder.status?.fps ? `实际 ${recorder.status.fps} FPS` : '正在测量实际帧率'} · 已丢弃 {recorder.status?.droppedFrames ?? 0} 帧</p>
           <div className="mt-7 flex justify-center gap-3">
             <Button variant="outline" onClick={() => void pauseOrResume()} disabled={state.status === 'stopping'}>
               {state.status === 'paused' ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}{state.status === 'paused' ? '继续' : '暂停'}
@@ -209,6 +238,7 @@ export default function ScreenRecorder() {
           <div>
             <h2 className="font-heading text-lg font-semibold">录制完成</h2>
             <p className="text-sm text-muted-foreground">{formatDuration(state.artifact.durationMs)} · {state.artifact.width} × {state.artifact.height}{state.artifact.sizeBytes ? ` · ${formatBytes(state.artifact.sizeBytes)}` : ''}</p>
+            <p className="mt-1 text-xs text-muted-foreground">目标 {state.artifact.requestedFps ?? '—'} FPS · 实际 {state.artifact.fps ?? '—'} FPS · {qualityLabel(state.artifact.quality)}{state.artifact.captureBackend ? ` · ${state.artifact.captureBackend === 'gdigrab' ? '高速原生采集' : '兼容采集'}` : ''}</p>
           </div>
           <Button variant="outline" onClick={() => dispatch({ type: 'cancelled' })}>新建录制</Button>
         </div>
@@ -222,10 +252,13 @@ export default function ScreenRecorder() {
           )}
         </div>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Button variant="outline" onClick={() => void revealRecordingInFolder()}><FolderOpen className="h-4 w-4" />打开所在文件夹</Button>
           <Button onClick={() => void exportRecording('mp4')}><Save className="h-4 w-4" />导出 MP4</Button>
           <Button variant="outline" onClick={() => void exportRecording('gif')}><FileImageIcon />导出 GIF</Button>
           <Button variant="outline" onClick={() => void openRecordingInGifEditor()}><ExternalLink className="h-4 w-4" />编辑 GIF</Button>
         </div>
+        {recorder.error && <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-center text-xs text-destructive">{recorder.error}</p>}
+        <p className="mt-3 break-all text-center font-mono text-xs text-muted-foreground">缓存文件：{state.artifact.path}</p>
       </div>
     );
   }
