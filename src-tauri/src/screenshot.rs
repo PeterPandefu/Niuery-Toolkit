@@ -1,4 +1,5 @@
 use base64::Engine;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -15,6 +16,32 @@ const LONGSHOT_BORDER_WIDTH: f64 = 3.0;
 
 /// 长截图会话期间临时注册的全局结束键
 const LONGSHOT_ESC: &str = "Esc";
+/// 截图框选会话期间临时注册的全局取消键。即使全屏 WebView 未能获得焦点，
+/// 也能让用户退出，避免透明置顶窗口看起来像软件卡死。
+const SCREENSHOT_ESC: &str = "Esc";
+
+/// 注册截图会话的全局 Esc 兜底取消键。
+pub fn register_screenshot_esc(app: &AppHandle) {
+    if let Ok(shortcut) = SCREENSHOT_ESC.parse::<Shortcut>() {
+        let _ = app.global_shortcut().unregister(shortcut);
+        let _ = app.global_shortcut().register(shortcut);
+    }
+}
+
+/// 注销截图会话的全局 Esc 兜底取消键。
+pub fn unregister_screenshot_esc(app: &AppHandle) {
+    if let Ok(shortcut) = SCREENSHOT_ESC.parse::<Shortcut>() {
+        let _ = app.global_shortcut().unregister(shortcut);
+    }
+}
+
+/// 判断触发的快捷键是否为截图会话的临时 Esc。
+pub fn is_screenshot_esc(shortcut: &Shortcut) -> bool {
+    SCREENSHOT_ESC
+        .parse::<Shortcut>()
+        .map(|s| s == *shortcut)
+        .unwrap_or(false)
+}
 
 /// 注册长截图临时全局 Esc（先注销再注册，防止上一次会话残留）
 pub fn register_longshot_esc(app: &AppHandle) {
@@ -65,6 +92,10 @@ pub fn restore_cursor_for_longshot() {
 /// 截图状态：保存最近一次全屏截图的 base64 PNG 数据
 pub struct ScreenshotState {
     pub screen_data: Mutex<Option<String>>,
+    /// 是否在常规截图前最小化主窗口。
+    minimize_before_capture: AtomicBool,
+    /// 未最小化截图时，捕获完成后曾隐藏主窗口；框选窗口关闭后需要恢复它。
+    restore_main_after_close: AtomicBool,
     /// 从开始捕获到截图窗口销毁期间始终保持占用，防止快捷键重入重建置顶窗口。
     in_progress: AtomicBool,
     /// 前端首帧完成后由 show_screenshot_window 标记，用于识别半初始化窗口。
@@ -73,10 +104,27 @@ pub struct ScreenshotState {
     generation: AtomicU64,
 }
 
+/// 截图工具配置。
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ScreenshotSettings {
+    pub minimize_before_capture: bool,
+}
+
+impl Default for ScreenshotSettings {
+    fn default() -> Self {
+        Self {
+            minimize_before_capture: true,
+        }
+    }
+}
+
 impl Default for ScreenshotState {
     fn default() -> Self {
         Self {
             screen_data: Mutex::new(None),
+            minimize_before_capture: AtomicBool::new(true),
+            restore_main_after_close: AtomicBool::new(false),
             in_progress: AtomicBool::new(false),
             window_ready: AtomicBool::new(false),
             generation: AtomicU64::new(0),
@@ -85,6 +133,17 @@ impl Default for ScreenshotState {
 }
 
 impl ScreenshotState {
+    fn settings(&self) -> ScreenshotSettings {
+        ScreenshotSettings {
+            minimize_before_capture: self.minimize_before_capture.load(Ordering::Acquire),
+        }
+    }
+
+    pub fn set_minimize_before_capture(&self, minimize_before_capture: bool) {
+        self.minimize_before_capture
+            .store(minimize_before_capture, Ordering::Release);
+    }
+
     fn try_begin_session(&self) -> Option<u64> {
         self.in_progress
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -120,6 +179,92 @@ impl ScreenshotState {
     fn is_active(&self) -> bool {
         self.in_progress.load(Ordering::Acquire)
     }
+
+    fn mark_main_hidden_for_screenshot(&self) {
+        self.restore_main_after_close.store(true, Ordering::Release);
+    }
+
+    fn take_main_restore_request(&self) -> bool {
+        self.restore_main_after_close.swap(false, Ordering::AcqRel)
+    }
+}
+
+fn screenshot_config_path(app: &AppHandle) -> std::path::PathBuf {
+    app.path()
+        .app_config_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
+        .join("screenshot.json")
+}
+
+/// 从配置文件加载截图工具配置。
+pub fn load_screenshot_settings(app: &AppHandle) -> ScreenshotSettings {
+    std::fs::read_to_string(screenshot_config_path(app))
+        .ok()
+        .and_then(|content| serde_json::from_str(&content).ok())
+        .unwrap_or_default()
+}
+
+fn save_screenshot_settings(app: &AppHandle, settings: &ScreenshotSettings) {
+    let path = screenshot_config_path(app);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(path, serde_json::to_string_pretty(settings).unwrap_or_default());
+}
+
+/// 获取当前截图工具配置。
+#[tauri::command]
+pub fn get_screenshot_settings(app: AppHandle) -> ScreenshotSettings {
+    app.state::<ScreenshotState>().settings()
+}
+
+/// 更新“截图前最小化主窗口”配置。
+#[tauri::command]
+pub fn set_screenshot_minimize_before_capture(
+    app: AppHandle,
+    minimize_before_capture: bool,
+) {
+    let state = app.state::<ScreenshotState>();
+    state.set_minimize_before_capture(minimize_before_capture);
+    save_screenshot_settings(&app, &state.settings());
+}
+
+/// 供全局快捷键读取当前是否应在截图前最小化主窗口。
+pub fn should_minimize_before_capture(app: &AppHandle) -> bool {
+    app.state::<ScreenshotState>()
+        .minimize_before_capture
+        .load(Ordering::Acquire)
+}
+
+/// 常规截图在不最小化模式下，先保留当前窗口画面，再隐藏主窗口。
+/// 这样截图本身仍包含当前工具，同时避免主窗口与全屏截图窗口争夺前台焦点。
+fn hide_main_after_capture(app: &AppHandle) -> bool {
+    let Some(main) = app.get_webview_window("main") else {
+        return false;
+    };
+    let visible = main.is_visible().unwrap_or(false);
+    let minimized = main.is_minimized().unwrap_or(false);
+    if visible && !minimized && main.hide().is_ok() {
+        app.state::<ScreenshotState>()
+            .mark_main_hidden_for_screenshot();
+        return true;
+    }
+    false
+}
+
+/// 仅恢复由未最小化截图流程临时隐藏的主窗口。
+pub fn restore_main_after_screenshot(app: &AppHandle) {
+    if !app
+        .state::<ScreenshotState>()
+        .take_main_restore_request()
+    {
+        return;
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.unminimize();
+        let _ = main.set_focus();
+    }
 }
 
 /// 捕获全屏并打开截图窗口（异步，避免阻塞主线程）
@@ -143,6 +288,8 @@ pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<()
             None => return Ok(()),
         }
     };
+    // 全屏窗口还未显示或意外失焦时，仍可通过 Esc 可靠退出本次截图。
+    register_screenshot_esc(&app);
 
     match tokio::time::timeout(
         SCREENSHOT_START_TIMEOUT,
@@ -166,17 +313,23 @@ pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<()
                 watchdog_app
                     .state::<ScreenshotState>()
                     .release_if_generation(generation);
+                unregister_screenshot_esc(&watchdog_app);
+                restore_main_after_screenshot(&watchdog_app);
             });
             Ok(())
         }
         Ok(Err(error)) => {
             app.state::<ScreenshotState>()
                 .release_if_generation(generation);
+            unregister_screenshot_esc(&app);
+            restore_main_after_screenshot(&app);
             Err(error)
         }
         Err(_) => {
             app.state::<ScreenshotState>()
                 .release_if_generation(generation);
+            unregister_screenshot_esc(&app);
+            restore_main_after_screenshot(&app);
             Err("截图启动超时，请稍后重试".to_string())
         }
     }
@@ -190,6 +343,8 @@ pub fn is_screenshot_session_active(app: &AppHandle) -> bool {
 /// 截图窗口销毁时释放会话占用，供统一窗口事件处理调用。
 pub fn release_screenshot_session(app: &AppHandle) {
     app.state::<ScreenshotState>().release_current();
+    unregister_screenshot_esc(app);
+    restore_main_after_screenshot(app);
 }
 
 async fn do_start_screenshot(app: AppHandle, mode: Option<String>) -> Result<(), String> {
@@ -238,6 +393,15 @@ async fn do_start_screenshot(app: AppHandle, mode: Option<String>) -> Result<(),
     {
         let state = app.state::<ScreenshotState>();
         *state.screen_data.lock().unwrap() = Some(base64_data);
+    }
+
+    // 关闭“截图前最小化”后，必须等画面已捕获才隐藏主窗口：
+    // 截图数据仍包含当前工具，而后续全屏截图窗口可独占前台与输入。
+    if mode.as_deref() != Some("longshot") && !should_minimize_before_capture(&app) {
+        if hide_main_after_capture(&app) {
+            // 让 Windows 完成一次窗口合成，再创建并聚焦全屏截图窗口。
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
     }
 
     // 关闭已有截图窗口，轮询等待标签释放
@@ -340,10 +504,14 @@ pub fn close_screenshot_window(app: AppHandle) -> Result<(), String> {
             // 关闭失败时至少隐藏置顶窗口并释放会话，避免继续拦截整个桌面的输入。
             let _ = win.hide();
             app.state::<ScreenshotState>().release_current();
+            unregister_screenshot_esc(&app);
+            restore_main_after_screenshot(&app);
             return Err(format!("关闭窗口失败: {error}"));
         }
     } else {
         app.state::<ScreenshotState>().release_current();
+        unregister_screenshot_esc(&app);
+        restore_main_after_screenshot(&app);
     }
     Ok(())
 }
@@ -550,7 +718,35 @@ pub fn show_screenshot_window(app: AppHandle) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::ScreenshotState;
+    use super::{is_screenshot_esc, ScreenshotState};
+    use tauri_plugin_global_shortcut::Shortcut;
+
+    #[test]
+    fn screenshot_escape_is_recognized() {
+        let escape = "Esc".parse::<Shortcut>().expect("Esc 应可解析");
+        let other = "Ctrl+A".parse::<Shortcut>().expect("普通快捷键应可解析");
+
+        assert!(is_screenshot_esc(&escape));
+        assert!(!is_screenshot_esc(&other));
+    }
+
+    #[test]
+    fn screenshot_minimization_setting_can_be_disabled() {
+        let state = ScreenshotState::default();
+
+        assert!(state.settings().minimize_before_capture);
+        state.set_minimize_before_capture(false);
+        assert!(!state.settings().minimize_before_capture);
+    }
+
+    #[test]
+    fn main_window_restore_request_is_consumed_once() {
+        let state = ScreenshotState::default();
+
+        state.mark_main_hidden_for_screenshot();
+        assert!(state.take_main_restore_request());
+        assert!(!state.take_main_restore_request());
+    }
 
     #[test]
     fn screenshot_session_stays_active_until_released() {

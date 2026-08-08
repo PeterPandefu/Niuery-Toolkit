@@ -85,6 +85,38 @@ describe('ScreenshotEditor screenshot hotkey hint', () => {
     );
   });
 
+  it('allows disabling minimization before taking a screenshot', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'get_hotkeys') return Promise.resolve({ screenshot: 'Ctrl+Shift+S' });
+      if (command === 'get_screenshot_settings') return Promise.resolve({ minimizeBeforeCapture: false });
+      return Promise.resolve();
+    });
+
+    render(<ScreenshotEditor />);
+
+    const minimizeCheckbox = await screen.findByRole('checkbox', { name: '截图前最小化主窗口' });
+    await waitFor(() => expect(minimizeCheckbox).not.toBeChecked());
+
+    fireEvent.click(await screen.findByText('screenshotEditor.capture'));
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith('start_screenshot');
+    });
+    expect(minimizeMock).not.toHaveBeenCalled();
+  });
+
+  it('persists changes to the minimization setting', async () => {
+    render(<ScreenshotEditor />);
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: '截图前最小化主窗口' }));
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith('set_screenshot_minimize_before_capture', {
+        minimizeBeforeCapture: false,
+      });
+    });
+  });
+
   it('keeps a newer configuration event when the initial load resolves late', async () => {
     let resolveInitialHotkeys!: (hotkeys: Record<string, string>) => void;
     invokeMock.mockImplementation((command: string) => {

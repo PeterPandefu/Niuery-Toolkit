@@ -132,6 +132,14 @@ pub fn run() {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
+                    // 截图框选窗口未取得焦点或渲染异常时，Esc 仍可从全局取消，
+                    // 防止透明置顶层持续拦截桌面输入而表现为应用卡死。
+                    if screenshot::is_screenshot_esc(shortcut)
+                        && screenshot::is_screenshot_session_active(app)
+                    {
+                        let _ = screenshot::close_screenshot_window(app.clone());
+                        return;
+                    }
                     // 长截图会话临时 Esc：结束并拼接（仅当边框窗口存在时处理）
                     if screenshot::is_longshot_esc(shortcut) {
                         if let Some(win) = app.get_webview_window("longshot-panel") {
@@ -149,6 +157,17 @@ pub fn run() {
                                 ) != ShortcutDecision::Start
                                 {
                                     return;
+                                }
+                                // 主窗口可见时先最小化，避免全屏截图层展示静态的主窗口画面，
+                                // 让用户误以为应用失去响应；截图模块会等待最小化动画结束再捕获。
+                                if screenshot::should_minimize_before_capture(app) {
+                                    if let Some(window) = app.get_webview_window("main") {
+                                        let visible = window.is_visible().unwrap_or(false);
+                                        let minimized = window.is_minimized().unwrap_or(false);
+                                        if visible && !minimized {
+                                            let _ = window.minimize();
+                                        }
+                                    }
                                 }
                                 let app = app.clone();
                                 tauri::async_runtime::spawn(async move {
@@ -233,6 +252,8 @@ pub fn run() {
             ws_server::stop_ws_server,
             ws_server::ws_broadcast,
             screenshot::start_screenshot,
+            screenshot::get_screenshot_settings,
+            screenshot::set_screenshot_minimize_before_capture,
             screenshot::get_screen_capture,
             screenshot::copy_image_to_clipboard,
             screenshot::save_image_dialog,
@@ -287,6 +308,10 @@ pub fn run() {
                 *bindings = hotkey_bindings;
             }
             hotkey::register_all(app.handle());
+
+            let screenshot_settings = screenshot::load_screenshot_settings(app.handle());
+            app.state::<ScreenshotState>()
+                .set_minimize_before_capture(screenshot_settings.minimize_before_capture);
 
             // 加载托盘图标
             let tray_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))

@@ -46,6 +46,10 @@ import {
   MAX_CANVAS_SIZE,
 } from './screenshot/types';
 
+interface ScreenshotSettings {
+  minimizeBeforeCapture: boolean;
+}
+
 function ScreenshotEditorInner() {
   const { t } = useTranslation();
   const log = useToolLogger('screenshot-editor');
@@ -53,6 +57,7 @@ function ScreenshotEditorInner() {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [screenshotHotkey, setScreenshotHotkey] = useState(DEFAULT_SCREENSHOT_HOTKEY);
   const [longshotHotkey, setLongshotHotkey] = useState(DEFAULT_LONGSHOT_HOTKEY);
+  const [minimizeBeforeCapture, setMinimizeBeforeCapture] = useState(true);
   const hasReceivedHotkeyUpdate = useRef(false);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [tool, setTool] = useState<ToolType>('select');
@@ -101,6 +106,13 @@ function ScreenshotEditorInner() {
       cancelled = true;
       window.removeEventListener(HOTKEYS_CHANGED_EVENT, handleHotkeysChanged);
     };
+  }, [isTauri]);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    invoke<ScreenshotSettings>('get_screenshot_settings')
+      .then((settings) => setMinimizeBeforeCapture(settings.minimizeBeforeCapture))
+      .catch(() => {});
   }, [isTauri]);
 
   // 加载图片到画布
@@ -201,15 +213,26 @@ function ScreenshotEditorInner() {
     toast.info('请按 Ctrl+V 粘贴剪贴板中的图片');
   }, []);
 
-  // 微信风格截图（Tauri 桌面端）：先最小化主窗口，避免主窗口被截入画面
+  // 微信风格截图（Tauri 桌面端）：按用户配置决定是否最小化主窗口
   const handleWechatScreenshot = useCallback(async () => {
     try {
       log.info('捕获屏幕开始');
-      await getCurrentWindow().minimize();
+      if (minimizeBeforeCapture) await getCurrentWindow().minimize();
       await invoke('start_screenshot');
     } catch (e) {
       log.error('捕获屏幕失败', e);
       toast.error(`截图失败: ${e}`);
+    }
+  }, [log, minimizeBeforeCapture]);
+
+  const handleMinimizeBeforeCaptureChange = useCallback(async (checked: boolean) => {
+    setMinimizeBeforeCapture(checked);
+    try {
+      await invoke('set_screenshot_minimize_before_capture', { minimizeBeforeCapture: checked });
+    } catch (e) {
+      setMinimizeBeforeCapture(!checked);
+      log.error('更新截图配置失败', e);
+      toast.error(`更新截图配置失败: ${e}`);
     }
   }, [log]);
 
@@ -502,6 +525,17 @@ function ScreenshotEditorInner() {
             </Button>
           )}
         </div>
+        {isTauri && (
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={minimizeBeforeCapture}
+              onChange={(e) => void handleMinimizeBeforeCaptureChange(e.target.checked)}
+              className="h-3.5 w-3.5 accent-primary"
+            />
+            截图前最小化主窗口
+          </label>
+        )}
       </div>
     );
   }
