@@ -51,6 +51,7 @@ pnpm-debug.log*
 
 # Tauri
 src-tauri/target/
+src-tauri/target-recorder-test/
 src-tauri/gen/
 
 # Misc

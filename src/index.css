@@ -257,6 +257,26 @@
   }
 }
 
+/* 录制范围边框位于原生采集区域外侧，仅用于让用户确认当前录制范围。 */
+.recording-capture-border {
+  position: fixed;
+  inset: 0;
+  border: 3px solid #4488ff;
+  background: transparent;
+  pointer-events: none;
+  animation: recording-capture-breathe 1.2s ease-in-out infinite;
+}
+
+@keyframes recording-capture-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
 /* 减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -265,5 +285,9 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .recording-capture-border {
+    animation: none;
   }
 }

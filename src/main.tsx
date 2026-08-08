@@ -12,6 +12,7 @@ import App from './App.tsx'
 import ScreenshotApp from './screenshot/ScreenshotApp.tsx'
 import LongshotPanel from './screenshot/longshot/LongshotPanel.tsx'
 import CursorHighlightOverlay from './recording/CursorHighlightOverlay.tsx'
+import RecordingCaptureBorderOverlay from './recording/RecordingCaptureBorderOverlay.tsx'
 
 // 截图窗口使用独立渲染路径（由 Tauri 以 #/screenshot 打开）
 const hash = window.location.hash
@@ -19,9 +20,10 @@ const isScreenshotWindow = hash === '#/screenshot' || hash.startsWith('#/screens
 // 长截图悬浮控制面板（#/longshot-panel?x=..&y=..&w=..&h=..）
 const isLongshotPanel = hash.startsWith('#/longshot-panel')
 const isCursorHighlightWindow = hash === '#/recording-cursor-highlight'
+const isRecordingCaptureBorderWindow = hash === '#/recording-capture-border'
 
 // 截图窗口/长截图边框窗口需要透明背景，覆盖 index.css 中的 bg-background
-if (isScreenshotWindow || isLongshotPanel || isCursorHighlightWindow) {
+if (isScreenshotWindow || isLongshotPanel || isCursorHighlightWindow || isRecordingCaptureBorderWindow) {
   document.documentElement.style.background = 'transparent'
   document.body.style.background = 'transparent'
   document.body.style.overflow = 'hidden'
@@ -43,6 +45,6 @@ appLogger.info('应用启动', {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isScreenshotWindow ? <ScreenshotApp /> : isLongshotPanel ? <LongshotPanel /> : isCursorHighlightWindow ? <CursorHighlightOverlay /> : <App />}
+    {isScreenshotWindow ? <ScreenshotApp /> : isLongshotPanel ? <LongshotPanel /> : isCursorHighlightWindow ? <CursorHighlightOverlay /> : isRecordingCaptureBorderWindow ? <RecordingCaptureBorderOverlay /> : <App />}
   </StrictMode>,
 )

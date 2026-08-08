@@ -12,10 +12,12 @@ export default function CursorHighlightOverlay() {
   }, []);
 
   return (
-    <div
-      data-testid="recording-cursor-highlight"
-      aria-label="录制光标高亮"
-      className="h-screen w-screen rounded-full border-4 border-red-500 bg-red-500/25 shadow-[0_0_0_3px_rgba(255,255,255,0.75),0_0_20px_rgba(239,68,68,0.95)]"
-    />
+    <div className="relative h-screen w-screen" aria-hidden="true">
+      <div
+        data-testid="recording-cursor-highlight"
+        aria-label="录制光标高亮"
+        className="absolute left-1/2 top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-red-500 bg-red-500/10 shadow-[0_0_0_1px_rgba(255,255,255,0.85),0_0_8px_rgba(239,68,68,0.45)]"
+      />
+    </div>
   );
 }

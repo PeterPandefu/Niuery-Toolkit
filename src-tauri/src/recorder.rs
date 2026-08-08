@@ -1,17 +1,60 @@
 use image::{imageops, RgbaImage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::ipc::Response;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 static NEXT_GIF_EXPORT_ID: AtomicU64 = AtomicU64::new(0);
 static GIF_EXPORT_REPLACE_LOCK: Mutex<()> = Mutex::new(());
+
+const RECORDING_ESC: &str = "Esc";
+
+/// 注册录屏会话期间的全局 Esc 停止键。
+///
+/// 返回值表示该键是否由本次录制会话注册。已存在的注册可能属于用户配置的热键，
+/// 必须保留；全局快捷键插件仍会把它交给同一个应用处理器。
+pub fn register_recording_esc(app: &AppHandle) -> Result<bool, String> {
+    let shortcut = RECORDING_ESC
+        .parse::<Shortcut>()
+        .map_err(|error| format!("无法解析录屏停止快捷键 Esc：{error}"))?;
+    let shortcuts = app.global_shortcut();
+    if shortcuts.is_registered(shortcut) {
+        return Ok(false);
+    }
+    shortcuts
+        .register(shortcut)
+        .map(|()| true)
+        .map_err(|error| format!("无法注册录屏停止快捷键 Esc，请检查是否被其他程序占用：{error}"))
+}
+
+/// 仅注销当前录屏会话自己注册的全局 Esc 停止键。
+pub fn unregister_recording_esc(app: &AppHandle, registered_by_recording: bool) {
+    if !registered_by_recording {
+        return;
+    }
+    if let Ok(shortcut) = RECORDING_ESC.parse::<Shortcut>() {
+        let _ = app.global_shortcut().unregister(shortcut);
+    }
+}
+
+fn take_recording_esc_registration(registration: &AtomicBool) -> bool {
+    registration.swap(false, Ordering::AcqRel)
+}
+
+/// 判断快捷键是否为录屏会话的临时 Esc 停止键。
+pub fn is_recording_esc(shortcut: &Shortcut) -> bool {
+    RECORDING_ESC
+        .parse::<Shortcut>()
+        .map(|parsed| parsed == *shortcut)
+        .unwrap_or(false)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -147,6 +190,7 @@ struct RecordingStatusEvent {
     artifact: Option<RecordingArtifact>,
 }
 
+#[derive(Clone)]
 struct ActiveRecording {
     id: String,
     stop_requested: Arc<AtomicBool>,
@@ -154,6 +198,38 @@ struct ActiveRecording {
     cancelled: Arc<AtomicBool>,
     elapsed_ms: Arc<AtomicU64>,
     finished: Arc<Mutex<Option<Result<RecordingArtifact, String>>>>,
+    finishing: Arc<AtomicBool>,
+    recording_esc_registered: Arc<AtomicBool>,
+}
+
+struct FinishAttempt {
+    finishing: Arc<AtomicBool>,
+    completed: bool,
+}
+
+impl FinishAttempt {
+    fn begin(recording: &ActiveRecording) -> Result<Self, String> {
+        recording
+            .finishing
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| "录制正在停止，请稍候".to_string())?;
+        Ok(Self {
+            finishing: Arc::clone(&recording.finishing),
+            completed: false,
+        })
+    }
+
+    fn complete(&mut self) {
+        self.completed = true;
+    }
+}
+
+impl Drop for FinishAttempt {
+    fn drop(&mut self) {
+        if !self.completed {
+            self.finishing.store(false, Ordering::Release);
+        }
+    }
 }
 
 pub struct RecorderState {
@@ -572,6 +648,9 @@ pub async fn start_recording(
     let cancelled = Arc::new(AtomicBool::new(false));
     let elapsed_ms = Arc::new(AtomicU64::new(0));
     let finished = Arc::new(Mutex::new(None));
+    let finishing = Arc::new(AtomicBool::new(false));
+    let encoder = select_video_encoder(&ffmpeg)?;
+    let recording_esc_registered = Arc::new(AtomicBool::new(register_recording_esc(&app)?));
     let thread_stop = Arc::clone(&stop_requested);
     let thread_pause = Arc::clone(&pause_requested);
     let thread_cancelled = Arc::clone(&cancelled);
@@ -585,6 +664,7 @@ pub async fn start_recording(
             &thread_app,
             &thread_id,
             &ffmpeg,
+            encoder,
             target,
             settings,
             path,
@@ -621,6 +701,8 @@ pub async fn start_recording(
         cancelled,
         elapsed_ms,
         finished,
+        finishing,
+        recording_esc_registered,
     });
     drop(active);
     if let Some(window) = app.get_webview_window("main") {
@@ -845,18 +927,22 @@ async fn finish_recording(
     cancelled: bool,
 ) -> Result<RecordingArtifact, String> {
     let state = app.state::<RecorderState>();
-    let active = {
-        let mut active = state
+    let (active, mut attempt) = {
+        let active = state
             .active
             .lock()
             .map_err(|_| "录屏状态不可用".to_string())?;
-        let recording = active.take().ok_or_else(|| "未找到录制任务".to_string())?;
+        let recording = active.as_ref().ok_or_else(|| "未找到录制任务".to_string())?;
         if recording.id != session_id {
-            *active = Some(recording);
             return Err("录制会话不匹配".to_string());
         }
-        recording
+        let attempt = FinishAttempt::begin(recording)?;
+        (recording.clone(), attempt)
     };
+    unregister_recording_esc(
+        &app,
+        take_recording_esc_registration(&active.recording_esc_registered),
+    );
     active.cancelled.store(cancelled, Ordering::Release);
     active.stop_requested.store(true, Ordering::Release);
     for _ in 0..300 {
@@ -864,13 +950,24 @@ async fn finish_recording(
             .finished
             .lock()
             .map_err(|_| "录屏状态不可用".to_string())?
-            .take()
+            .clone()
         {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
             }
-            let artifact = result?;
+            let artifact = match result {
+                Ok(artifact) => artifact,
+                Err(error) => {
+                    unregister_recording_esc(
+                        &app,
+                        take_recording_esc_registration(&active.recording_esc_registered),
+                    );
+                    clear_finished_recording(&state, &session_id)?;
+                    attempt.complete();
+                    return Err(error);
+                }
+            };
             if !cancelled {
                 state
                     .artifacts
@@ -890,11 +987,46 @@ async fn finish_recording(
                     },
                 );
             }
+            unregister_recording_esc(
+                &app,
+                take_recording_esc_registration(&active.recording_esc_registered),
+            );
+            clear_finished_recording(&state, &session_id)?;
+            attempt.complete();
             return Ok(artifact);
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    Err("停止录制超时，请稍后重试".to_string())
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    match register_recording_esc(&app) {
+        Ok(registered_by_recording) => {
+            active
+                .recording_esc_registered
+                .store(registered_by_recording, Ordering::Release);
+            Err("停止录制超时，录制仍在收尾，请稍后重试".to_string())
+        }
+        Err(error) => Err(format!(
+            "停止录制超时，录制仍在收尾，请稍后重试；Esc 无法重新启用：{error}"
+        )),
+    }
+}
+
+fn clear_finished_recording(state: &RecorderState, session_id: &str) -> Result<(), String> {
+    let mut active = state
+        .active
+        .lock()
+        .map_err(|_| "录屏状态不可用".to_string())?;
+    match active.as_ref() {
+        Some(recording) if recording.id == session_id => {
+            active.take();
+            Ok(())
+        }
+        Some(_) => Err("录制会话不匹配".to_string()),
+        None => Err("未找到录制任务".to_string()),
+    }
 }
 
 enum EncoderInput {
@@ -905,13 +1037,149 @@ enum EncoderInput {
 struct EncoderSegment {
     child: Child,
     input: EncoderInput,
+    stderr_thread: Option<std::thread::JoinHandle<std::io::Result<Vec<u8>>>>,
     path: PathBuf,
     has_frames: bool,
     capture_backend: &'static str,
 }
 
 const CURSOR_HIGHLIGHT_WINDOW: &str = "recording-cursor-highlight";
-const CURSOR_HIGHLIGHT_SIZE: i32 = 56;
+const CURSOR_HIGHLIGHT_SIZE: i32 = 32;
+const RECORDING_BORDER_WINDOW: &str = "recording-capture-border";
+const RECORDING_BORDER_THICKNESS: i32 = 3;
+
+fn cursor_highlight_window_size() -> PhysicalSize<u32> {
+    PhysicalSize::new(CURSOR_HIGHLIGHT_SIZE as u32, CURSOR_HIGHLIGHT_SIZE as u32)
+}
+
+fn cursor_highlight_window_position(point: PhysicalPosition<i32>) -> PhysicalPosition<i32> {
+    PhysicalPosition::new(
+        point.x - CURSOR_HIGHLIGHT_SIZE / 2,
+        point.y - CURSOR_HIGHLIGHT_SIZE / 2,
+    )
+}
+
+struct RecordingVisualOverlays {
+    border: RecordingBorderOverlay,
+    cursor: Option<CursorHighlightOverlay>,
+}
+
+impl RecordingVisualOverlays {
+    fn hide(&self) {
+        self.border.hide();
+        if let Some(cursor) = self.cursor.as_ref() {
+            cursor.hide();
+        }
+    }
+
+    fn show(&self) {
+        self.border.show();
+        if let Some(cursor) = self.cursor.as_ref() {
+            cursor.show();
+        }
+    }
+}
+
+struct RecordingBorderOverlay {
+    stop_requested: Arc<AtomicBool>,
+    window: WebviewWindow,
+    follow_thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for RecordingBorderOverlay {
+    fn drop(&mut self) {
+        stop_and_join_cursor_follow_thread(&self.stop_requested, &mut self.follow_thread);
+        let _ = self.window.hide();
+    }
+}
+
+impl RecordingBorderOverlay {
+    fn hide(&self) {
+        let _ = self.window.hide();
+    }
+
+    fn show(&self) {
+        let _ = self.window.show();
+    }
+}
+
+fn recording_border_bounds(rect: &CaptureRect) -> (i32, i32, u32, u32) {
+    let inset = RECORDING_BORDER_THICKNESS;
+    (
+        rect.x.saturating_sub(inset),
+        rect.y.saturating_sub(inset),
+        rect.width.saturating_add((inset * 2) as u32),
+        rect.height.saturating_add((inset * 2) as u32),
+    )
+}
+
+fn set_recording_border_bounds(window: &WebviewWindow, rect: &CaptureRect) {
+    let (x, y, width, height) = recording_border_bounds(rect);
+    let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+    let _ = window.set_size(Size::Physical(PhysicalSize::new(width, height)));
+}
+
+fn recording_border_rect(target: &CaptureTarget) -> Result<CaptureRect, String> {
+    match target.mode.as_str() {
+        "monitor" => {
+            let monitor = find_monitor(target.monitor_id.as_deref())?;
+            Ok(CaptureRect { x: monitor.x(), y: monitor.y(), width: monitor.width(), height: monitor.height() })
+        }
+        "region" => {
+            let monitor = find_monitor(target.monitor_id.as_deref())?;
+            let rect = target.rect.clone().ok_or_else(|| "区域录制缺少框选坐标".to_string())?;
+            Ok(clamp_capture_rect(rect, monitor.x(), monitor.y(), monitor.width(), monitor.height()))
+        }
+        "window" => {
+            let window = find_window(target.window_id)?;
+            Ok(CaptureRect { x: window.x(), y: window.y(), width: window.width(), height: window.height() })
+        }
+        _ => Err("未知的录制模式".to_string()),
+    }
+}
+
+fn start_recording_border_overlay(app: &AppHandle, target: &CaptureTarget) -> Result<RecordingBorderOverlay, String> {
+    let initial_rect = recording_border_rect(target)?;
+    let window = if let Some(window) = app.get_webview_window(RECORDING_BORDER_WINDOW) {
+        window
+    } else {
+        WebviewWindowBuilder::new(
+            app,
+            RECORDING_BORDER_WINDOW,
+            WebviewUrl::App("index.html#/recording-capture-border".into()),
+        )
+        .title("录制范围边框")
+        .transparent(true)
+        .decorations(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .resizable(false)
+        .visible(false)
+        .build()
+        .map_err(|error| format!("无法创建录制范围边框: {error}"))?
+    };
+    window
+        .set_ignore_cursor_events(true)
+        .map_err(|error| format!("无法设置录制范围边框穿透: {error}"))?;
+    set_recording_border_bounds(&window, &initial_rect);
+    window.show().map_err(|error| format!("无法显示录制范围边框: {error}"))?;
+
+    let stop_requested = Arc::new(AtomicBool::new(false));
+    let thread_stop = Arc::clone(&stop_requested);
+    let thread_window = window.clone();
+    let thread_target = target.clone();
+    let follow_thread = std::thread::spawn(move || {
+        while !thread_stop.load(Ordering::Acquire) {
+            if let Ok(rect) = recording_border_rect(&thread_target) {
+                set_recording_border_bounds(&thread_window, &rect);
+            }
+            // 窗口模式每 100ms 更新一次；固定区域与显示器也沿用同一路径，支持显示器布局变化。
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let _ = thread_window.hide();
+    });
+    Ok(RecordingBorderOverlay { stop_requested, window, follow_thread: Some(follow_thread) })
+}
 
 struct CursorHighlightOverlay {
     stop_requested: Arc<AtomicBool>,
@@ -966,11 +1234,13 @@ fn start_cursor_highlight_overlay(app: &AppHandle) -> Result<CursorHighlightOver
             .always_on_top(true)
             .skip_taskbar(true)
             .resizable(false)
-            .inner_size(CURSOR_HIGHLIGHT_SIZE as f64, CURSOR_HIGHLIGHT_SIZE as f64)
             .visible(false)
             .build()
             .map_err(|error| format!("无法创建录制光标高亮层: {error}"))?
         };
+        window
+            .set_size(Size::Physical(cursor_highlight_window_size()))
+            .map_err(|error| format!("无法设置录制光标高亮层尺寸: {error}"))?;
         window
             .set_ignore_cursor_events(true)
             .map_err(|error| format!("无法设置录制光标高亮层穿透: {error}"))?;
@@ -984,10 +1254,9 @@ fn start_cursor_highlight_overlay(app: &AppHandle) -> Result<CursorHighlightOver
             while !thread_stop.load(Ordering::Acquire) {
                 let mut point = POINT::default();
                 if unsafe { GetCursorPos(&mut point) }.is_ok() {
-                    let _ = thread_window.set_position(Position::Physical(PhysicalPosition::new(
-                        point.x - CURSOR_HIGHLIGHT_SIZE / 2,
-                        point.y - CURSOR_HIGHLIGHT_SIZE / 2,
-                    )));
+                    let _ = thread_window.set_position(Position::Physical(
+                        cursor_highlight_window_position(PhysicalPosition::new(point.x, point.y)),
+                    ));
                 }
                 std::thread::sleep(Duration::from_millis(16));
             }
@@ -1064,13 +1333,13 @@ fn gdigrab_capture_rect(target: &CaptureTarget) -> Result<Option<CaptureRect>, S
 
 fn start_encoder_segment(
     ffmpeg: &Path,
+    encoder: &'static str,
     target: &CaptureTarget,
     settings: &RecordingSettings,
     width: u32,
     height: u32,
     path: PathBuf,
 ) -> Result<EncoderSegment, String> {
-    let encoder = select_video_encoder(ffmpeg);
     let output = path.to_string_lossy().to_string();
     let native_rect = gdigrab_capture_rect(target)?;
     let (args, native_capture, capture_backend) = if let Some(rect) = native_rect {
@@ -1090,7 +1359,7 @@ fn start_encoder_segment(
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("无法启动 FFmpeg: {error}"))?;
     let stdin = child
@@ -1102,9 +1371,21 @@ fn start_encoder_segment(
     } else {
         EncoderInput::RawFrames(stdin)
     };
+    let stderr = child.stderr.take().ok_or_else(|| {
+        let _ = child.kill();
+        let _ = child.wait();
+        "无法连接 FFmpeg 错误输出".to_string()
+    })?;
+    let stderr_thread = std::thread::spawn(move || {
+        let mut stderr = stderr;
+        let mut output = Vec::new();
+        stderr.read_to_end(&mut output)?;
+        Ok(output)
+    });
     Ok(EncoderSegment {
         child,
         input,
+        stderr_thread: Some(stderr_thread),
         path,
         // gdigrab 在 FFmpeg 进程内持续采样，不会由 Rust 逐帧标记。
         has_frames: native_capture == "native",
@@ -1124,6 +1405,7 @@ fn finish_encoder_segment(mut segment: EncoderSegment, cancelled: bool) -> Resul
     if !segment.has_frames {
         let _ = segment.child.kill();
         let _ = segment.child.wait();
+        let _ = collect_encoder_stderr(&mut segment.stderr_thread);
         let _ = std::fs::remove_file(&segment.path);
         return Ok(None);
     }
@@ -1131,10 +1413,55 @@ fn finish_encoder_segment(mut segment: EncoderSegment, cancelled: bool) -> Resul
         .child
         .wait()
         .map_err(|error| format!("FFmpeg 无法结束: {error}"))?;
+    let stderr = collect_encoder_stderr(&mut segment.stderr_thread);
     if !status.success() && !cancelled {
-        return Err("FFmpeg 编码失败，请确认打包的 FFmpeg 支持可用的视频编码器".to_string());
+        return Err(format_recording_encoder_error(
+            status.code(),
+            &stderr,
+            &segment.path,
+        ));
     }
     Ok(Some(segment.path))
+}
+
+fn collect_encoder_stderr(
+    stderr_thread: &mut Option<std::thread::JoinHandle<std::io::Result<Vec<u8>>>>,
+) -> Vec<u8> {
+    stderr_thread
+        .take()
+        .and_then(|thread| thread.join().ok())
+        .and_then(Result::ok)
+        .unwrap_or_default()
+}
+
+fn format_recording_encoder_error(exit_code: Option<i32>, stderr: &[u8], output: &Path) -> String {
+    let stderr = String::from_utf8_lossy(stderr);
+    let mut summary = stderr
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with("frame="))
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>();
+    summary.reverse();
+    let mut summary = summary.join("；");
+    summary = summary.replace(output.to_string_lossy().as_ref(), "录制缓存");
+    if summary.len() > 700 {
+        let mut end = 700;
+        while !summary.is_char_boundary(end) {
+            end -= 1;
+        }
+        summary.truncate(end);
+        summary.push_str("…");
+    }
+    let code = exit_code
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "未知".to_string());
+    if summary.is_empty() {
+        format!("FFmpeg 编码失败（退出码 {code}）。请检查录制范围和可用磁盘空间后重试。")
+    } else {
+        format!("FFmpeg 编码失败（退出码 {code}）：{summary}。请检查录制范围和可用磁盘空间后重试。")
+    }
 }
 
 pub fn concat_recording_segments(ffmpeg: &Path, segments: &[PathBuf], output: &Path) -> Result<(), String> {
@@ -1218,6 +1545,7 @@ fn capture_loop(
     app: &AppHandle,
     session_id: &str,
     ffmpeg: &Path,
+    encoder: &'static str,
     target: CaptureTarget,
     settings: RecordingSettings,
     output: PathBuf,
@@ -1243,17 +1571,20 @@ fn capture_loop(
     // 先确保高亮层可用，再启动 gdigrab。否则高亮层创建失败时不会遗留已经开始
     // 采集的 FFmpeg 子进程。
     let uses_native_capture = gdigrab_capture_rect(&target)?.is_some();
-    let (cursor_highlight, initial_segment) = start_encoder_after_highlight(
+    let (visual_overlays, initial_segment) = start_encoder_after_highlight(
         || {
-            if settings.cursor_highlight && uses_native_capture {
-                Ok(Some(start_cursor_highlight_overlay(app)?))
+            let border = start_recording_border_overlay(app, &target)?;
+            let cursor = if settings.cursor_highlight && uses_native_capture {
+                Some(start_cursor_highlight_overlay(app)?)
             } else {
-                Ok(None)
-            }
+                None
+            };
+            Ok(Some(RecordingVisualOverlays { border, cursor }))
         },
         || {
             start_encoder_segment(
                 ffmpeg,
+                encoder,
                 &target,
                 &settings,
                 width,
@@ -1272,8 +1603,8 @@ fn capture_loop(
     while !stop_requested.load(Ordering::Acquire) {
         let wall_elapsed_ms = started.elapsed().as_millis() as u64;
         if pause_requested.load(Ordering::Acquire) {
-            if let Some(overlay) = cursor_highlight.as_ref() {
-                overlay.hide();
+            if let Some(overlays) = visual_overlays.as_ref() {
+                overlays.hide();
             }
             if let Some(active_segment) = segment.take() {
                 if let Some(path) = finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire))? {
@@ -1293,14 +1624,15 @@ fn capture_loop(
         if let Some(paused_at_ms) = paused_since_ms.take() {
             paused_total_ms = paused_total_ms.saturating_add(wall_elapsed_ms.saturating_sub(paused_at_ms));
             next_frame = Instant::now();
-            if let Some(overlay) = cursor_highlight.as_ref() {
-                overlay.show();
+            if let Some(overlays) = visual_overlays.as_ref() {
+                overlays.show();
             }
         }
         if segment.is_none() {
             segment_index = segment_index.saturating_add(1);
             segment = Some(start_encoder_segment(
                 ffmpeg,
+                encoder,
                 &target,
                 &settings,
                 width,
@@ -1418,7 +1750,7 @@ fn capture_loop(
             segments.push(path);
         }
     }
-    drop(cursor_highlight);
+    drop(visual_overlays);
     if segments.is_empty() {
         return Err("录制未产生可用的视频帧".to_string());
     }
@@ -1606,26 +1938,39 @@ fn find_ffmpeg(app: &AppHandle) -> Result<PathBuf, String> {
     Err("找不到 FFmpeg。请将 LGPL 版 ffmpeg.exe 放入 src-tauri/resources 后重新打包，或将 FFmpeg 加入系统 PATH。".to_string())
 }
 
-fn select_video_encoder(ffmpeg: &Path) -> &'static str {
-    let codecs = Command::new(ffmpeg)
+fn select_video_encoder(ffmpeg: &Path) -> Result<&'static str, String> {
+    let output = Command::new(ffmpeg)
         .args(["-hide_banner", "-encoders"])
         .output()
-        .ok()
-        .map(|output| {
-            format!(
-                "{}{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            )
-        })
-        .unwrap_or_default();
-    if codecs.contains("libx264") {
-        "libx264"
-    } else if codecs.contains("h264_mf") {
-        "h264_mf"
-    } else {
-        "mpeg4"
+        .map_err(|error| format!("无法检查 FFmpeg 视频编码器: {error}"))?;
+    if !output.status.success() {
+        return Err("FFmpeg 无法列出视频编码器".to_string());
     }
+    let codecs = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    select_video_encoder_from_listing(&codecs)
+}
+
+/// 硬件 H.264 编码器即使列在 `-encoders` 输出中，也会因系统缺少 MFT、驱动或会话
+/// 限制而在真正开始录制时失败。优先选择可随附的纯软件编码器，保证录制不依赖硬件。
+fn select_video_encoder_from_listing(encoders: &str) -> Result<&'static str, String> {
+    if ffmpeg_lists_encoder(encoders, "libx264") {
+        Ok("libx264")
+    } else if ffmpeg_lists_encoder(encoders, "mpeg4") {
+        Ok("mpeg4")
+    } else {
+        Err("当前 FFmpeg 不包含可用的视频编码器（需要 libx264 或 mpeg4）".to_string())
+    }
+}
+
+fn ffmpeg_lists_encoder(encoders: &str, encoder: &str) -> bool {
+    encoders.lines().any(|line| {
+        let mut fields = line.split_whitespace();
+        matches!((fields.next(), fields.next()), (Some(flags), Some(name)) if flags.contains('V') && name == encoder)
+    })
 }
 
 fn recording_cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1891,14 +2236,95 @@ pub fn cleanup_stale_recordings(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::{
-        export_gif_with_ffmpeg, replace_gif_export_with, start_encoder_after_highlight,
-        stop_and_join_cursor_follow_thread, ExportOptions,
+        cursor_highlight_window_position, cursor_highlight_window_size, export_gif_with_ffmpeg,
+        is_recording_esc, recording_border_bounds, replace_gif_export_with, select_video_encoder,
+        select_video_encoder_from_listing, start_encoder_after_highlight, stop_and_join_cursor_follow_thread,
+        take_recording_esc_registration, ActiveRecording, CaptureRect, ExportOptions, FinishAttempt,
     };
     use std::path::Path;
     use std::process::Command;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
+    use tauri::PhysicalPosition;
+    use tauri_plugin_global_shortcut::Shortcut;
+
+    #[test]
+    fn recording_esc_only_matches_the_unmodified_escape_key() {
+        let escape = "Esc".parse::<Shortcut>().expect("Esc 应可解析");
+        let modified = "Ctrl+Esc".parse::<Shortcut>().expect("Ctrl+Esc 应可解析");
+
+        assert!(is_recording_esc(&escape));
+        assert!(!is_recording_esc(&modified));
+    }
+
+    #[test]
+    fn chooses_software_mpeg4_when_hardware_h264_is_only_advertised() {
+        let encoders = "\
+ V....D h264_mf              H264 via MediaFoundation (codec h264)\n\
+ V.S..D mpeg4                MPEG-4 part 2\n";
+
+        assert_eq!(
+            select_video_encoder_from_listing(encoders).expect("应选择可用视频编码器"),
+            "mpeg4",
+        );
+    }
+
+    #[test]
+    fn bundled_ffmpeg_chooses_mpeg4_instead_of_advertised_hardware_h264() {
+        let ffmpeg = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("ffmpeg.exe");
+
+        assert_eq!(
+            select_video_encoder(&ffmpeg).expect("应能检查随附 FFmpeg 的编码器"),
+            "mpeg4",
+        );
+    }
+
+    #[test]
+    fn only_releases_escape_shortcut_registered_by_recording() {
+        let registration = AtomicBool::new(false);
+        assert!(!take_recording_esc_registration(&registration));
+
+        registration.store(true, Ordering::Release);
+        assert!(take_recording_esc_registration(&registration));
+        assert!(!take_recording_esc_registration(&registration));
+    }
+
+    #[test]
+    fn formats_long_multibyte_encoder_diagnostics_without_panicking() {
+        let stderr = "编码器不可用：请检查系统组件。".repeat(100);
+        let message = super::format_recording_encoder_error(
+            Some(1),
+            stderr.as_bytes(),
+            Path::new("C:/录制缓存/recording.mp4"),
+        );
+
+        assert!(message.contains("FFmpeg 编码失败"));
+        assert!(message.contains('…'));
+        assert!(std::str::from_utf8(message.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn timed_out_finish_attempt_releases_the_session_for_a_retry() {
+        let recording = ActiveRecording {
+            id: "recording-test".to_string(),
+            stop_requested: Arc::new(AtomicBool::new(true)),
+            pause_requested: Arc::new(AtomicBool::new(false)),
+            cancelled: Arc::new(AtomicBool::new(false)),
+            elapsed_ms: Arc::new(AtomicU64::new(0)),
+            finished: Arc::new(Mutex::new(None)),
+            finishing: Arc::new(AtomicBool::new(false)),
+            recording_esc_registered: Arc::new(AtomicBool::new(false)),
+        };
+
+        let first_attempt = FinishAttempt::begin(&recording).expect("首次停止应取得会话");
+        assert!(FinishAttempt::begin(&recording).is_err(), "并发停止不得同时收尾");
+        drop(first_attempt);
+
+        assert!(FinishAttempt::begin(&recording).is_ok(), "超时后应允许再次停止同一会话");
+    }
 
     #[test]
     fn does_not_start_encoder_when_required_highlight_cannot_start() {
@@ -1933,6 +2359,34 @@ mod tests {
 
         assert!(old_thread_finished.load(Ordering::Acquire));
         assert!(follow_thread.is_none());
+    }
+
+    #[test]
+    fn recording_border_remains_outside_a_negative_coordinate_capture_rect() {
+        let rect = CaptureRect {
+            x: -1920,
+            y: 120,
+            width: 1280,
+            height: 720,
+        };
+
+        let (x, y, width, height) = recording_border_bounds(&rect);
+
+        assert_eq!(x, -1923);
+        assert_eq!(y, 117);
+        assert_eq!(width, 1286);
+        assert_eq!(height, 726);
+    }
+
+    #[test]
+    fn cursor_highlight_uses_a_physical_size_and_centers_on_physical_coordinates() {
+        let size = cursor_highlight_window_size();
+        let position = cursor_highlight_window_position(PhysicalPosition::new(-1920, 240));
+
+        assert_eq!(size.width, 32);
+        assert_eq!(size.height, 32);
+        assert_eq!(position.x, -1936);
+        assert_eq!(position.y, 224);
     }
 
     #[test]

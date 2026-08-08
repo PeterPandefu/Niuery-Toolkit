@@ -225,7 +225,7 @@ export default function ScreenRecorder() {
             <Button variant="destructive" onClick={() => void stopRecording()} disabled={state.status === 'stopping'}><CircleStop className="h-4 w-4" />停止录制</Button>
             <Button variant="ghost" onClick={() => void cancelRecording()} disabled={state.status === 'stopping'}>取消</Button>
           </div>
-          <p className="mt-5 text-xs text-muted-foreground">全局快捷键 Ctrl + Shift + R 可停止录制。</p>
+          <p className="mt-5 text-xs text-muted-foreground">录制过程中按 Esc 可停止录制并进入预览。</p>
         </div>
       </div>
     );
@@ -327,7 +327,7 @@ export default function ScreenRecorder() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
-          <div className="flex items-center gap-3"><Clock3 className="h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">录制时主窗口会自动隐藏。按 <kbd className="kbd">Ctrl</kbd> + <kbd className="kbd">Shift</kbd> + <kbd className="kbd">R</kbd> 可停止。</p></div>
+          <div className="flex items-center gap-3"><Clock3 className="h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">录制时主窗口会自动隐藏，按 Esc 可停止并直接查看预览。</p></div>
           <Button size="lg" onClick={() => void startRecording()} disabled={recorder.loading || !isTauri}><CircleStop className="h-4 w-4" />开始录制</Button>
         </div>
       </div>

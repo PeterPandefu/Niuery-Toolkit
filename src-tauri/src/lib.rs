@@ -144,6 +144,18 @@ pub fn run() {
                     if screenshot::is_longshot_esc(shortcut) {
                         if let Some(win) = app.get_webview_window("longshot-panel") {
                             let _ = win.emit("longshot-esc", ());
+                            return;
+                        }
+                    }
+                    // 录屏会话期间 Esc 直接停止录制；完成后由录制状态事件驱动前端进入预览。
+                    if recorder::is_recording_esc(shortcut)
+                        && recorder::active_session_id(app).is_some()
+                    {
+                        if let Some(session_id) = recorder::active_session_id(app) {
+                            let app = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let _ = recorder::stop_recording(app, session_id).await;
+                            });
                         }
                         return;
                     }
