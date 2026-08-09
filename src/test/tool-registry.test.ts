@@ -7,9 +7,9 @@ import {
 } from '@/registry/tool-registry';
 
 describe('Tool Registry', () => {
-  it('registers all 39 tools', () => {
+  it('registers all 40 tools', () => {
     const tools = getAllTools();
-    expect(tools.length).toBe(39);
+    expect(tools.length).toBe(40);
   });
 
   it('has 10 categories', () => {
@@ -27,8 +27,8 @@ describe('Tool Registry', () => {
     expect(categories).toContain('pdf');
   });
 
-  it('has 7 converters', () => {
-    expect(getToolsByCategory('converter').length).toBe(7);
+  it('has 8 converters', () => {
+    expect(getToolsByCategory('converter').length).toBe(8);
   });
 
   it('has 7 encoders', () => {
