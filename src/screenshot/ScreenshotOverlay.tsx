@@ -6,6 +6,7 @@ import { SelectionBox } from './SelectionBox';
 import { toast } from 'sonner';
 import { AnnotationLayer } from './AnnotationLayer';
 import { EditToolbar } from './EditToolbar';
+import { ScreenshotOcrPanel } from '@/components/ocr/ScreenshotOcrPanel';
 import {
   type ScreenshotPhase,
   type SelectionMode,
@@ -39,6 +40,10 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
   const [history, setHistory] = useState<AnnotationItem[][]>([]);
   const [redoStack, setRedoStack] = useState<AnnotationItem[][]>([]);
   const [numberCounter, setNumberCounter] = useState(1);
+  const [ocrSource, setOcrSource] = useState<Blob | null>(null);
+  const [ocrImageDataUrl, setOcrImageDataUrl] = useState('');
+  const [ocrText, setOcrText] = useState('');
+  const [ocrAutoTranslate, setOcrAutoTranslate] = useState(false);
   /** 长截图捕获间隔（框选阶段配置，确认后锁定） */
   const [longshotIntervalMs, setLongshotIntervalMs] = useState(1000);
   /** 长截图滚动模式：自动滚动（默认）/ 手动滚动，框选阶段配置，确认后锁定 */
@@ -158,8 +163,28 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
   }, [exportBase64]);
 
   const handleCancel = useCallback(() => {
+    if (ocrSource && ocrText.trim() && !window.confirm('关闭截图将丢失未保存的识别文本，是否继续？')) return;
     invoke('close_screenshot_window');
-  }, []);
+  }, [ocrSource, ocrText]);
+
+  const openOcr = useCallback((autoTranslate: boolean) => {
+    if (!croppedCanvas) return;
+    croppedCanvas.toBlob((blob) => {
+      if (!blob) {
+        toast.error('识别图片生成失败，请重试');
+        return;
+      }
+      setOcrSource(blob);
+      setOcrImageDataUrl(croppedCanvas.toDataURL('image/png'));
+      setOcrAutoTranslate(autoTranslate);
+    }, 'image/png');
+  }, [croppedCanvas]);
+
+  const translateOcrText = useCallback(async (text: string) => {
+    if (!ocrImageDataUrl) return;
+    await emitTo('main', 'open-screenshot-ocr', { imageDataUrl: ocrImageDataUrl, text, translate: true });
+    await invoke('close_screenshot_window');
+  }, [ocrImageDataUrl]);
 
   // ── 长截图：确认选区并发送给主窗口 ───────────────────
   const confirmLongshot = useCallback(() => {
@@ -520,9 +545,39 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
                 onSave={handleSave}
                 onCopy={handleCopy}
               />
+              <div
+                className="fixed z-50 flex items-center gap-1 rounded-md bg-[#202124]/95 p-1 shadow-lg"
+                style={{ left: toolbarPos.x, top: Math.max(4, toolbarPos.y - 36) }}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <button type="button" className="rounded px-2 py-1 text-xs text-white hover:bg-white/15" onClick={() => openOcr(false)}>
+                  识别文字
+                </button>
+                <button type="button" className="rounded bg-[#07c160] px-2 py-1 text-xs text-white" onClick={() => openOcr(true)}>
+                  翻译文字
+                </button>
+              </div>
             </>
           )}
         </>
+      )}
+
+      {ocrSource && (
+        <div className="fixed inset-x-4 top-4 z-[70] mx-auto max-w-5xl overflow-auto rounded-lg border border-white/20 bg-background shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+          <ScreenshotOcrPanel
+            source={ocrSource}
+            text={ocrText}
+            autoRecognize={ocrAutoTranslate}
+            autoTranslate={ocrAutoTranslate}
+            onTextChange={setOcrText}
+            onTranslate={translateOcrText}
+            onClose={() => {
+              if (ocrText.trim() && !window.confirm('关闭文字识别将保留截图，但未复制的识别文本会丢失，是否关闭？')) return;
+              setOcrSource(null);
+              setOcrAutoTranslate(false);
+            }}
+          />
+        </div>
       )}
 
       {/* 空闲 / 手绘提示 */}

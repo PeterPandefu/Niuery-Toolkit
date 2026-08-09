@@ -35,6 +35,9 @@ import { CropOverlay } from './screenshot/CropOverlay';
 import { useScreenCapture } from './screenshot/useScreenCapture';
 import { useClipboardPaste } from './screenshot/useClipboardPaste';
 import { useExport } from './screenshot/useExport';
+import { ScreenshotOcrPanel } from '@/components/ocr/ScreenshotOcrPanel';
+import { openTranslatorWithText } from '@/lib/translation-navigation';
+import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
 import {
   type ToolType,
   type ToolSettings,
@@ -71,9 +74,14 @@ function ScreenshotEditorInner() {
   const [showResize, setShowResize] = useState(false);
   const [resizeW, setResizeW] = useState('');
   const [resizeH, setResizeH] = useState('');
+  const [ocrSource, setOcrSource] = useState<Blob | null>(null);
+  const [ocrText, setOcrText] = useState('');
+  const [ocrAutoTranslate, setOcrAutoTranslate] = useState(false);
+  const screenshotSession = useScreenshotOcrStore((state) => state.screenshotSession);
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const appliedSessionRef = useRef<number | null>(null);
   const { capture, capturing } = useScreenCapture();
   const { undo, redo, clear } = useHistory();
   const { exportImage, copyToClipboard } = useExport({ stageRef, canvasSize });
@@ -133,6 +141,48 @@ function ScreenshotEditorInner() {
       clear();
     },
     [clear]
+  );
+
+  useEffect(() => {
+    if (!screenshotSession || appliedSessionRef.current === screenshotSession.id) return;
+    appliedSessionRef.current = screenshotSession.id;
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      if (cancelled) return;
+      loadImage(image);
+      setOcrText(screenshotSession.text);
+      fetch(screenshotSession.imageDataUrl)
+        .then((response) => response.blob())
+        .then((blob) => {
+          if (!cancelled) setOcrSource(blob);
+        })
+        .catch(() => toast.error('截图识别会话加载失败，请重试'));
+    };
+    image.onerror = () => toast.error('截图识别会话加载失败，请重试');
+    image.src = screenshotSession.imageDataUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [loadImage, screenshotSession]);
+
+  const openOcr = useCallback(
+    (autoTranslate: boolean) => {
+      if (!image) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasSize.width;
+      canvas.height = canvasSize.height;
+      canvas.getContext('2d')!.drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          toast.error('识别图片生成失败，请重试');
+          return;
+        }
+        setOcrSource(blob);
+        setOcrAutoTranslate(autoTranslate);
+      }, 'image/png');
+    },
+    [canvasSize, image]
   );
 
   // 剪贴板粘贴
@@ -665,6 +715,12 @@ function ScreenshotEditorInner() {
 
         {/* 右侧：导出 */}
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => openOcr(false)}>
+            识别文字
+          </Button>
+          <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => openOcr(true)}>
+            翻译文字
+          </Button>
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">{t('screenshotEditor.quality')}</span>
             <input
@@ -720,6 +776,21 @@ function ScreenshotEditorInner() {
           </Button>
         </div>
       </div>
+      {ocrSource && (
+        <ScreenshotOcrPanel
+          source={ocrSource}
+          text={ocrText}
+          autoRecognize={ocrAutoTranslate}
+          autoTranslate={ocrAutoTranslate}
+          onTextChange={setOcrText}
+          onTranslate={openTranslatorWithText}
+          onClose={() => {
+            if (ocrText.trim() && !window.confirm('关闭文字识别将保留截图，但未复制的识别文本会丢失，是否关闭？')) return;
+            setOcrSource(null);
+            setOcrAutoTranslate(false);
+          }}
+        />
+      )}
     </div>
   );
 }

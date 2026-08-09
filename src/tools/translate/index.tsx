@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { useTranslateStore } from '@/store/translate-store';
@@ -8,6 +8,8 @@ import { ArrowRightLeft, Check, Copy, Loader2, PawPrint, Settings2 } from 'lucid
 import { cn, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useToolLogger } from '@/hooks/use-tool-logger';
+import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
+import { openScreenshotEditor } from '@/lib/translation-navigation';
 
 /** 翻译工具：百度翻译，回车触发，上输入下结果，中间语言栏 */
 export default function TranslatorTool() {
@@ -22,13 +24,17 @@ export default function TranslatorTool() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [splitRatio, setSplitRatio] = useState(45);
+  const pendingTranslation = useScreenshotOcrStore((state) => state.pendingTranslation);
+  const screenshotSession = useScreenshotOcrStore((state) => state.screenshotSession);
+  const consumePendingTranslation = useScreenshotOcrStore((state) => state.consumePendingTranslation);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
+  const translatedPendingIdRef = useRef<number | null>(null);
   const log = useToolLogger('translator');
 
-  const handleTranslate = useCallback(async () => {
-    const text = input.trim();
+  const translateText = useCallback(async (rawText: string) => {
+    const text = rawText.trim();
     if (!text) return;
     if (!configured) {
       log.warn('翻译服务未配置');
@@ -55,7 +61,23 @@ export default function TranslatorTool() {
     } finally {
       setLoading(false);
     }
-  }, [input, configured, fromLang, toLang, baiduAppId, baiduSecret, log]);
+  }, [configured, fromLang, toLang, baiduAppId, baiduSecret, log]);
+
+  const handleTranslate = useCallback(() => void translateText(input), [input, translateText]);
+
+  useEffect(() => {
+    if (!pendingTranslation) return;
+    setInput(pendingTranslation.text);
+    setOutput('');
+    if (!configured) {
+      setSettingsOpen(true);
+      return;
+    }
+    if (translatedPendingIdRef.current === pendingTranslation.id) return;
+    translatedPendingIdRef.current = pendingTranslation.id;
+    consumePendingTranslation(pendingTranslation.id);
+    void translateText(pendingTranslation.text);
+  }, [configured, consumePendingTranslation, pendingTranslation, translateText]);
 
   const handleSwap = useCallback(() => {
     const newFrom = toLang;
@@ -126,6 +148,11 @@ export default function TranslatorTool() {
           <PawPrint className="h-3.5 w-3.5" />
           百度翻译
         </span>
+        {screenshotSession && (
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={openScreenshotEditor}>
+            返回截图
+          </Button>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <Select
             value={fromLang}
@@ -142,7 +169,7 @@ export default function TranslatorTool() {
             options={targetLanguages.map((l) => ({ value: l.code, label: l.label }))}
             className="h-8 w-28"
           />
-          <Button size="sm" onClick={() => void handleTranslate()} disabled={loading || !input.trim()}>
+          <Button size="sm" onClick={handleTranslate} disabled={loading || !input.trim()}>
             {loading && <Loader2 className="animate-spin" />}
             翻译
           </Button>
