@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { createLogger } from '@/lib/logger';
 import type {
@@ -209,18 +209,12 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     }
   }, [session]);
 
-  const loadPreview = useCallback(async () => {
-    const currentSessionId = lastSessionIdRef.current;
-    if (!currentSessionId) return null;
-    try {
-      const bytes = await invoke<ArrayBuffer>('get_recording_preview', { sessionId: currentSessionId });
-      return URL.createObjectURL(new Blob([bytes], { type: 'video/mp4' }));
-    } catch (reason) {
-      log.warn('加载录制预览失败', reason);
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return null;
-    }
-  }, []);
+  const loadPreview = useCallback(() => {
+    if (!artifact) return null;
+    // 录制缓存位于受限的 assetProtocol 范围内。直接交给 WebView 读取可以保留原始
+    // MP4 字节，避免 IPC 原始响应在不同运行时的表示差异破坏 Blob 内容。
+    return convertFileSrc(artifact.path);
+  }, [artifact]);
 
   return {
     monitors,

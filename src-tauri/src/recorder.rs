@@ -420,7 +420,7 @@ fn append_encoding_args(
             "-preset".to_string(),
             "veryfast".to_string(),
         ]);
-    } else if encoder == "h264_mf" {
+    } else if encoder == "h264_mf" || encoder == "libopenh264" {
         let bitrate = match settings.quality.as_str() {
             "high" => "16M",
             "small" => "3M",
@@ -1955,14 +1955,17 @@ fn select_video_encoder(ffmpeg: &Path) -> Result<&'static str, String> {
 }
 
 /// 硬件 H.264 编码器即使列在 `-encoders` 输出中，也会因系统缺少 MFT、驱动或会话
-/// 限制而在真正开始录制时失败。优先选择可随附的纯软件编码器，保证录制不依赖硬件。
+/// 限制而在真正开始录制时失败。优先选择软件 H.264，确保 MP4 可由 WebView2 的 video
+/// 元素解码，而不是回退到浏览器通常不支持的 MPEG-4 Part 2。
 fn select_video_encoder_from_listing(encoders: &str) -> Result<&'static str, String> {
     if ffmpeg_lists_encoder(encoders, "libx264") {
         Ok("libx264")
-    } else if ffmpeg_lists_encoder(encoders, "mpeg4") {
-        Ok("mpeg4")
+    } else if ffmpeg_lists_encoder(encoders, "libopenh264") {
+        Ok("libopenh264")
+    } else if ffmpeg_lists_encoder(encoders, "h264_mf") {
+        Ok("h264_mf")
     } else {
-        Err("当前 FFmpeg 不包含可用的视频编码器（需要 libx264 或 mpeg4）".to_string())
+        Err("当前 FFmpeg 不包含可用于预览的 H.264 编码器（需要 libx264、libopenh264 或 h264_mf）".to_string())
     }
 }
 
@@ -2259,26 +2262,38 @@ mod tests {
     }
 
     #[test]
-    fn chooses_software_mpeg4_when_hardware_h264_is_only_advertised() {
+    fn falls_back_to_hardware_h264_when_no_software_h264_is_available() {
         let encoders = "\
  V....D h264_mf              H264 via MediaFoundation (codec h264)\n\
  V.S..D mpeg4                MPEG-4 part 2\n";
 
         assert_eq!(
             select_video_encoder_from_listing(encoders).expect("应选择可用视频编码器"),
-            "mpeg4",
+            "h264_mf",
         );
     }
 
     #[test]
-    fn bundled_ffmpeg_chooses_mpeg4_instead_of_advertised_hardware_h264() {
+    fn prefers_software_openh264_over_mpeg4_for_webview_preview() {
+        let encoders = "\
+ V....D libopenh264          OpenH264 H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10 (codec h264)\n\
+ V.S..D mpeg4                MPEG-4 part 2\n";
+
+        assert_eq!(
+            select_video_encoder_from_listing(encoders).expect("应选择可供 WebView2 解码的 H.264 编码器"),
+            "libopenh264",
+        );
+    }
+
+    #[test]
+    fn bundled_ffmpeg_chooses_openh264_for_webview_compatible_preview() {
         let ffmpeg = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("resources")
             .join("ffmpeg.exe");
 
         assert_eq!(
             select_video_encoder(&ffmpeg).expect("应能检查随附 FFmpeg 的编码器"),
-            "mpeg4",
+            "libopenh264",
         );
     }
 

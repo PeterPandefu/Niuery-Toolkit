@@ -50,7 +50,7 @@ fn builds_h264_rawvideo_arguments_with_balanced_quality() {
 }
 
 #[test]
-fn fps_and_quality_profiles_change_the_sampling_and_hardware_encoder_arguments() {
+fn fps_and_quality_profiles_change_the_sampling_and_h264_encoder_arguments() {
     let target = CaptureTarget {
         mode: "monitor".to_string(),
         monitor_id: Some("Primary".to_string()),
@@ -65,12 +65,21 @@ fn fps_and_quality_profiles_change_the_sampling_and_hardware_encoder_arguments()
     small.quality = "small".to_string();
 
     let high_args = build_ffmpeg_args_for_encoder(&target, &high, 1280, 720, "high.mp4", "h264_mf");
-    let small_args = build_ffmpeg_args_for_encoder(&target, &small, 1280, 720, "small.mp4", "h264_mf");
+    let small_args =
+        build_ffmpeg_args_for_encoder(&target, &small, 1280, 720, "small.mp4", "h264_mf");
+    let openh264_args =
+        build_ffmpeg_args_for_encoder(&target, &high, 1280, 720, "openh264.mp4", "libopenh264");
 
     assert!(high_args.windows(2).any(|pair| pair == ["-framerate", "60"]));
     assert!(small_args.windows(2).any(|pair| pair == ["-framerate", "15"]));
     assert!(high_args.windows(2).any(|pair| pair == ["-b:v", "16M"]));
     assert!(small_args.windows(2).any(|pair| pair == ["-b:v", "3M"]));
+    assert!(openh264_args
+        .windows(2)
+        .any(|pair| pair == ["-c:v", "libopenh264"]));
+    assert!(openh264_args
+        .windows(2)
+        .any(|pair| pair == ["-b:v", "16M"]));
 }
 
 #[test]
@@ -199,6 +208,70 @@ fn bundled_ffmpeg_accepts_the_variable_frame_rate_option() {
         .expect("应能启动随附 FFmpeg");
     let _ = std::fs::remove_file(&output);
     assert!(status.success(), "随附 FFmpeg 必须接受 -fps_mode vfr");
+}
+
+#[test]
+fn bundled_ffmpeg_encodes_a_decodable_h264_preview_file() {
+    let ffmpeg = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("ffmpeg.exe");
+    let directory = std::env::temp_dir().join(format!(
+        "niuery-openh264-preview-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("系统时间应晚于 Unix 纪元")
+            .as_nanos(),
+    ));
+    std::fs::create_dir_all(&directory).expect("应能创建 H.264 预览测试目录");
+    let output = directory.join("preview.mp4");
+
+    let encoded = Command::new(&ffmpeg)
+        .args([
+            "-hide_banner",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=320x180:rate=30",
+            "-frames:v",
+            "30",
+            "-c:v",
+            "libopenh264",
+            "-b:v",
+            "8M",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-fps_mode",
+            "vfr",
+        ])
+        .arg(&output)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .expect("应能启动随附 FFmpeg 编码 H.264 预览样本");
+    assert!(encoded.success(), "随附 FFmpeg 必须能生成 H.264 预览文件");
+
+    let probe = Command::new(&ffmpeg)
+        .args(["-hide_banner", "-i"])
+        .arg(&output)
+        .args(["-f", "null", "-"])
+        .output()
+        .expect("应能启动随附 FFmpeg 解码 H.264 预览样本");
+    let details = String::from_utf8_lossy(&probe.stderr);
+    let _ = std::fs::remove_dir_all(&directory);
+
+    assert!(probe.status.success(), "生成的 H.264 预览文件必须可被解码");
+    assert!(
+        details.contains("Duration: 00:00:01.00"),
+        "预览文件必须具有非零时长"
+    );
+    assert!(
+        details.contains("Video: h264") && details.contains("avc1"),
+        "预览文件必须是浏览器可解码的 H.264/avc1 MP4"
+    );
 }
 
 #[test]

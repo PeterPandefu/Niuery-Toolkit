@@ -68,21 +68,9 @@ export default function ScreenRecorder() {
       setPreviewSource(null);
       return;
     }
-    let active = true;
-    let source: string | null = null;
-    void loadPreview().then((nextSource) => {
-      if (!nextSource) return;
-      if (!active) {
-        URL.revokeObjectURL(nextSource);
-        return;
-      }
-      source = nextSource;
-      setPreviewSource(nextSource);
-    });
-    return () => {
-      active = false;
-      if (source) URL.revokeObjectURL(source);
-    };
+    const nextSource = loadPreview();
+    if (!nextSource) return;
+    setPreviewSource(nextSource);
   }, [loadPreview, state.artifact, state.status]);
 
   const target = useMemo<CaptureTarget | null>(() => {
