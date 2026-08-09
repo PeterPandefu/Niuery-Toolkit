@@ -3,13 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useRecorder } from '@/tools/graphic/screen-recorder/useRecorder';
 import type { CaptureTarget, RecordingSettings, RecordingStatusEvent } from '@/tools/graphic/screen-recorder/types';
 
-const { invokeMock, listenMock, createObjectUrlMock } = vi.hoisted(() => ({
+const { invokeMock, listenMock, convertFileSrcMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   listenMock: vi.fn(),
-  createObjectUrlMock: vi.fn(() => 'blob:recording-preview'),
+  convertFileSrcMock: vi.fn(() => 'asset://localhost/recording.mp4'),
 }));
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
+vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock, convertFileSrc: convertFileSrcMock }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
 
 const target: CaptureTarget = {
@@ -41,34 +41,31 @@ describe('screen recording preview', () => {
       if (command === 'stop_recording') {
         return Promise.resolve({ path: 'C:\\recording.mp4', durationMs: 1_000, width: 320, height: 180 });
       }
-      if (command === 'get_recording_preview') return Promise.resolve(new Uint8Array([0, 1, 2, 3]).buffer);
       return Promise.resolve();
     });
-    vi.stubGlobal('URL', { createObjectURL: createObjectUrlMock, revokeObjectURL: vi.fn() });
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
     invokeMock.mockReset();
     listenMock.mockReset();
-    createObjectUrlMock.mockReset();
+    convertFileSrcMock.mockReset();
     statusListener = undefined;
   });
 
-  it('loads a stopped recording through the native bridge as a blob URL', async () => {
+  it('通过受限资源协议加载已停止录制，保留 MP4 原始字节', async () => {
     const { result } = renderHook(() => useRecorder());
 
     await act(async () => { await result.current.start(target, settings); });
     await act(async () => { await result.current.stop(); });
 
     const loadPreview = (result.current as typeof result.current & {
-      loadPreview?: () => Promise<string | null>;
+      loadPreview?: () => string | null;
     }).loadPreview;
-    const source = await loadPreview?.();
+    const source = loadPreview?.();
 
-    expect(source).toBe('blob:recording-preview');
-    expect(invokeMock).toHaveBeenCalledWith('get_recording_preview', { sessionId: 'session-1' });
-    expect(createObjectUrlMock).toHaveBeenCalledWith(expect.any(Blob));
+    expect(source).toBe('asset://localhost/recording.mp4');
+    expect(convertFileSrcMock).toHaveBeenCalledWith('C:\\recording.mp4');
+    expect(invokeMock).not.toHaveBeenCalledWith('get_recording_preview', expect.anything());
   });
 
   it('通过受限会话 ID 请求在文件夹中定位录制缓存文件', async () => {
