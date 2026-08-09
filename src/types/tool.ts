@@ -80,9 +80,13 @@ export interface ToolState {
 /** 主题模式 */
 export type ThemeMode = 'light' | 'dark' | 'system';
 
+/** 内置视觉皮肤 */
+export type SkinId = 'forge' | 'ocean' | 'forest' | 'mono';
+
 /** 全局应用状态 */
 export interface AppState {
   theme: ThemeMode;
+  skin: SkinId;
   activeCategory: ToolCategory | null;
   recentTools: string[];
   activeToolId: string | null;

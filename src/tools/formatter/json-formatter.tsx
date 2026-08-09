@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react';
 import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { useIsDark } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 import { AlertCircle, CheckCircle2, Minimize2 } from 'lucide-react';
 
@@ -30,7 +30,7 @@ export default function JsonFormatter() {
   const [indent, setIndent] = useState('2');
   const [sortMode, setSortMode] = useState<SortMode>('none');
   const [mode, setMode] = useState<'format' | 'minify'>('format');
-  const isDark = useIsDark();
+  const { monacoTheme } = useTheme();
   const log = useToolLogger('json-formatter');
 
   const { output, error, isValid } = useMemo(() => {
@@ -141,7 +141,7 @@ export default function JsonFormatter() {
           <Editor
             height="100%"
             language="json"
-            theme={isDark ? 'vs-dark' : 'light'}
+            theme={monacoTheme}
             value={input}
             onChange={(v) => setInput(v || '')}
             options={{
@@ -181,7 +181,7 @@ export default function JsonFormatter() {
               <Editor
                 height="100%"
                 language="json"
-                theme={isDark ? 'vs-dark' : 'light'}
+                theme={monacoTheme}
                 value={output}
                 options={{
                   readOnly: true,

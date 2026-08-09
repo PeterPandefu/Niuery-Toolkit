@@ -7,7 +7,7 @@ import { Preview, PreviewHandle, renderMarkdown } from '@/components/markdown/Pr
 import { StatusBar } from '@/components/markdown/StatusBar';
 import { Outline } from '@/components/markdown/Outline';
 import { Button } from '@/components/ui/button';
-import { useIsDark } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 import { toast } from 'sonner';
 import {
@@ -79,7 +79,7 @@ export default function MarkdownEditor() {
   const previewRef = useRef<PreviewHandle>(null);
   const isEditorScrolling = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(null);
-  const isDark = useIsDark();
+  const { monacoTheme } = useTheme();
   const log = useToolLogger('markdown-editor');
 
   // 预览使用 debounce 150ms (NF-02)
@@ -428,7 +428,7 @@ export default function MarkdownEditor() {
             <Editor
               height="100%"
               language="markdown"
-              theme={isDark ? 'vs-dark' : 'light'}
+              theme={monacoTheme}
               value={content}
               onChange={(value) => setContent(value ?? '')}
               onMount={handleEditorMount}

@@ -60,9 +60,9 @@ function ToolItem({
       <span className="truncate">{label}</span>
       {/* 运行状态指示 */}
       {alwaysOn ? (
-        <Pin className="ml-auto h-3 w-3 shrink-0 text-amber-500/80" />
+        <Pin className="ml-auto h-3 w-3 shrink-0 text-warning/80" />
       ) : running ? (
-        <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-glow-pulse" />
+        <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-success animate-glow-pulse" />
       ) : null}
     </button>
   );

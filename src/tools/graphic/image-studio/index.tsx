@@ -14,6 +14,7 @@ import {
   WatermarkPanel,
 } from './panels-edit';
 import { CutoutPanel, MergeGifPanel, MergeImagePanel, MergePdfPanel } from './panels-merge';
+import { OcrPanel } from './ocr-panel';
 import {
   Crop,
   Eraser,
@@ -27,6 +28,7 @@ import {
   Radius,
   Repeat,
   RotateCw,
+  ScanText,
   Stamp,
 } from 'lucide-react';
 
@@ -40,6 +42,7 @@ type FeatureId =
   | 'crop'
   | 'rotate'
   | 'flip'
+  | 'ocr'
   | 'merge-image'
   | 'merge-pdf'
   | 'merge-gif'
@@ -62,6 +65,7 @@ const EDIT_FEATURES: Feature[] = [
   { id: 'crop', name: '裁剪', icon: Crop, desc: '按比例或自定义尺寸居中裁剪' },
   { id: 'rotate', name: '旋转', icon: RotateCw, desc: '任意角度旋转' },
   { id: 'flip', name: '翻转', icon: FlipHorizontal, desc: '水平 / 垂直翻转' },
+  { id: 'ocr', name: '图片 OCR', icon: ScanText, desc: '本地识别图片中的简体中文和英文文字' },
 ];
 
 const MERGE_FEATURES: Feature[] = [
@@ -84,6 +88,7 @@ const PANELS: Record<FeatureId, React.ComponentType> = {
   crop: CropPanel,
   rotate: RotatePanel,
   flip: FlipPanel,
+  ocr: OcrPanel,
   'merge-image': MergeImagePanel,
   'merge-pdf': MergePdfPanel,
   'merge-gif': MergeGifPanel,
