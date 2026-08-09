@@ -118,7 +118,20 @@
   "theme": {
     "light": "Light",
     "dark": "Dark",
-    "system": "System"
+    "system": "System",
+    "appearance": "Appearance",
+    "appearanceDesc": "Changes apply and save immediately",
+    "skin": "Skin",
+    "skinDesc": "Choose a visual style for your workspace",
+    "restoreDefault": "Restore default appearance",
+    "forge": "Forge",
+    "forgeDesc": "Warm workshop",
+    "ocean": "Ocean",
+    "oceanDesc": "Cool blue-green",
+    "forest": "Forest",
+    "forestDesc": "Natural green",
+    "mono": "Mono",
+    "monoDesc": "Neutral high contrast"
   },
   "language": {
     "zh": "中文",

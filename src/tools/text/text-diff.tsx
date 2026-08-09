@@ -3,7 +3,7 @@ import { DiffEditor } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { useIsDark } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 import { Columns2, Rows3, Eraser } from 'lucide-react';
 
@@ -30,7 +30,7 @@ export default function TextDiff() {
   const [modified, setModified] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
-  const isDark = useIsDark();
+  const { monacoTheme } = useTheme();
   const editorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
   const log = useToolLogger('text-diff');
 
@@ -146,7 +146,7 @@ export default function TextDiff() {
         <DiffEditor
           height="100%"
           language="plaintext"
-          theme={isDark ? 'vs-dark' : 'light'}
+          theme={monacoTheme}
           original={original}
           modified={modified}
           onMount={handleEditorMount}

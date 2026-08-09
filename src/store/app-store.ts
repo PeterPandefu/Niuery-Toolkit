@@ -1,11 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ThemeMode, ToolCategory } from '@/types/tool';
+import { SkinId, ThemeMode, ToolCategory } from '@/types/tool';
+import { DEFAULT_SKIN } from '@/lib/theme';
 
 interface AppStore {
   // 主题
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
+  skin: SkinId;
+  setSkin: (skin: SkinId) => void;
+  resetAppearance: () => void;
 
   // 当前展开的分类面板
   activeCategory: ToolCategory | null;
@@ -35,6 +39,9 @@ export const useAppStore = create<AppStore>()(
       // 主题
       theme: 'system',
       setTheme: (theme) => set({ theme }),
+      skin: DEFAULT_SKIN,
+      setSkin: (skin) => set({ skin }),
+      resetAppearance: () => set({ theme: 'system', skin: DEFAULT_SKIN }),
 
       // 分类面板
       activeCategory: null,
@@ -73,9 +80,20 @@ export const useAppStore = create<AppStore>()(
       name: 'niuery-toolkit-store',
       partialize: (state) => ({
         theme: state.theme,
+        skin: state.skin,
         recentTools: state.recentTools,
         pinnedTools: state.pinnedTools,
       }),
+      version: 1,
+      migrate: (persistedState) => {
+        const persisted = persistedState as Partial<Pick<AppStore, 'theme' | 'skin' | 'recentTools' | 'pinnedTools'>>;
+        return {
+          theme: persisted.theme ?? 'system',
+          skin: persisted.skin ?? DEFAULT_SKIN,
+          recentTools: persisted.recentTools ?? [],
+          pinnedTools: persisted.pinnedTools ?? ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'qrcode', 'text-diff'],
+        };
+      },
     }
   )
 );

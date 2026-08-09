@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
 import { useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
-import { useTheme } from '@/hooks/use-theme';
+import { useApplyTheme } from '@/hooks/use-theme';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ToolPanel } from '@/components/layout/ToolPanel';
 import { SearchDialog } from '@/components/layout/SearchDialog';
@@ -12,7 +12,7 @@ import { listen } from '@tauri-apps/api/event';
 
 export default function App() {
   // 初始化主题
-  useTheme();
+  useApplyTheme();
 
   const { activeToolId, setActiveTool, addRecentTool, setActiveCategory } = useAppStore();
   const startTool = useToolLifecycleStore((s) => s.startTool);

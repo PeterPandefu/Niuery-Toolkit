@@ -7,7 +7,9 @@ import { useAppStore } from '@/store/app-store';
 import { isTauri } from '@/lib/api-client';
 import { emitHotkeysChanged } from '@/lib/hotkeys';
 import { CATEGORY_ICONS } from '@/types/tool';
-import { Pin, Power, Search, X, Zap, Keyboard, RotateCcw } from 'lucide-react';
+import { Check, Monitor, Moon, Palette, Pin, Power, RotateCcw, Search, Sun, X, Zap, Keyboard } from 'lucide-react';
+import { getThemeTokens, SKIN_IDS } from '@/lib/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -35,7 +37,7 @@ function Toggle({
         disabled
           ? 'cursor-not-allowed bg-muted/60'
           : checked
-            ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.35)]'
+          ? 'bg-success shadow-tinted-sm'
             : 'bg-muted-foreground/25 hover:bg-muted-foreground/35'
       )}
     >
@@ -146,10 +148,95 @@ function HotkeyRecorder({
   );
 }
 
+function AppearanceSettings() {
+  const { t } = useTranslation();
+  const { theme, setTheme, skin, setSkin, resetAppearance, scheme } = useTheme();
+  const modes = [
+    { id: 'light' as const, icon: Sun },
+    { id: 'dark' as const, icon: Moon },
+    { id: 'system' as const, icon: Monitor },
+  ];
+
+  return (
+    <div className="space-y-5 px-2 py-1">
+      <div>
+        <div className="mb-2 flex items-baseline justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">{t('theme.appearance')}</h3>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t('theme.appearanceDesc')}</p>
+          </div>
+          <button
+            type="button"
+            onClick={resetAppearance}
+            className="rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            {t('theme.restoreDefault')}
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1">
+          {modes.map(({ id, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTheme(id)}
+              aria-pressed={theme === id}
+              className={cn(
+                'flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                theme === id ? 'bg-card text-foreground shadow-tinted-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t(`theme.${id}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-2">
+          <h3 className="text-sm font-semibold text-foreground">{t('theme.skin')}</h3>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{t('theme.skinDesc')}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {SKIN_IDS.map((skinId) => {
+            const tokens = getThemeTokens(skinId, scheme);
+            const selected = skin === skinId;
+            return (
+              <button
+                key={skinId}
+                type="button"
+                onClick={() => setSkin(skinId)}
+                aria-pressed={selected}
+                className={cn(
+                  'group relative overflow-hidden rounded-lg border p-3 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  selected ? 'border-primary bg-primary/5 shadow-tinted-sm' : 'border-border hover:border-primary/45 hover:bg-accent/35'
+                )}
+              >
+                <span className="mb-3 flex h-9 items-end gap-1 rounded-md border border-black/5 p-1.5 dark:border-white/10" style={{ backgroundColor: `hsl(${tokens.background})` }}>
+                  <span className="h-4 w-5 rounded-sm" style={{ backgroundColor: `hsl(${tokens.primary})` }} />
+                  <span className="h-2.5 flex-1 rounded-sm" style={{ backgroundColor: `hsl(${tokens.muted})` }} />
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: `hsl(${tokens.success})` }} />
+                </span>
+                <span className="block text-[13px] font-semibold text-foreground">{t(`theme.${skinId}`)}</span>
+                <span className="mt-0.5 block text-[10px] text-muted-foreground">{t(`theme.${skinId}Desc`)}</span>
+                {selected && (
+                  <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <Check className="h-3 w-3" />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState('');
-  const [tab, setTab] = useState<'alwaysOn' | 'pinned' | 'hotkeys'>('alwaysOn');
+  const [tab, setTab] = useState<'appearance' | 'alwaysOn' | 'pinned' | 'hotkeys'>('alwaysOn');
   const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const setAlwaysOn = useToolLifecycleStore((s) => s.setAlwaysOn);
@@ -254,6 +341,16 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             </div>
           </div>
           <button
+            onClick={() => setTab('appearance')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-t-md px-3 py-2 text-[12px] font-medium transition-colors',
+              tab === 'appearance' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Palette className="h-3 w-3" />
+            {t('theme.appearance')}
+          </button>
+          <button
             onClick={onClose}
             className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
@@ -280,7 +377,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             className={cn(
               'flex items-center gap-1.5 rounded-t-md px-3 py-2 text-[12px] font-medium transition-colors',
               tab === 'pinned'
-                ? 'border-b-2 border-amber-500 text-amber-600 dark:text-amber-400'
+                ? 'border-b-2 border-warning text-warning'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -292,7 +389,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             className={cn(
               'flex items-center gap-1.5 rounded-t-md px-3 py-2 text-[12px] font-medium transition-colors',
               tab === 'hotkeys'
-                ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                ? 'border-b-2 border-info text-info'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
@@ -302,7 +399,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </div>
 
         {/* 筛选 / 快捷键头部 */}
-        {tab === 'hotkeys' ? (
+        {tab === 'appearance' ? null : tab === 'hotkeys' ? (
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-2.5">
             <span className="text-[11px] text-muted-foreground">{t('hotkeys.hint')}</span>
             <button
@@ -324,11 +421,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               autoFocus
             />
             {tab === 'alwaysOn' ? (
-              <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="shrink-0 rounded-full bg-success/10 px-2 py-0.5 font-mono text-[10px] font-medium text-success">
                 {alwaysOnTools.length} {t('app.alwaysOn')}
               </span>
             ) : (
-              <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 font-mono text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              <span className="shrink-0 rounded-full bg-warning/10 px-2 py-0.5 font-mono text-[10px] font-medium text-warning">
                 {pinnedTools.length} {t('app.pinnedCount')}
               </span>
             )}
@@ -337,11 +434,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
         {/* 内容区 */}
         <div className="max-h-[46vh] overflow-y-auto px-3 py-3">
-          {tab === 'hotkeys' ? (
+          {tab === 'appearance' ? (
+            <AppearanceSettings />
+          ) : tab === 'hotkeys' ? (
             /* 快捷键配置 */
             <div className="space-y-1 px-2">
               {hotkeyError && (
-                <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-600 dark:text-red-400">
+                <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
                   {hotkeyError}
                 </div>
               )}
@@ -400,17 +499,17 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             key={tool.id}
                             className={cn(
                               'flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors duration-150',
-                              isOn ? 'bg-emerald-500/[0.06]' : 'hover:bg-accent/50'
+                              isOn ? 'bg-success/[0.06]' : 'hover:bg-accent/50'
                             )}
                           >
                             <span
                               className={cn(
                                 'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
-                                isOn ? 'bg-emerald-500/15' : 'bg-muted/70'
+                                isOn ? 'bg-success/15' : 'bg-muted/70'
                               )}
                             >
                               <tool.icon
-                                className={cn('h-3.5 w-3.5', isOn ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}
+                                className={cn('h-3.5 w-3.5', isOn ? 'text-success' : 'text-muted-foreground')}
                               />
                             </span>
                             <div className="min-w-0 flex-1">
@@ -419,7 +518,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                                   {t(`tools.${tool.id}`, tool.name)}
                                 </span>
                                 {isRunning && !isOn && (
-                                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-glow-pulse" />
+                                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success animate-glow-pulse" />
                                 )}
                               </div>
                               <span className="block truncate text-[11px] text-muted-foreground">
@@ -437,17 +536,17 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             key={tool.id}
                             className={cn(
                               'flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors duration-150',
-                              isPinned ? 'bg-amber-500/[0.06]' : 'hover:bg-accent/50'
+                              isPinned ? 'bg-warning/[0.06]' : 'hover:bg-accent/50'
                             )}
                           >
                             <span
                               className={cn(
                                 'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
-                                isPinned ? 'bg-amber-500/15' : 'bg-muted/70'
+                                isPinned ? 'bg-warning/15' : 'bg-muted/70'
                               )}
                             >
                               <tool.icon
-                                className={cn('h-3.5 w-3.5', isPinned ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}
+                                className={cn('h-3.5 w-3.5', isPinned ? 'text-warning' : 'text-muted-foreground')}
                               />
                             </span>
                             <div className="min-w-0 flex-1">
@@ -472,14 +571,19 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
         {/* 底部提示 */}
         <div className="flex items-center gap-3 border-t border-border bg-muted/30 px-5 py-2.5 text-[10px] text-muted-foreground">
-          {tab === 'alwaysOn' ? (
+          {tab === 'appearance' ? (
+            <span className="flex items-center gap-1.5">
+              <Palette className="h-3 w-3 text-primary" />
+              {t('theme.appearanceDesc')}
+            </span>
+          ) : tab === 'alwaysOn' ? (
             <>
               <span className="flex items-center gap-1.5">
-                <Power className="h-3 w-3 text-emerald-500" />
+                <Power className="h-3 w-3 text-success" />
                 {t('app.runningCount', { count: activeTools.length })}
               </span>
               <span className="flex items-center gap-1.5">
-                <Pin className="h-3 w-3 text-amber-500" />
+                <Pin className="h-3 w-3 text-warning" />
                 {t('app.alwaysOnCount', { count: alwaysOnTools.length })}
               </span>
               <span className="ml-auto">{t('app.alwaysOnHint')}</span>
@@ -487,14 +591,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           ) : tab === 'pinned' ? (
             <>
               <span className="flex items-center gap-1.5">
-                <Zap className="h-3 w-3 text-amber-500" />
+                <Zap className="h-3 w-3 text-warning" />
                 {t('app.pinnedBarHint')}
               </span>
             </>
           ) : (
             <>
               <span className="flex items-center gap-1.5">
-                <Keyboard className="h-3 w-3 text-blue-500" />
+                <Keyboard className="h-3 w-3 text-info" />
                 {t('hotkeys.footerHint')}
               </span>
             </>

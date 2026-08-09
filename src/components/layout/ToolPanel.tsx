@@ -110,7 +110,7 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
         {pinnedToolDefs.length > 0 && (
           <section className="mt-9">
             <div className="mb-3 flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5 text-amber-500" />
+              <Zap className="h-3.5 w-3.5 text-warning" />
               <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 {t('app.pinnedBar')}
               </h2>
@@ -122,11 +122,11 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
                   <button
                     key={tool.id}
                     onClick={() => onSelectTool(tool.id)}
-                    className="animate-rise-in group flex items-center gap-2 rounded-lg border border-border bg-card/80 px-3 py-2 text-[13px] font-medium text-foreground shadow-tinted-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400/50 hover:shadow-tinted active:translate-y-0 active:scale-[0.97]"
+                    className="animate-rise-in group flex items-center gap-2 rounded-lg border border-border bg-card/80 px-3 py-2 text-[13px] font-medium text-foreground shadow-tinted-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-warning/50 hover:shadow-tinted active:translate-y-0 active:scale-[0.97]"
                     style={{ animationDelay: `${40 + i * 35}ms` }}
                   >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10 transition-colors duration-200 group-hover:bg-amber-500/20">
-                      <Icon className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-warning/10 transition-colors duration-200 group-hover:bg-warning/20">
+                      <Icon className="h-3.5 w-3.5 text-warning" />
                     </span>
                     {t(`tools.${tool.id}`, tool.name)}
                   </button>
@@ -219,7 +219,7 @@ function ToolStoppedScreen({ toolId }: { toolId: string }) {
         </div>
         <button
           onClick={() => startTool(toolId)}
-          className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-[13px] font-medium text-emerald-600 transition-all duration-200 hover:bg-emerald-500/20 hover:shadow-tinted-sm active:scale-[0.97] dark:text-emerald-400"
+          className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-2 text-[13px] font-medium text-success transition-all duration-200 hover:bg-success/20 hover:shadow-tinted-sm active:scale-[0.97]"
         >
           <Power className="h-3.5 w-3.5" />
           {t('app.startTool')}
@@ -266,10 +266,10 @@ function ToolPowerSwitch({ toolId }: { toolId: string }) {
       className={cn(
         'group relative flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-200',
         isAlwaysOn
-          ? 'cursor-default border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+          ? 'cursor-default border-warning/30 bg-warning/10 text-warning'
           : isActive
-            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-500 dark:text-emerald-400 dark:hover:text-red-400'
-            : 'border-border bg-muted/50 text-muted-foreground hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400'
+            ? 'border-success/30 bg-success/10 text-success hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive'
+            : 'border-border bg-muted/50 text-muted-foreground hover:border-success/40 hover:bg-success/10 hover:text-success'
       )}
     >
       {isAlwaysOn ? (
@@ -282,7 +282,7 @@ function ToolPowerSwitch({ toolId }: { toolId: string }) {
       </span>
       {/* 运行状态呼吸灯 */}
       {isActive && !isAlwaysOn && (
-        <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-glow-pulse" />
+        <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-success animate-glow-pulse" />
       )}
     </button>
   );
@@ -442,7 +442,7 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
           </button>
           <span>UTF-8</span>
           <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-glow-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-success animate-glow-pulse" />
             {t('app.offlineMode')}
           </span>
         </div>

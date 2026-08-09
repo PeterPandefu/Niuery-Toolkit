@@ -8,15 +8,15 @@ import { X, Trash2, Download, Copy, ArrowDown, ChevronRight } from 'lucide-react
 
 const LEVEL_STYLES: Record<LogLevel, string> = {
   debug: 'text-muted-foreground',
-  info: 'text-sky-600 dark:text-sky-400',
-  warn: 'text-amber-600 dark:text-amber-400',
+  info: 'text-info',
+  warn: 'text-warning',
   error: 'text-destructive',
 };
 
 const LEVEL_BADGE: Record<LogLevel, string> = {
   debug: 'bg-muted text-muted-foreground',
-  info: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
-  warn: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  info: 'bg-info/15 text-info',
+  warn: 'bg-warning/15 text-warning',
   error: 'bg-destructive/15 text-destructive',
 };
 

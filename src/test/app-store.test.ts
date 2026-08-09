@@ -5,6 +5,7 @@ describe('useAppStore', () => {
   beforeEach(() => {
     useAppStore.setState({
       theme: 'system',
+      skin: 'forge',
       activeCategory: null,
       recentTools: [],
       activeToolId: null,
@@ -25,6 +26,16 @@ describe('useAppStore', () => {
     it('sets theme to light', () => {
       useAppStore.getState().setTheme('light');
       expect(useAppStore.getState().theme).toBe('light');
+    });
+
+    it('sets skin and restores the default appearance', () => {
+      useAppStore.getState().setSkin('ocean');
+      useAppStore.getState().setTheme('dark');
+      expect(useAppStore.getState().skin).toBe('ocean');
+
+      useAppStore.getState().resetAppearance();
+      expect(useAppStore.getState().skin).toBe('forge');
+      expect(useAppStore.getState().theme).toBe('system');
     });
   });
 

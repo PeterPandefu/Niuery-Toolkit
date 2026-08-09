@@ -6,6 +6,7 @@ import { FileDropzone, OptionRow } from '@/tools/pdf/common';
 import { calcMergeLayout, canvasToBlob, encodeImagesToGif, encodeImagesToPdf, fileToCanvas, loadImageElement } from '@/lib/image-utils';
 import { saveBytes } from '@/lib/file-save';
 import { saveImageResults, useBusyRun } from './common';
+import { ImagePreview } from './image-preview';
 import { Eraser, Loader2, Paintbrush, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
@@ -62,6 +63,7 @@ export function MergeImagePanel() {
   return (
     <div className="space-y-4">
       <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImagePreview files={files} />
       <OptionRow label="排列方式">
         <Select
           value={direction}
@@ -121,6 +123,7 @@ export function MergePdfPanel() {
   return (
     <div className="space-y-4">
       <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImagePreview files={files} />
       <p className="text-xs text-muted-foreground">每张图片作为一页，页面尺寸与图片一致</p>
       <Button onClick={handleRun} disabled={busy || files.length === 0}>
         {busy && <Loader2 className="animate-spin" />}
@@ -156,6 +159,7 @@ export function MergeGifPanel() {
   return (
     <div className="space-y-4">
       <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImagePreview files={files} />
       <OptionRow label={`帧间隔 ${delayMs}ms`}>
         <input type="range" min={50} max={2000} step={50} value={delayMs} onChange={(e) => setDelayMs(parseInt(e.target.value))} className="w-full" />
       </OptionRow>
@@ -325,6 +329,7 @@ export function CutoutPanel() {
   return (
     <div className="space-y-4">
       <FileDropzone files={file} onChange={setFile} accept="image/*" />
+      <ImagePreview files={file} />
       {imgUrl && imgSize && (
         <>
           <div className="flex items-center gap-2">
