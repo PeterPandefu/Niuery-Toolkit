@@ -21,6 +21,7 @@ import {
   KeyRound,
   Languages,
   Link2,
+  MapPinned,
   Paintbrush,
   Palette,
   QrCode,
@@ -135,6 +136,27 @@ registerTool({
   component: lazy(() => import('@/tools/converter/angle')),
   keywords: ['angle', 'degree', 'radian', 'grad', '角度', '弧度'],
   description: '度/弧度/梯度互转',
+});
+
+registerTool({
+  id: 'province-lookup',
+  name: '经纬度查省份',
+  icon: MapPinned,
+  category: 'converter',
+  component: lazy(() => import('@/tools/converter/province-lookup')),
+  keywords: [
+    'province',
+    'longitude',
+    'latitude',
+    '经纬度',
+    '省份',
+    '行政区',
+    'geo',
+    '坐标',
+    'gcj02',
+    'wgs84',
+  ],
+  description: '根据经纬度离线查询所属中国省级行政区',
 });
 
 // === 编码器/解码器 ===
