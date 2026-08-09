@@ -172,9 +172,28 @@
   @apply h-full w-full overflow-hidden rounded-md border;
 }
 
-/* Markdown Preview - highlight.js code theme */
-.markdown-preview .hljs {
-  @apply bg-muted rounded-md p-3 text-sm font-mono overflow-x-auto;
+/* Markdown 预览 - 代码样式
+ * 排版插件会为 pre 设置浅色代码文本，而此处使用的是浅色背景。
+ * 显式使用主题前景色，避免代码块和行内代码出现低对比度或异常配色。
+ */
+.markdown-preview pre.hljs {
+  @apply my-4 overflow-x-auto rounded-md bg-muted p-3 font-mono text-sm font-normal text-foreground;
+}
+
+.markdown-preview pre.hljs code {
+  color: inherit;
+  background-color: transparent;
+  padding: 0;
+  font: inherit;
+}
+
+.markdown-preview :not(pre) > code {
+  @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em] font-normal text-foreground;
+}
+
+.markdown-preview :not(pre) > code::before,
+.markdown-preview :not(pre) > code::after {
+  content: none;
 }
 
 .markdown-preview .hljs-keyword,
