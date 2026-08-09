@@ -11,7 +11,12 @@
     "core:window:allow-show",
     "core:window:allow-set-focus",
     "opener:default",
-    "http:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        "https://fanyi-api.baidu.com/api/trans/vip/translate"
+      ]
+    },
     "global-shortcut:default",
     "autostart:default",
     "dialog:default"

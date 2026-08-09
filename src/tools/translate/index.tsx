@@ -9,7 +9,7 @@ import { cn, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 
-/** 翻译工具：百度翻译，手动触发，上输入下结果，中间语言栏 */
+/** 翻译工具：百度翻译，回车触发，上输入下结果，中间语言栏 */
 export default function TranslatorTool() {
   const { baiduAppId, baiduSecret } = useTranslateStore();
   const configured = Boolean(baiduAppId && baiduSecret);
@@ -17,7 +17,7 @@ export default function TranslatorTool() {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [fromLang, setFromLang] = useState('auto');
-  const [toLang, setToLang] = useState('zh');
+  const [toLang, setToLang] = useState('en');
   const [loading, setLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -110,7 +110,7 @@ export default function TranslatorTool() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               void handleTranslate();
             }
