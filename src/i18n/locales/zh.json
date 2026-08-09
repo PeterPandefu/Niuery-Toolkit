@@ -71,6 +71,7 @@
     "color-picker": "颜色助手",
     "data-size": "数据大小转换",
     "angle": "角度转换",
+    "province-lookup": "经纬度查省份",
     "base64": "Base64",
     "url-encode": "URL 编解码",
     "html-entity": "HTML 实体",
