@@ -9,6 +9,8 @@ import { SearchDialog } from '@/components/layout/SearchDialog';
 import { SettingsDialog } from '@/components/layout/SettingsDialog';
 import { getToolById } from '@/registry/tool-registry';
 import { listen } from '@tauri-apps/api/event';
+import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
+import { openTranslatorWithText } from '@/lib/translation-navigation';
 
 export default function App() {
   // 初始化主题
@@ -47,6 +49,16 @@ export default function App() {
       else cleanups.push(unlisten);
     });
     void listen('open-longshot-editor', () => handleSelectTool('screenshot-editor')).then((unlisten) => {
+      if (disposed) unlisten();
+      else cleanups.push(unlisten);
+    });
+    void listen<{ imageDataUrl: string; text: string; translate?: boolean }>('open-screenshot-ocr', (event) => {
+      const { imageDataUrl, text, translate } = event.payload;
+      if (!imageDataUrl) return;
+      useScreenshotOcrStore.getState().setScreenshotSession({ imageDataUrl, text: text ?? '' });
+      handleSelectTool('screenshot-editor');
+      if (translate && text.trim()) openTranslatorWithText(text);
+    }).then((unlisten) => {
       if (disposed) unlisten();
       else cleanups.push(unlisten);
     });
