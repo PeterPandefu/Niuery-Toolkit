@@ -53,6 +53,7 @@ pnpm-debug.log*
 src-tauri/target/
 src-tauri/target-recorder-test/
 src-tauri/gen/
+src-tauri/target-http-scope
 
 # Misc
 *.local
