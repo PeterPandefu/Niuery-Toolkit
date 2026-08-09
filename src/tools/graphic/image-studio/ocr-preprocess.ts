@@ -1,7 +1,7 @@
 export const OCR_SCALE_FACTOR = 2;
 export const OCR_MAX_IMAGE_DIMENSION = 4096;
 export const OCR_RECOGNITION_PARAMETERS = {
-  tessedit_pageseg_mode: '11' as Tesseract.PSM,
+  tessedit_pageseg_mode: '3' as Tesseract.PSM,
   preserve_interword_spaces: '1',
   user_defined_dpi: '300',
 } as const;

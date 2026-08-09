@@ -92,7 +92,7 @@ describe('OcrPanel', () => {
       })
     );
     expect(setParameters).toHaveBeenCalledWith({
-      tessedit_pageseg_mode: '11',
+      tessedit_pageseg_mode: '3',
       preserve_interword_spaces: '1',
       user_defined_dpi: '300',
     });

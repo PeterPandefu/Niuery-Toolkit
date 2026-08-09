@@ -8,6 +8,7 @@ import { useToolLogger } from '@/hooks/use-tool-logger';
 import { FileDropzone, OptionRow } from '@/tools/pdf/common';
 import { createOcrWorker, OcrInitializationTimeoutError, type OcrLanguage, type OcrWorker } from './ocr-engine';
 import { preprocessOcrImage } from './ocr-preprocess';
+import { postprocessOcrText } from './ocr-postprocess';
 import { ImagePreview } from './image-preview';
 
 const LANGUAGE_OPTIONS: { value: OcrLanguage; label: string }[] = [
@@ -73,7 +74,7 @@ export function OcrPanel() {
         const image = await preprocessOcrImage(file);
         const { data } = await worker.recognize(image);
         if (!isCurrentRun()) return;
-        const text = data.text.trim();
+        const text = postprocessOcrText(data.text, language).trim();
         setResult(text);
         log.info('OCR 识别完成', { name: file.name, language, textLength: text.length, confidence: data.confidence });
         toast.success(text ? '文字识别完成' : '未识别到文字');
