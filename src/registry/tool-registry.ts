@@ -34,6 +34,8 @@ import {
   Video,
   Wind,
   Activity,
+  Network,
+  Workflow,
 } from 'lucide-react';
 
 // 工具注册表
@@ -392,6 +394,26 @@ registerTool({
   component: lazy(() => import('@/tools/graphic/image-studio')),
   keywords: ['image', 'compress', 'convert', 'resize', 'watermark', 'crop', 'rotate', 'gif', 'pdf', '图片', '压缩', '转换', '尺寸', '水印', '圆角', '裁剪', '旋转', '翻转', '合并'],
   description: '图片压缩/转换/尺寸/水印/圆角/裁剪/旋转/合并等一站式处理',
+});
+
+registerTool({
+  id: 'mind-map',
+  name: '思维导图',
+  icon: Workflow,
+  category: 'graphic',
+  component: lazy(() => import('@/tools/graphic/mind-map')),
+  keywords: ['mind map', 'mind-map', '思维导图', '大纲', 'markdown', 'smm', '离线'],
+  description: '离线思维导图：本地 .smm 保存、Markdown 导入与 PNG/SVG 导出',
+});
+
+registerTool({
+  id: 'knowledge-canvas',
+  name: '知识画布',
+  icon: Network,
+  category: 'graphic',
+  component: lazy(() => import('@/tools/graphic/knowledge-canvas')),
+  keywords: ['knowledge canvas', 'canvas', 'graph', '知识画布', '关系图', '卡片', '离线'],
+  description: '离线知识画布：卡片、连线、本地图片资源与 PNG/SVG 导出',
 });
 
 registerTool({

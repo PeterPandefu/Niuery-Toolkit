@@ -323,9 +323,10 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   };
 
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
+  const isChinese = (i18n.resolvedLanguage ?? i18n.language).startsWith('zh');
 
   const toggleLanguage = () => {
-    const newLang = i18n.language === 'zh' ? 'en' : 'zh';
+    const newLang = isChinese ? 'en' : 'zh';
     i18n.changeLanguage(newLang);
   };
 
@@ -367,7 +368,7 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
             onClick={toggleLanguage}
-            title={i18n.language === 'zh' ? 'English' : '中文'}
+            title={isChinese ? 'English' : '中文'}
           >
             <Languages className="h-4 w-4" />
           </Button>
