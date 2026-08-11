@@ -1,36 +1,107 @@
-import { useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ScreenshotOverlay } from './ScreenshotOverlay';
+
+interface ScreenshotCapture {
+  generation: number;
+  mode: 'normal' | 'longshot';
+  path: string;
+}
+
+interface ScreenshotCaptureReady {
+  generation: number;
+}
 
 interface ScreenData {
   image: HTMLImageElement;
   width: number;
   height: number;
+  generation: number;
+  mode: ScreenshotCapture['mode'];
 }
 
-// 长截图模式由 Rust 端通过 URL 查询参数传入：#/screenshot?mode=longshot
-const isLongshotMode = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('mode') === 'longshot';
-
 /**
- * 截图窗口根组件
- * 从 Rust 后端获取已捕获的屏幕截图，然后渲染全屏覆盖层
+ * 可跨截图会话复用的窗口根组件。
+ * 窗口在应用启动时隐藏预热，收到后端捕获事件后才加载图片并显示。
  */
 export default function ScreenshotApp() {
   const [screen, setScreen] = useState<ScreenData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const hasShownWindow = useRef(false);
-  const hasClosedFailedWindow = useRef(false);
+  const loadingGeneration = useRef(0);
+  const shownGeneration = useRef(0);
+
+  const loadCapture = useCallback(async (expectedGeneration?: number) => {
+    try {
+      const capture = await invoke<ScreenshotCapture | null>('get_screen_capture');
+      if (!capture || (expectedGeneration !== undefined && capture.generation !== expectedGeneration)) {
+        return;
+      }
+
+      const generation = capture.generation;
+      loadingGeneration.current = generation;
+      shownGeneration.current = 0;
+      setError(null);
+      const image = new Image();
+      // 截图由 asset.localhost 提供，与 WebView 页面不同源。必须在赋值 src 前启用
+      // 匿名跨域，否则图片绘入 canvas 后会污染画布，首次拖动框选即抛出异常。
+      image.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error('图片解码失败'));
+        image.src = convertFileSrc(capture.path);
+      });
+      if (loadingGeneration.current !== generation) return;
+      setScreen({
+        image,
+        width: image.naturalWidth,
+        height: image.naturalHeight,
+        generation,
+        mode: capture.mode,
+      });
+    } catch (reason) {
+      if (expectedGeneration !== undefined && loadingGeneration.current !== expectedGeneration) return;
+      setError(String(reason));
+      const generation = expectedGeneration ?? loadingGeneration.current;
+      await invoke('close_screenshot_window', generation > 0 ? { generation } : {}).catch((closeReason) => {
+        console.error('隐藏加载失败的截图窗口时出错', closeReason);
+      });
+    }
+  }, []);
 
   useEffect(() => {
-    if (!screen || hasShownWindow.current) return;
-    hasShownWindow.current = true;
+    let disposed = false;
+    let unlisten: UnlistenFn | null = null;
+
+    void listen<ScreenshotCaptureReady>('screenshot-capture-ready', (event) => {
+      if (!disposed) void loadCapture(event.payload.generation);
+    }).then((cleanup) => {
+      if (disposed) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
+      // 监听器注册后再读取一次，覆盖预热页面与首次捕获事件并发的情况。
+      // 此时只能预热 WebView，不能让隐藏窗口提前进入全屏；Windows 会将它
+      // 视为可见的透明顶层窗口，导致首个鼠标按下无法进入框选层。
+      void loadCapture();
+    });
+
+    return () => {
+      disposed = true;
+      loadingGeneration.current += 1;
+      unlisten?.();
+    };
+  }, [loadCapture]);
+
+  useEffect(() => {
+    if (!screen || shownGeneration.current === screen.generation) return;
+    shownGeneration.current = screen.generation;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let firstFrame: number | null = null;
-    let secondFrame: number | null = null;
 
     const tryShow = (retries = 3) => {
-      invoke('show_screenshot_window').catch(() => {
+      invoke('show_screenshot_window', { generation: screen.generation }).catch(() => {
         if (cancelled || retries === 0) return;
         retryTimer = setTimeout(() => {
           retryTimer = null;
@@ -39,57 +110,14 @@ export default function ScreenshotApp() {
       });
     };
 
-    // 隐藏的 WebView 提交 React 内容后，再等待两帧交给系统合成器，
-    // 避免透明置顶窗口先显示、截图提示尚未绘制而看起来像整个桌面卡死。
-    firstFrame = requestAnimationFrame(() => {
-      firstFrame = null;
-      secondFrame = requestAnimationFrame(() => {
-        secondFrame = null;
-        if (!cancelled) tryShow();
-      });
-    });
+    // useEffect 在图片节点提交后运行，预热窗口可直接显示，无需额外等待合成帧。
+    tryShow();
 
     return () => {
       cancelled = true;
-      if (firstFrame !== null) cancelAnimationFrame(firstFrame);
-      if (secondFrame !== null) cancelAnimationFrame(secondFrame);
       if (retryTimer !== null) clearTimeout(retryTimer);
     };
   }, [screen]);
-
-  useEffect(() => {
-    if (!error || hasClosedFailedWindow.current) return;
-    hasClosedFailedWindow.current = true;
-    // 图片加载失败时窗口仍处于隐藏状态，直接关闭，绝不留下透明置顶拦截层。
-    invoke('close_screenshot_window').catch((reason) => {
-      console.error('关闭失败的截图窗口时出错', reason);
-    });
-  }, [error]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const base64 = await invoke<string>('get_screen_capture');
-        const img = new Image();
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error('图片解码失败'));
-          img.src = `data:image/png;base64,${base64}`;
-        });
-        if (!cancelled) {
-          setScreen({ image: img, width: img.naturalWidth, height: img.naturalHeight });
-        }
-      } catch (e) {
-        if (!cancelled) setError(String(e));
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   if (error) {
     return (
@@ -100,16 +128,17 @@ export default function ScreenshotApp() {
   }
 
   if (!screen) {
-    // 透明加载状态（窗口本身是透明的，不会看到白屏）
     return <div className="h-screen w-screen" />;
   }
 
   return (
     <ScreenshotOverlay
+      key={screen.generation}
+      generation={screen.generation}
       screenImage={screen.image}
       screenW={screen.width}
       screenH={screen.height}
-      longshotMode={isLongshotMode}
+      longshotMode={screen.mode === 'longshot'}
     />
   );
 }

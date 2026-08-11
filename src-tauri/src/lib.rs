@@ -137,7 +137,15 @@ pub fn run() {
                     if screenshot::is_screenshot_esc(shortcut)
                         && screenshot::is_screenshot_session_active(app)
                     {
-                        let _ = screenshot::close_screenshot_window(app.clone());
+                        let Some(generation) = screenshot::current_screenshot_generation(app) else {
+                            return;
+                        };
+                        // 全局快捷键插件的回调内不能同步注销当前 Esc，延后一拍再隐藏窗口并注销。
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+                            let _ = screenshot::close_screenshot_generation(app, generation);
+                        });
                         return;
                     }
                     // 长截图会话临时 Esc：结束并拼接（仅当边框窗口存在时处理）
@@ -170,17 +178,6 @@ pub fn run() {
                                 {
                                     return;
                                 }
-                                // 主窗口可见时先最小化，避免全屏截图层展示静态的主窗口画面，
-                                // 让用户误以为应用失去响应；截图模块会等待最小化动画结束再捕获。
-                                if screenshot::should_minimize_before_capture(app) {
-                                    if let Some(window) = app.get_webview_window("main") {
-                                        let visible = window.is_visible().unwrap_or(false);
-                                        let minimized = window.is_minimized().unwrap_or(false);
-                                        if visible && !minimized {
-                                            let _ = window.minimize();
-                                        }
-                                    }
-                                }
                                 let app = app.clone();
                                 tauri::async_runtime::spawn(async move {
                                     let _ = screenshot::start_screenshot(app, None).await;
@@ -196,14 +193,6 @@ pub fn run() {
                                 }
                                 // 切换到截图编辑器工具，确保后续长截图事件能被监听
                                 let _ = app.emit("open-longshot-editor", ());
-                                // 主窗口可见时先最小化，避免遮挡待框选的内容
-                                if let Some(window) = app.get_webview_window("main") {
-                                    let visible = window.is_visible().unwrap_or(false);
-                                    let minimized = window.is_minimized().unwrap_or(false);
-                                    if visible && !minimized {
-                                        let _ = window.minimize();
-                                    }
-                                }
                                 let app = app.clone();
                                 tauri::async_runtime::spawn(async move {
                                     let _ = screenshot::start_screenshot(app, Some("longshot".to_string())).await;
@@ -329,6 +318,10 @@ pub fn run() {
             let screenshot_settings = screenshot::load_screenshot_settings(app.handle());
             app.state::<ScreenshotState>()
                 .set_minimize_before_capture(screenshot_settings.minimize_before_capture);
+            // 在应用空闲启动阶段加载截图 WebView，避免快捷键热路径承担页面初始化成本。
+            if let Err(error) = screenshot::ensure_screenshot_window(app.handle()) {
+                eprintln!("预热截图窗口失败，将在首次截图时重试：{error}");
+            }
 
             // 加载托盘图标
             let tray_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))

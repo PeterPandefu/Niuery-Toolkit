@@ -273,17 +273,16 @@ function ScreenshotEditorInner() {
     toast.info('请按 Ctrl+V 粘贴剪贴板中的图片');
   }, []);
 
-  // 微信风格截图（Tauri 桌面端）：按用户配置决定是否最小化主窗口
+  // 微信风格截图（Tauri 桌面端）：主窗口排除与状态恢复由后端统一处理
   const handleWechatScreenshot = useCallback(async () => {
     try {
       log.info('捕获屏幕开始');
-      if (minimizeBeforeCapture) await getCurrentWindow().minimize();
       await invoke('start_screenshot');
     } catch (e) {
       log.error('捕获屏幕失败', e);
       toast.error(`截图失败: ${e}`);
     }
-  }, [log, minimizeBeforeCapture]);
+  }, [log]);
 
   const handleMinimizeBeforeCaptureChange = useCallback(async (checked: boolean) => {
     setMinimizeBeforeCapture(checked);
@@ -297,11 +296,10 @@ function ScreenshotEditorInner() {
   }, [log]);
 
   // 长截图入口：打开框选窗口（长截图模式）
-  // 从界面按钮启动时先最小化主窗口，避免遮挡待框选的内容（拼接完成后会自动恢复）
+  // 后端会立即隐藏主窗口，避免等待最小化动画。
   const handleLongshotEntry = useCallback(async () => {
     try {
       log.info('长截图开始');
-      await getCurrentWindow().minimize();
       await invoke('start_screenshot', { mode: 'longshot' });
     } catch (e) {
       log.error('长截图启动失败', e);
