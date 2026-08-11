@@ -41,8 +41,3 @@ export async function discardRecoverySnapshot(tool: string, id: string) {
   if (!isTauri) return;
   await invoke('discard_recovery_snapshot', { tool, id });
 }
-
-export async function openConfirmedLocalFile(path: string) {
-  if (!isTauri) throw new Error('仅桌面应用支持打开本地文件');
-  await invoke('open_confirmed_local_file', { path });
-}

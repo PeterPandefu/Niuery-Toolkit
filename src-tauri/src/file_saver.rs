@@ -1,6 +1,5 @@
-use base64::Engine;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 
@@ -17,12 +16,6 @@ pub struct RecoverySnapshot {
     pub content: String,
     pub document_path: Option<String>,
     pub updated_at: u64,
-}
-
-#[derive(Deserialize)]
-pub struct CanvasAsset {
-    pub filename: String,
-    pub base64: String,
 }
 
 fn now_millis() -> Result<u64, String> {
@@ -144,20 +137,6 @@ pub fn list_recovery_snapshots(
     Ok(snapshots)
 }
 
-/// 在用户已确认的前提下交给系统默认程序打开本地文件，拒绝网络路径。
-#[tauri::command]
-pub fn open_confirmed_local_file(path: String) -> Result<(), String> {
-    let target = Path::new(&path);
-    if !target.is_absolute() || path.starts_with("\\\\") {
-        return Err("只允许打开本地绝对路径".into());
-    }
-    if !target.exists() {
-        return Err("目标文件不存在或已移动".into());
-    }
-    tauri_plugin_opener::open_path(target, None::<&str>)
-        .map_err(|error| format!("打开本地文件失败: {error}"))
-}
-
 /// 清除一份恢复快照；显式保存或用户放弃恢复后调用。
 #[tauri::command]
 pub fn discard_recovery_snapshot(
@@ -170,173 +149,6 @@ pub fn discard_recovery_snapshot(
         std::fs::remove_file(path).map_err(|error| format!("删除恢复快照失败: {error}"))?;
     }
     Ok(())
-}
-
-fn safe_filename(value: &str) -> Result<&str, String> {
-    if value.is_empty()
-        || value.len() > 160
-        || value.contains('/')
-        || value.contains('\\')
-        || value == "."
-        || value == ".."
-    {
-        return Err("资源文件名无效".into());
-    }
-    Ok(value)
-}
-
-fn temporary_sibling_path(path: &Path, label: &str) -> Result<PathBuf, String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| "无法确定临时保存目录".to_string())?;
-    let filename = path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .ok_or_else(|| "无法确定临时文件名".to_string())?;
-    let nonce = now_millis()?;
-    for index in 0..100 {
-        let candidate = parent.join(format!(
-            ".{filename}.{label}-{}-{nonce}-{index}",
-            std::process::id()
-        ));
-        if !candidate.exists() {
-            return Ok(candidate);
-        }
-    }
-    Err("无法创建唯一的临时保存路径".into())
-}
-
-/// 保存知识画布及其图片资源。资源总是写到同名 `.assets` 目录。
-#[tauri::command]
-pub fn save_canvas_document(
-    content: String,
-    assets: Vec<CanvasAsset>,
-    default_name: String,
-) -> Result<Option<String>, String> {
-    let path = rfd::FileDialog::new()
-        .add_filter("知识画布", &["niuery-canvas"])
-        .set_file_name(&default_name)
-        .save_file();
-    let Some(path) = path else {
-        return Ok(None);
-    };
-
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "无法确定画布文件名".to_string())?;
-    let asset_directory_name = format!("{stem}.assets");
-    // 资源与文档先写入同目录的临时位置；仅在两者都准备好后替换正式文件，失败时保留旧文档。
-    let decoded_assets: Vec<(&str, Vec<u8>)> = assets
-        .iter()
-        .map(|asset| {
-            let filename = safe_filename(&asset.filename)?;
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(&asset.base64)
-                .map_err(|error| format!("解码图片资源失败: {error}"))?;
-            Ok((filename, bytes))
-        })
-        .collect::<Result<_, String>>()?;
-
-    let parent = path
-        .parent()
-        .ok_or_else(|| "无法确定画布保存目录".to_string())?;
-    let directory = parent.join(&asset_directory_name);
-    let temporary_directory = temporary_sibling_path(&directory, "assets-tmp")?;
-    let backup_directory = temporary_sibling_path(&directory, "assets-backup")?;
-    let temporary_document = temporary_sibling_path(&path, "document-tmp")?;
-    std::fs::create_dir(&temporary_directory)
-        .map_err(|error| format!("创建临时资源目录失败: {error}"))?;
-    for (filename, bytes) in decoded_assets {
-        if let Err(error) = std::fs::write(temporary_directory.join(filename), bytes) {
-            let _ = std::fs::remove_dir_all(&temporary_directory);
-            return Err(format!("写入临时图片资源失败: {error}"));
-        }
-    }
-    let saved_content = content.replace("__ASSET_DIR__", &asset_directory_name);
-    if let Err(error) = std::fs::write(&temporary_document, saved_content) {
-        let _ = std::fs::remove_dir_all(&temporary_directory);
-        return Err(format!("写入临时画布失败: {error}"));
-    }
-
-    let had_existing_assets = directory.exists();
-    if had_existing_assets {
-        if let Err(error) = std::fs::rename(&directory, &backup_directory) {
-            let _ = std::fs::remove_dir_all(&temporary_directory);
-            let _ = std::fs::remove_file(&temporary_document);
-            return Err(format!("暂存旧资源目录失败: {error}"));
-        }
-    }
-    if let Err(error) = std::fs::rename(&temporary_directory, &directory) {
-        if had_existing_assets {
-            let _ = std::fs::rename(&backup_directory, &directory);
-        }
-        let _ = std::fs::remove_dir_all(&temporary_directory);
-        let _ = std::fs::remove_file(&temporary_document);
-        return Err(format!("替换画布资源目录失败: {error}"));
-    }
-    if let Err(error) = std::fs::rename(&temporary_document, &path) {
-        let _ = std::fs::remove_dir_all(&directory);
-        if had_existing_assets {
-            let _ = std::fs::rename(&backup_directory, &directory);
-        }
-        let _ = std::fs::remove_file(&temporary_document);
-        return Err(format!("替换画布文件失败，已保留原文件: {error}"));
-    }
-    if had_existing_assets {
-        let _ = std::fs::remove_dir_all(&backup_directory);
-    }
-    Ok(Some(path.to_string_lossy().into_owned()))
-}
-
-/// 读取与画布同目录且受限于同名资源目录中的图片，防止路径穿越。
-#[tauri::command]
-pub fn read_canvas_asset(document_path: String, asset_ref: String) -> Result<String, String> {
-    let document = Path::new(&document_path);
-    let stem = document
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "无法确定画布文件名".to_string())?;
-    let expected_directory = format!("{stem}.assets");
-    let normalized_asset_ref = asset_ref.replace('\\', "/");
-    let mut parts = normalized_asset_ref.split('/');
-    if parts.next() != Some(expected_directory.as_str()) {
-        return Err("图片资源不属于当前画布".into());
-    }
-    let Some(filename) = parts.next() else {
-        return Err("图片资源路径无效".into());
-    };
-    if parts.next().is_some() {
-        return Err("图片资源路径无效".into());
-    }
-    let parent = document
-        .parent()
-        .ok_or_else(|| "无法确定画布目录".to_string())?;
-    let bytes = std::fs::read(
-        parent
-            .join(expected_directory)
-            .join(safe_filename(filename)?),
-    )
-    .map_err(|error| format!("读取图片资源失败: {error}"))?;
-    let mime = match Path::new(filename)
-        .extension()
-        .and_then(|value| value.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "svg" => "image/svg+xml",
-        _ => "image/png",
-    };
-    Ok(format!(
-        "data:{mime};base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(bytes)
-    ))
 }
 
 /// 通用文件保存：弹出系统保存对话框，将字节流写入用户选择的路径。

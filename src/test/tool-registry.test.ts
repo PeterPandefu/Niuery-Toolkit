@@ -7,9 +7,9 @@ import {
 } from '@/registry/tool-registry';
 
 describe('Tool Registry', () => {
-  it('registers all 42 tools', () => {
+  it('registers all 41 tools', () => {
     const tools = getAllTools();
-    expect(tools.length).toBe(42);
+    expect(tools.length).toBe(41);
   });
 
   it('has 10 categories', () => {
@@ -47,10 +47,10 @@ describe('Tool Registry', () => {
     expect(getToolsByCategory('text').length).toBe(6);
   });
 
-  it('has 7 graphic tools', () => {
+  it('has 6 graphic tools', () => {
     const tools = getToolsByCategory('graphic');
-    expect(tools).toHaveLength(7);
-    expect(tools.map((tool) => tool.id)).toEqual(expect.arrayContaining(['image-studio', 'mind-map', 'knowledge-canvas']));
+    expect(tools).toHaveLength(6);
+    expect(tools.map((tool) => tool.id)).toEqual(expect.arrayContaining(['image-studio', 'mind-map']));
   });
 
   it('has a translator', () => {
