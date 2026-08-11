@@ -58,6 +58,7 @@
     "react-i18next": "^17.0.11",
     "react-konva": "^19.2.5",
     "react-router-dom": "^7.6.2",
+    "simple-mind-map": "^0.14.0-fix.3",
     "sonner": "^2.0.3",
     "sql-formatter": "^15.6.3",
     "tailwind-merge": "^3.3.0",
