@@ -52,6 +52,21 @@ export const BAIDU_LANGUAGES: { code: string; label: string }[] = [
   { code: 'vi', label: '越南语' },
 ];
 
+/**
+ * 解析目标语言的自动选择规则。
+ *
+ * 百度翻译仅支持自动检测源语言，目标语言必须在请求前确定：
+ * - 明确选择中文（简体或繁体）为源语言时，译为英语；
+ * - 明确选择其他源语言时，译为简体中文；
+ * - 源语言自动检测时，以输入中是否包含汉字作为本地预判。
+ */
+export function resolveTargetLanguage(text: string, from: string, to: string): string {
+  if (to !== 'auto') return to;
+  if (from === 'zh' || from === 'cht') return 'en';
+  if (from !== 'auto') return 'zh';
+  return /\p{Script=Han}/u.test(text) ? 'en' : 'zh';
+}
+
 /** 百度翻译错误码映射 */
 export const BAIDU_ERROR_MESSAGES: Record<string, string> = {
   '52001': '请求超时，请稍后重试',
