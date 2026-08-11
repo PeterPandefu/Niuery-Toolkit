@@ -55,9 +55,14 @@ export default function App() {
     void listen<{ imageDataUrl: string; text: string; translate?: boolean }>('open-screenshot-ocr', (event) => {
       const { imageDataUrl, text, translate } = event.payload;
       if (!imageDataUrl) return;
+      if (translate && text.trim()) {
+        // 翻译页不需要提前加载截图；保留会话供“返回截图”使用。
+        openTranslatorWithText(text);
+        useScreenshotOcrStore.getState().setScreenshotSession({ imageDataUrl, text: text ?? '' });
+        return;
+      }
       useScreenshotOcrStore.getState().setScreenshotSession({ imageDataUrl, text: text ?? '' });
       handleSelectTool('screenshot-editor');
-      if (translate && text.trim()) openTranslatorWithText(text);
     }).then((unlisten) => {
       if (disposed) unlisten();
       else cleanups.push(unlisten);

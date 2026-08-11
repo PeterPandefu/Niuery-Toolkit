@@ -37,6 +37,7 @@ import { useClipboardPaste } from './screenshot/useClipboardPaste';
 import { useExport } from './screenshot/useExport';
 import { ScreenshotOcrPanel } from '@/components/ocr/ScreenshotOcrPanel';
 import { openTranslatorWithText } from '@/lib/translation-navigation';
+import { useAppStore } from '@/store/app-store';
 import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
 import {
   type ToolType,
@@ -77,6 +78,7 @@ function ScreenshotEditorInner() {
   const [ocrSource, setOcrSource] = useState<Blob | null>(null);
   const [ocrText, setOcrText] = useState('');
   const [ocrAutoTranslate, setOcrAutoTranslate] = useState(false);
+  const activeToolId = useAppStore((state) => state.activeToolId);
   const screenshotSession = useScreenshotOcrStore((state) => state.screenshotSession);
 
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -144,7 +146,11 @@ function ScreenshotEditorInner() {
   );
 
   useEffect(() => {
-    if (!screenshotSession || appliedSessionRef.current === screenshotSession.id) return;
+    if (
+      activeToolId !== 'screenshot-editor'
+      || !screenshotSession
+      || appliedSessionRef.current === screenshotSession.id
+    ) return;
     appliedSessionRef.current = screenshotSession.id;
     let cancelled = false;
     const image = new Image();
@@ -157,14 +163,18 @@ function ScreenshotEditorInner() {
         .then((blob) => {
           if (!cancelled) setOcrSource(blob);
         })
-        .catch(() => toast.error('截图识别会话加载失败，请重试'));
+        .catch(() => {
+          if (!cancelled) toast.error('截图识别会话加载失败，请重试');
+        });
     };
-    image.onerror = () => toast.error('截图识别会话加载失败，请重试');
+    image.onerror = () => {
+      if (!cancelled) toast.error('截图识别会话加载失败，请重试');
+    };
     image.src = screenshotSession.imageDataUrl;
     return () => {
       cancelled = true;
     };
-  }, [loadImage, screenshotSession]);
+  }, [activeToolId, loadImage, screenshotSession]);
 
   const openOcr = useCallback(
     (autoTranslate: boolean) => {
