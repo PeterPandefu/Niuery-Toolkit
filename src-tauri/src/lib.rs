@@ -304,9 +304,6 @@ pub fn run() {
             file_saver::write_recovery_snapshot,
             file_saver::list_recovery_snapshots,
             file_saver::discard_recovery_snapshot,
-            file_saver::open_confirmed_local_file,
-            file_saver::save_canvas_document,
-            file_saver::read_canvas_asset,
         ])
         .setup(move |app| {
             // 开发模式下：开机自启动等独立启动场景自动拉起前端 dev 服务

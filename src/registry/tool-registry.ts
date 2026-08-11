@@ -34,7 +34,6 @@ import {
   Video,
   Wind,
   Activity,
-  Network,
   Workflow,
 } from 'lucide-react';
 
@@ -404,16 +403,6 @@ registerTool({
   component: lazy(() => import('@/tools/graphic/mind-map')),
   keywords: ['mind map', 'mind-map', '思维导图', '大纲', 'markdown', 'smm', '离线'],
   description: '离线思维导图：本地 .smm 保存、Markdown 导入与 PNG/SVG 导出',
-});
-
-registerTool({
-  id: 'knowledge-canvas',
-  name: '知识画布',
-  icon: Network,
-  category: 'graphic',
-  component: lazy(() => import('@/tools/graphic/knowledge-canvas')),
-  keywords: ['knowledge canvas', 'canvas', 'graph', '知识画布', '关系图', '卡片', '离线'],
-  description: '离线知识画布：卡片、连线、本地图片资源与 PNG/SVG 导出',
 });
 
 registerTool({
