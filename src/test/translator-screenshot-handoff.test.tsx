@@ -35,6 +35,13 @@ describe('截图翻译交接', () => {
     render(<TranslatorTool />);
 
     await waitFor(() => expect(translateWithBaidu).toHaveBeenCalled());
+    expect(translateWithBaidu).toHaveBeenCalledWith(
+      '截图原文',
+      'auto',
+      'en',
+      { appId: 'app-id', secret: 'secret' },
+      expect.any(Function)
+    );
     expect(screen.getByRole('textbox')).toHaveValue('截图原文');
     expect(await screen.findByText('translated text')).toBeInTheDocument();
     expect(useScreenshotOcrStore.getState().pendingTranslation).toBeNull();

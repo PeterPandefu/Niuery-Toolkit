@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { useTranslateStore } from '@/store/translate-store';
-import { BAIDU_LANGUAGES, resolveFetch, translateWithBaidu } from '@/lib/translate-utils';
+import { BAIDU_LANGUAGES, resolveFetch, resolveTargetLanguage, translateWithBaidu } from '@/lib/translate-utils';
 import { TranslateSettingsDialog } from './translate-settings';
 import { ArrowRightLeft, Check, Copy, Loader2, PawPrint, Settings2 } from 'lucide-react';
 import { cn, copyToClipboard } from '@/lib/utils';
@@ -19,7 +19,7 @@ export default function TranslatorTool() {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [fromLang, setFromLang] = useState('auto');
-  const [toLang, setToLang] = useState('en');
+  const [toLang, setToLang] = useState('auto');
   const [loading, setLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -42,19 +42,20 @@ export default function TranslatorTool() {
       setSettingsOpen(true);
       return;
     }
-    log.info('发起翻译请求', { fromLang, toLang, textLength: text.length });
+    const resolvedToLang = resolveTargetLanguage(text, fromLang, toLang);
+    log.info('发起翻译请求', { fromLang, toLang: resolvedToLang, textLength: text.length });
     setLoading(true);
     try {
       const fetchFn = await resolveFetch();
       const result = await translateWithBaidu(
         text,
         fromLang,
-        toLang,
+        resolvedToLang,
         { appId: baiduAppId, secret: baiduSecret },
         fetchFn
       );
       setOutput(result.text);
-      log.info('翻译成功', { fromLang, toLang, resultLength: result.text.length });
+      log.info('翻译成功', { fromLang, toLang: resolvedToLang, resultLength: result.text.length });
     } catch (e) {
       log.error('翻译失败', e);
       toast.error(e instanceof Error ? e.message : '翻译失败，请稍后重试');
@@ -80,8 +81,8 @@ export default function TranslatorTool() {
   }, [configured, consumePendingTranslation, pendingTranslation, translateText]);
 
   const handleSwap = useCallback(() => {
-    const newFrom = toLang;
-    const newTo = fromLang === 'auto' ? (toLang === 'zh' ? 'en' : 'zh') : fromLang;
+    const newFrom = resolveTargetLanguage(input, fromLang, toLang);
+    const newTo = fromLang;
     setFromLang(newFrom);
     setToLang(newTo);
     if (output) {
@@ -122,7 +123,9 @@ export default function TranslatorTool() {
     window.addEventListener('mouseup', handleMouseUp);
   }, []);
 
-  const targetLanguages = BAIDU_LANGUAGES.filter((l) => l.code !== 'auto');
+  const targetLanguages = BAIDU_LANGUAGES.map((language) =>
+    language.code === 'auto' ? { ...language, label: '自动选择' } : language
+  );
 
   return (
     <div ref={containerRef} className="flex h-full flex-col">

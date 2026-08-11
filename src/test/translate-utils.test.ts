@@ -4,6 +4,7 @@ import {
   BAIDU_API_URL,
   BAIDU_ERROR_MESSAGES,
   baiduSign,
+  resolveTargetLanguage,
   translateWithBaidu,
   truncateQueryForSign,
   type FetchLike,
@@ -49,6 +50,26 @@ describe('baiduSign', () => {
     expect(baiduSign({ appId: 'a', query, salt: 's', secret: 'k', truncate: true })).toBe(
       md5('a' + truncateQueryForSign(query) + 's' + 'k')
     );
+  });
+});
+
+describe('resolveTargetLanguage', () => {
+  it('目标语言手动指定时保持用户选择', () => {
+    expect(resolveTargetLanguage('你好', 'auto', 'ja')).toBe('ja');
+  });
+
+  it('源语言明确为中文时自动译为英语', () => {
+    expect(resolveTargetLanguage('hello', 'zh', 'auto')).toBe('en');
+    expect(resolveTargetLanguage('hello', 'cht', 'auto')).toBe('en');
+  });
+
+  it('源语言明确为非中文时自动译为简体中文', () => {
+    expect(resolveTargetLanguage('你好', 'en', 'auto')).toBe('zh');
+  });
+
+  it('源语言自动检测时依据输入是否包含汉字选择目标语言', () => {
+    expect(resolveTargetLanguage('你好，world', 'auto', 'auto')).toBe('en');
+    expect(resolveTargetLanguage('hello world', 'auto', 'auto')).toBe('zh');
   });
 });
 
