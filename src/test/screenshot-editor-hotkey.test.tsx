@@ -80,7 +80,7 @@ describe('ScreenshotEditor screenshot hotkey hint', () => {
     expect(screen.queryByText('screenshotEditor.dragHint')).not.toBeInTheDocument();
   });
 
-  it('minimizes the main window before starting a screenshot from the button', async () => {
+  it('从按钮启动截图时由后端统一处理主窗口状态', async () => {
     render(<ScreenshotEditor />);
 
     fireEvent.click(await screen.findByText('screenshotEditor.capture'));
@@ -88,11 +88,7 @@ describe('ScreenshotEditor screenshot hotkey hint', () => {
     await waitFor(() => {
       expect(invokeMock).toHaveBeenCalledWith('start_screenshot');
     });
-    const startScreenshotCall = invokeMock.mock.calls.findIndex(([command]) => command === 'start_screenshot');
-    expect(minimizeMock).toHaveBeenCalledTimes(1);
-    expect(minimizeMock.mock.invocationCallOrder[0]).toBeLessThan(
-      invokeMock.mock.invocationCallOrder[startScreenshotCall]
-    );
+    expect(minimizeMock).not.toHaveBeenCalled();
   });
 
   it('allows disabling minimization before taking a screenshot', async () => {

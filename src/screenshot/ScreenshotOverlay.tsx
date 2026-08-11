@@ -19,6 +19,7 @@ import {
 } from './types';
 
 interface ScreenshotOverlayProps {
+  generation: number;
   screenImage: HTMLImageElement;
   screenW: number;
   screenH: number;
@@ -26,7 +27,7 @@ interface ScreenshotOverlayProps {
   longshotMode?: boolean;
 }
 
-export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode = false }: ScreenshotOverlayProps) {
+export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, longshotMode = false }: ScreenshotOverlayProps) {
   const [phase, setPhase] = useState<ScreenshotPhase>('idle');
   const [mode, setMode] = useState<SelectionMode>('rect');
   const [selection, setSelection] = useState<SelectionRect | null>(null);
@@ -52,6 +53,17 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
   const stageRef = useRef<Konva.Stage | null>(null);
   const selStart = useRef<{ x: number; y: number } | null>(null);
   const isDrawing = useRef(false);
+  // 框选起始事件与 React effect 之间不能存在空档：用户按下后可在同一事件循环内
+  // 完成移动和松开。该清理函数保存当前同步安装的监听器，确保任意路径都能取消它们。
+  const mouseTrackingCleanup = useRef<(() => void) | null>(null);
+
+  const stopMouseTracking = useCallback(() => {
+    const cleanup = mouseTrackingCleanup.current;
+    mouseTrackingCleanup.current = null;
+    cleanup?.();
+  }, []);
+
+  useEffect(() => stopMouseTracking, [stopMouseTracking]);
 
   // ── 裁剪选区图片（用于标注画布背景 & 马赛克取色）──────────
   const { croppedImage, croppedCanvas } = useMemo(() => {
@@ -140,14 +152,23 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
     return composite.toDataURL('image/png').replace(/^data:image\/\w+;base64,/, '');
   }, [selection, annotations]);
 
+  const closeCurrentScreenshot = useCallback(() => {
+    // 截图窗口隐藏后 WebView 会被复用而非卸载；关闭前必须同步断开本次
+    // 鼠标跟踪，避免迟到的 mouseup 将已经取消的会话重新推进到 selected。
+    stopMouseTracking();
+    selStart.current = null;
+    isDrawing.current = false;
+    return invoke('close_screenshot_window', { generation });
+  }, [generation, stopMouseTracking]);
+
   const handleCopy = useCallback(async () => {
     const b64 = exportBase64();
     if (b64) {
       try { await invoke('copy_image_to_clipboard', { base64Data: b64 }); }
       catch (e) { console.error('复制失败', e); }
     }
-    await invoke('close_screenshot_window');
-  }, [exportBase64]);
+    await closeCurrentScreenshot();
+  }, [closeCurrentScreenshot, exportBase64]);
 
   const handleSave = useCallback(async () => {
     const b64 = exportBase64();
@@ -159,13 +180,13 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
       }
       catch (e) { console.error('保存失败', e); }
     }
-    await invoke('close_screenshot_window');
-  }, [exportBase64]);
+    await closeCurrentScreenshot();
+  }, [closeCurrentScreenshot, exportBase64]);
 
   const handleCancel = useCallback(() => {
     if (ocrSource && ocrText.trim() && !window.confirm('关闭截图将丢失未保存的识别文本，是否继续？')) return;
-    invoke('close_screenshot_window');
-  }, [ocrSource, ocrText]);
+    closeCurrentScreenshot();
+  }, [closeCurrentScreenshot, ocrSource, ocrText]);
 
   const openOcr = useCallback((autoTranslate: boolean) => {
     if (!croppedCanvas) return;
@@ -183,8 +204,8 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
   const translateOcrText = useCallback(async (text: string) => {
     if (!ocrImageDataUrl) return;
     await emitTo('main', 'open-screenshot-ocr', { imageDataUrl: ocrImageDataUrl, text, translate: true });
-    await invoke('close_screenshot_window');
-  }, [ocrImageDataUrl]);
+    await closeCurrentScreenshot();
+  }, [closeCurrentScreenshot, ocrImageDataUrl]);
 
   // ── 长截图：确认选区并发送给主窗口 ───────────────────
   const confirmLongshot = useCallback(() => {
@@ -197,8 +218,8 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
       intervalMs: longshotIntervalMs,
       autoScroll: longshotAutoScroll,
     }).catch((e) => console.error('发送长截图选区失败', e));
-    invoke('close_screenshot_window');
-  }, [selection, longshotIntervalMs, longshotAutoScroll]);
+    closeCurrentScreenshot();
+  }, [closeCurrentScreenshot, selection, longshotIntervalMs, longshotAutoScroll]);
 
   const confirmLongshotRef = useRef(confirmLongshot);
   confirmLongshotRef.current = confirmLongshot;
@@ -236,6 +257,10 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
   // ── 初始框选 / 手绘（idle 阶段）──────────────────────────
   const handleBgMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      stopMouseTracking();
+
       // 点击选区外部 → 重新框选
       if (phase === 'selected') {
         setAnnotations([]);
@@ -251,67 +276,85 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
         isDrawing.current = true;
         setFreehandPoints([{ x: e.clientX, y: e.clientY }]);
         setPhase('drawing');
+
+        const onMove = (event: MouseEvent) => {
+          if (!isDrawing.current) return;
+          setFreehandPoints((points) => [...points, { x: event.clientX, y: event.clientY }]);
+        };
+        const onUp = () => {
+          isDrawing.current = false;
+          stopMouseTracking();
+        };
+        const onBlur = () => {
+          isDrawing.current = false;
+          setFreehandPoints([]);
+          setPhase('idle');
+          stopMouseTracking();
+        };
+        const cleanup = () => {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          window.removeEventListener('blur', onBlur);
+        };
+        mouseTrackingCleanup.current = cleanup;
+        // 必须在本次 mousedown 返回前安装，不能依赖 phase 更新后的 useEffect。
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        window.addEventListener('blur', onBlur);
       } else {
         // 矩形模式
-        selStart.current = { x: e.clientX, y: e.clientY };
-        setSelection({ x: e.clientX, y: e.clientY, width: 0, height: 0 });
+        const start = { x: e.clientX, y: e.clientY };
+        selStart.current = start;
+        setSelection({ x: start.x, y: start.y, width: 0, height: 0 });
         setPhase('selecting');
+
+        const onMove = (event: MouseEvent) => {
+          const selectionStart = selStart.current;
+          if (!selectionStart) return;
+          setSelection({
+            x: Math.min(selectionStart.x, event.clientX),
+            y: Math.min(selectionStart.y, event.clientY),
+            width: Math.abs(event.clientX - selectionStart.x),
+            height: Math.abs(event.clientY - selectionStart.y),
+          });
+        };
+        const onUp = (event: MouseEvent) => {
+          const selectionStart = selStart.current;
+          selStart.current = null;
+          if (!selectionStart) {
+            stopMouseTracking();
+            return;
+          }
+          const width = Math.abs(event.clientX - selectionStart.x);
+          const height = Math.abs(event.clientY - selectionStart.y);
+          if (width < MIN_SELECTION_SIZE && height < MIN_SELECTION_SIZE) {
+            setPhase('idle');
+            setSelection(null);
+          } else {
+            setPhase('selected');
+          }
+          stopMouseTracking();
+        };
+        const onBlur = () => {
+          selStart.current = null;
+          setSelection(null);
+          setPhase('idle');
+          stopMouseTracking();
+        };
+        const cleanup = () => {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          window.removeEventListener('blur', onBlur);
+        };
+        mouseTrackingCleanup.current = cleanup;
+        // 与 mousedown 同步安装，保证快速拖拽的 move/up 不会丢失。
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        window.addEventListener('blur', onBlur);
       }
     },
-    [phase, mode],
+    [mode, phase, stopMouseTracking],
   );
-
-  // ── 手绘模式事件（drawing 阶段）─────────────────────────
-  useEffect(() => {
-    if (phase !== 'drawing') return;
-    const onMove = (e: MouseEvent) => {
-      if (!isDrawing.current) return;
-      setFreehandPoints((pts) => [...pts, { x: e.clientX, y: e.clientY }]);
-    };
-    const onUp = () => {
-      isDrawing.current = false;
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [phase]);
-
-  // ── 矩形模式事件（selecting 阶段）─────────────────────────
-  useEffect(() => {
-    if (phase !== 'selecting') return;
-    const onMove = (e: MouseEvent) => {
-      const s = selStart.current;
-      if (!s) return;
-      setSelection({
-        x: Math.min(s.x, e.clientX),
-        y: Math.min(s.y, e.clientY),
-        width: Math.abs(e.clientX - s.x),
-        height: Math.abs(e.clientY - s.y),
-      });
-    };
-    const onUp = (e: MouseEvent) => {
-      const s = selStart.current;
-      selStart.current = null;
-      if (!s) return;
-      const w = Math.abs(e.clientX - s.x);
-      const h = Math.abs(e.clientY - s.y);
-      if (w < MIN_SELECTION_SIZE && h < MIN_SELECTION_SIZE) {
-        setPhase('idle');
-        setSelection(null);
-      } else {
-        setPhase('selected');
-      }
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [phase]);
 
   // ── 全局快捷键 ────────────────────────────────────────────
   useEffect(() => {
@@ -323,11 +366,12 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
       if (e.key === 'Escape') {
         if (phase === 'drawing') {
           // 手绘阶段：清空轨迹回到 idle
+          stopMouseTracking();
           setFreehandPoints([]);
           isDrawing.current = false;
           setPhase('idle');
         } else {
-          invoke('close_screenshot_window');
+          closeCurrentScreenshot();
         }
         return;
       }
@@ -355,7 +399,7 @@ export function ScreenshotOverlay({ screenImage, screenW, screenH, longshotMode 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [phase, undo, redo, longshotMode]);
+  }, [closeCurrentScreenshot, phase, undo, redo, longshotMode, stopMouseTracking]);
 
   // ── 工具栏位置（选区下方，空间不足则上方）────────────────
   const toolbarPos = useMemo(() => {
