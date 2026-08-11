@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { getOcrCanvasSize, enhanceOcrRaster } from '@/tools/graphic/image-studio/ocr-preprocess';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  OCR_IMAGE_LOAD_TIMEOUT_MS,
+  enhanceOcrRaster,
+  getOcrCanvasSize,
+  preprocessOcrImage,
+} from '@/tools/graphic/image-studio/ocr-preprocess';
 
 describe('OCR 图像预处理', () => {
   it('会将小图放大，并限制超大图片的最大边长', () => {
@@ -19,4 +24,32 @@ describe('OCR 图像预处理', () => {
 
     expect(Array.from(output.data)).toEqual([49, 49, 49, 255, 255, 255, 255, 128]);
   });
+
+  it('图片解码未触发任何事件时会超时并释放对象 URL', async () => {
+    class PendingImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      set src(_value: string) {
+        // 模拟 WebView 图片解码永远不结算的异常路径。
+      }
+    }
+
+    vi.useFakeTimers();
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('Image', PendingImage);
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:pending'), revokeObjectURL });
+
+    const preprocessing = preprocessOcrImage(new Blob(['image'], { type: 'image/png' }));
+    const rejection = expect(preprocessing).rejects.toThrow('图片加载超时');
+    await vi.advanceTimersByTimeAsync(OCR_IMAGE_LOAD_TIMEOUT_MS);
+
+    await rejection;
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:pending');
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
 });

@@ -1,5 +1,6 @@
 export const OCR_SCALE_FACTOR = 2;
 export const OCR_MAX_IMAGE_DIMENSION = 4096;
+export const OCR_IMAGE_LOAD_TIMEOUT_MS = 15_000;
 export const OCR_RECOGNITION_PARAMETERS = {
   tessedit_pageseg_mode: '3' as Tesseract.PSM,
   preserve_interword_spaces: '1',
@@ -48,14 +49,36 @@ function loadOcrImage(file: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const image = new Image();
-    image.onload = () => {
+    let settled = false;
+
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      image.onload = null;
+      image.onerror = null;
       URL.revokeObjectURL(url);
+    };
+
+    const succeed = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
       resolve(image);
     };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('图片解码失败'));
+
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
     };
+
+    image.onload = () => {
+      succeed();
+    };
+    image.onerror = () => {
+      fail(new Error('图片解码失败'));
+    };
+    const timer = window.setTimeout(() => fail(new Error('图片加载超时')), OCR_IMAGE_LOAD_TIMEOUT_MS);
     image.src = url;
   });
 }
