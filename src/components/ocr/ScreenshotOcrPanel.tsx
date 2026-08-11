@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Check, Copy, Loader2, ScanText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -73,7 +73,8 @@ export function ScreenshotOcrPanel({
   onTranslate,
   onClose,
 }: ScreenshotOcrPanelProps) {
-  const [previewUrl, setPreviewUrl] = useState('');
+  const [preview, setPreview] = useState<{ source: Blob; url: string } | null>(null);
+  const [sourceReady, setSourceReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -82,14 +83,7 @@ export function ScreenshotOcrPanel({
   const workerRef = useRef<OcrWorker | null>(null);
   const runIdRef = useRef(0);
   const autoStartedRef = useRef(false);
-
-  useEffect(() => {
-    const url = URL.createObjectURL(source);
-    setPreviewUrl(url);
-    autoStartedRef.current = false;
-    setSelection(null);
-    return () => URL.revokeObjectURL(url);
-  }, [source]);
+  const readySourceRef = useRef<Blob | null>(null);
 
   const cancel = useCallback(() => {
     runIdRef.current += 1;
@@ -102,6 +96,17 @@ export function ScreenshotOcrPanel({
 
   useEffect(() => cancel, [cancel]);
 
+  useLayoutEffect(() => {
+    cancel();
+    const url = URL.createObjectURL(source);
+    setPreview({ source, url });
+    readySourceRef.current = null;
+    setSourceReady(false);
+    autoStartedRef.current = false;
+    setSelection(null);
+    return () => URL.revokeObjectURL(url);
+  }, [cancel, source]);
+
   const recognize = useCallback(
     async (target: Blob) => {
       if (busy) return;
@@ -110,12 +115,14 @@ export function ScreenshotOcrPanel({
       const current = () => runId === runIdRef.current;
       setBusy(true);
       setProgress('正在准备 OCR 引擎…');
+      let worker: OcrWorker | null = null;
       try {
-        const worker = await createOcrWorker('chi_sim+eng', (status, value) => {
+        worker = await createOcrWorker('chi_sim+eng', (status, value) => {
           if (current()) setProgress(progressText(status, value));
         });
         if (!current()) {
           await worker.terminate();
+          worker = null;
           return;
         }
         workerRef.current = worker;
@@ -137,9 +144,10 @@ export function ScreenshotOcrPanel({
               : '识别失败，请重试'
         );
       } finally {
-        const worker = workerRef.current;
-        workerRef.current = null;
-        if (worker) await worker.terminate().catch(() => undefined);
+        if (workerRef.current === worker) {
+          workerRef.current = null;
+          await worker?.terminate().catch(() => undefined);
+        }
         if (current()) {
           setBusy(false);
           setProgress(null);
@@ -150,10 +158,16 @@ export function ScreenshotOcrPanel({
   );
 
   useEffect(() => {
-    if (!autoRecognize || autoStartedRef.current) return;
+    if (
+      !autoRecognize
+      || !sourceReady
+      || readySourceRef.current !== source
+      || busy
+      || autoStartedRef.current
+    ) return;
     autoStartedRef.current = true;
     void recognize(source);
-  }, [autoRecognize, recognize, source]);
+  }, [autoRecognize, busy, recognize, source, sourceReady]);
 
   const pointerPosition = (event: React.PointerEvent<HTMLImageElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -228,12 +242,17 @@ export function ScreenshotOcrPanel({
       <div className="grid min-h-0 gap-3 lg:grid-cols-2">
         <div className="min-h-32 overflow-auto rounded-md border border-input bg-background p-2">
           <div className="relative inline-block max-w-full select-none">
-            {previewUrl && (
+            {preview?.source === source && (
               <img
                 ref={previewRef}
-                src={previewUrl}
+                src={preview.url}
                 alt="待识别截图预览"
                 className="block max-h-64 max-w-full touch-none"
+                onLoad={() => {
+                  readySourceRef.current = source;
+                  setSourceReady(true);
+                }}
+                onError={() => toast.error('待识别图片加载失败，请重试')}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={() => setDragStart(null)}
