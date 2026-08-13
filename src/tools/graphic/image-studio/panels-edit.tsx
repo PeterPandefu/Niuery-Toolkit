@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { FileDropzone, OptionRow } from '@/tools/pdf/common';
+import { OptionRow } from '@/tools/pdf/common';
 import { calcCenterCrop, calcRatioCrop, calcResizeSize, canvasToBlob, fileToCanvas } from '@/lib/image-utils';
 import { baseName, saveImageResults, useBusyRun } from './common';
 import { ImagePreview } from './image-preview';
+import { ImageFileDropzone } from './image-file-dropzone';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
@@ -100,7 +101,7 @@ export function CompressPanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`压缩质量 ${quality}`}>
         <div>
@@ -153,7 +154,7 @@ export function ConvertPanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label="输出格式">
         <Select
@@ -222,7 +223,7 @@ export function ResizePanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
@@ -302,7 +303,7 @@ export function WatermarkPanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label="水印文字">
         <Input value={text} onChange={(e) => setText(e.target.value)} className="h-8 text-xs" />
@@ -364,7 +365,7 @@ export function RoundedPanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`圆角半径 ${radius}px`}>
         <input type="range" min={0} max={200} value={radius} onChange={(e) => setRadius(parseInt(e.target.value))} className="w-full" />
@@ -399,7 +400,7 @@ export function PaddingPanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`边宽 ${padding}px`}>
         <input type="range" min={0} max={200} value={padding} onChange={(e) => setPadding(parseInt(e.target.value))} className="w-full" />
@@ -440,7 +441,7 @@ export function CropPanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label="裁剪比例">
         <Select
@@ -496,7 +497,7 @@ export function RotatePanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`旋转角度 ${angle}°`}>
         <input type="range" min={0} max={360} step={15} value={angle} onChange={(e) => setAngle(parseInt(e.target.value))} className="w-full" />
@@ -528,7 +529,7 @@ export function FlipPanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} multiple accept="image/*" />
+      <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <div className="flex gap-4 text-xs text-muted-foreground">
         <label className="flex items-center gap-2">

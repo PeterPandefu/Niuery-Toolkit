@@ -303,6 +303,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
             recorder::cleanup_stale_recordings(&app_handle);
             let _ = clipboard::init_clipboard_history(app_handle.clone());
+            clipboard::record_startup_clipboard_image(&app_handle);
             // 启动后台剪贴板监控
             clipboard::start_clipboard_monitor(app_handle);
 

@@ -8,12 +8,14 @@ import {
   Trash2,
   Check,
   ClipboardList,
+  Eye,
   Search,
   Monitor,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isTauri } from '@/lib/api-client';
 import { useToolLogger } from '@/hooks/use-tool-logger';
+import { ClipboardImagePreview } from './clipboard-image-preview';
 
 interface ClipboardEntryView {
   id: string;
@@ -52,6 +54,7 @@ export default function ClipboardHistory() {
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
   const log = useToolLogger('clipboard-history');
 
@@ -282,11 +285,9 @@ export default function ClipboardHistory() {
                     {entry.content_type === 'image' && (
                       <div className="space-y-1">
                         {entry.image_thumbnail ? (
-                          <img
-                            src={`data:image/png;base64,${entry.image_thumbnail}`}
-                            alt="剪贴板图片"
-                            className="max-h-[120px] max-w-[200px] rounded-md border border-border/50 object-contain"
-                          />
+                          <button type="button" className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setPreviewId(entry.id)} title="预览原图">
+                            <img src={`data:image/png;base64,${entry.image_thumbnail}`} alt="剪贴板图片，点击预览原图" className="max-h-[120px] max-w-[200px] rounded-md border border-border/50 object-contain" />
+                          </button>
                         ) : (
                           <p className="text-sm text-muted-foreground">{entry.preview}</p>
                         )}
@@ -310,6 +311,11 @@ export default function ClipboardHistory() {
 
                   {/* 操作按钮 */}
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    {entry.content_type === 'image' && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewId(entry.id)} title="预览原图">
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -339,6 +345,13 @@ export default function ClipboardHistory() {
           </div>
         )}
       </div>
+      {previewId && (
+        <ClipboardImagePreview
+          entries={entries.filter((entry) => entry.content_type === 'image')}
+          initialId={previewId}
+          onClose={() => setPreviewId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { copyToClipboard } from '@/lib/utils';
 import { useToolLogger } from '@/hooks/use-tool-logger';
-import { FileDropzone, OptionRow } from '@/tools/pdf/common';
+import { OptionRow } from '@/tools/pdf/common';
 import { createOcrWorker, OcrInitializationTimeoutError, type OcrLanguage, type OcrWorker } from './ocr-engine';
 import { preprocessOcrImage } from './ocr-preprocess';
 import { postprocessOcrText } from './ocr-postprocess';
 import { ImagePreview } from './image-preview';
+import { ImageFileDropzone } from './image-file-dropzone';
 
 const LANGUAGE_OPTIONS: { value: OcrLanguage; label: string }[] = [
   { value: 'chi_sim+eng', label: '简体中文 + 英文' },
@@ -119,7 +120,7 @@ export function OcrPanel() {
 
   return (
     <div className="space-y-4">
-      <FileDropzone files={files} onChange={setFiles} accept="image/png,image/jpeg,image/webp,image/bmp" hint="支持 PNG、JPEG、WebP、BMP；单次识别一张图片" />
+      <ImageFileDropzone files={files} onChange={setFiles} accept="image/png,image/jpeg,image/webp,image/bmp" hint="支持 PNG、JPEG、WebP、BMP；单次识别一张图片" />
       <ImagePreview files={files} />
       <OptionRow label="识别语言">
         <Select value={language} onChange={(event) => setLanguage(event.target.value as OcrLanguage)} options={LANGUAGE_OPTIONS} className="h-8" />
