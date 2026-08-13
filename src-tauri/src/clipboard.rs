@@ -481,6 +481,41 @@ pub fn start_clipboard_monitor(app: AppHandle) {
     });
 }
 
+/// 将应用启动前已经存在于系统剪贴板中的图片写入历史。
+/// 监控线程会把它作为基准而不记录，因此需在启动监控前单独采集一次。
+pub fn record_startup_clipboard_image(app: &AppHandle) {
+    let state = app.state::<ClipboardHistoryState>();
+    let _guard = match state.clipboard_lock.lock() {
+        Ok(guard) => guard,
+        Err(_) => return,
+    };
+    let config_dir = state.config_dir.lock().unwrap().clone();
+    let mut clipboard = match arboard::Clipboard::new() {
+        Ok(clipboard) => clipboard,
+        Err(_) => return,
+    };
+    let img = match clipboard.get_image() {
+        Ok(img) => img,
+        Err(_) => return,
+    };
+    drop(_guard);
+
+    let filename = save_image(&config_dir, &img.bytes, img.width, img.height);
+    if filename.is_none() {
+        return;
+    }
+    let entry = ClipboardEntry {
+        id: nanoid::nanoid!(12),
+        content_type: ClipboardContentType::Image,
+        text: None,
+        file_paths: None,
+        image_filename: filename,
+        preview: format!("图片 {}x{}", img.width, img.height),
+        timestamp: now_ms(),
+    };
+    add_entry(app, &config_dir, entry);
+}
+
 /// 添加条目到历史并持久化 + 发送事件
 fn add_entry(app: &AppHandle, config_dir: &PathBuf, entry: ClipboardEntry) {
     let state = app.state::<ClipboardHistoryState>();
