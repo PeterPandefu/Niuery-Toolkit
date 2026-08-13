@@ -5,9 +5,10 @@ import { Select } from '@/components/ui/select';
 import { OptionRow } from '@/tools/pdf/common';
 import { calcMergeLayout, canvasToBlob, encodeImagesToGif, encodeImagesToPdf, fileToCanvas, loadImageElement } from '@/lib/image-utils';
 import { saveBytes } from '@/lib/file-save';
-import { saveImageResults, useBusyRun } from './common';
+import { useBusyRun, useImageProcessingResult } from './common';
 import { ImagePreview } from './image-preview';
 import { ImageFileDropzone } from './image-file-dropzone';
+import { ProcessingResultPreview } from './processing-result-preview';
 import { Eraser, Loader2, Paintbrush, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
@@ -22,6 +23,7 @@ export function MergeImagePanel() {
   const [cols, setCols] = useState('2');
   const [bg, setBg] = useState('#ffffff');
   const { busy, progress, setProgress, run } = useBusyRun();
+  const { result, setResult } = useImageProcessingResult(files);
 
   useEffect(() => {
     if (files.length === 0) return;
@@ -53,7 +55,7 @@ export function MergeImagePanel() {
           ctx.drawImage(canvas, p.x, p.y);
         });
         const blob = await canvasToBlob(out, 'image/png');
-        await saveImageResults([{ name: '合并图片.png', blob }]);
+        setResult({ files: [{ name: '合并图片.png', blob }], zipName: '合并图片.zip' });
         log.info('合并为图片成功', { count: files.length, width: out.width, height: out.height, size: blob.size });
       } catch (e) {
         log.error('合并为图片失败', e);
@@ -93,6 +95,7 @@ export function MergeImagePanel() {
         开始处理
       </Button>
       {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -140,6 +143,7 @@ export function MergeGifPanel() {
   const [files, setFiles] = useState<File[]>([]);
   const [delayMs, setDelayMs] = useState(500);
   const { busy, progress, setProgress, run } = useBusyRun();
+  const { result, setResult } = useImageProcessingResult(files);
 
   const handleRun = () =>
     run(async () => {
@@ -148,9 +152,8 @@ export function MergeGifPanel() {
         log.info('合并为 GIF 开始', { count: files.length, delayMs });
         setProgress('正在编码 GIF…');
         const blob = await encodeImagesToGif(files, delayMs);
-        const path = await saveBytes('合并动图.gif', blob, 'GIF 动图', ['gif']);
-        if (path) toast.success(`处理完成，共 ${files.length} 帧`);
-        log.info('合并为 GIF 成功', { count: files.length, size: blob.size, path });
+        setResult({ files: [{ name: '合并动图.gif', blob }], zipName: '合并动图.zip', filter: { name: 'GIF 动图', extensions: ['gif'] } });
+        log.info('合并为 GIF 成功', { count: files.length, size: blob.size });
       } catch (e) {
         log.error('合并为 GIF 失败', e);
         throw e;
@@ -170,6 +173,7 @@ export function MergeGifPanel() {
         开始处理
       </Button>
       {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -188,6 +192,7 @@ export function CutoutPanel() {
   const drawing = useRef(false);
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
   const { busy, progress, setProgress, run } = useBusyRun();
+  const { result, setResult } = useImageProcessingResult(file);
 
   // 加载图片 → 初始化原始分辨率 mask 画布
   useEffect(() => {
@@ -319,7 +324,7 @@ export function CutoutPanel() {
         ctx.globalCompositeOperation = 'destination-in';
         ctx.drawImage(mask, 0, 0);
         const blob = await canvasToBlob(canvas, 'image/png');
-        await saveImageResults([{ name: '抠图结果.png', blob }]);
+        setResult({ files: [{ name: '抠图结果.png', blob }], zipName: '抠图结果.zip' });
         log.info('抠图成功', { size: blob.size });
       } catch (e) {
         log.error('抠图失败', e);
@@ -368,6 +373,7 @@ export function CutoutPanel() {
         开始处理
       </Button>
       {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
+      <ProcessingResultPreview sourceFiles={file} result={result} />
     </div>
   );
 }
