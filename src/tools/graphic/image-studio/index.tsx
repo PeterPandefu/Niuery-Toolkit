@@ -133,7 +133,6 @@ function FeatureGroup({ title, features, active, onSelect }: { title: string; fe
 export default function ImageStudio() {
   const log = useToolLogger('image-studio');
   const [active, setActive] = useState<FeatureId>('compress');
-  const ActivePanel = PANELS[active];
   const activeFeature = [...EDIT_FEATURES, ...MERGE_FEATURES, ...CUTOUT_FEATURES].find((f) => f.id === active)!;
 
   const handleSelect = (id: FeatureId) => {
@@ -156,7 +155,11 @@ export default function ImageStudio() {
             <h2 className="text-base font-semibold">{activeFeature.name}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">{activeFeature.desc}</p>
           </header>
-          <ActivePanel />
+          {Object.entries(PANELS).map(([id, Panel]) => (
+            <div key={id} className={id === active ? 'block' : 'hidden'} aria-hidden={id !== active}>
+              <Panel />
+            </div>
+          ))}
           <PrivacyNote />
         </div>
       </main>

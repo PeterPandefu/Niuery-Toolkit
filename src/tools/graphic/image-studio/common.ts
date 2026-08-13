@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { saveResults, type SaveFile } from '@/lib/file-save';
+import { type SaveFile } from '@/lib/file-save';
 
 export const IMAGE_FILTER = { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] };
+export interface ImageProcessingResult {
+  files: SaveFile[];
+  zipName: string;
+  filter?: { name: string; extensions: string[] };
+}
 
 export function baseName(name: string): string {
   return name.replace(/\.[^.]+$/, '');
@@ -29,9 +34,17 @@ export function useBusyRun() {
   return { busy, progress, setProgress, run };
 }
 
-/** 保存图片结果（多文件自动 zip） */
-export async function saveImageResults(files: SaveFile[], zipName = '图片处理结果.zip'): Promise<string | null> {
-  const path = await saveResults(zipName, files, IMAGE_FILTER);
-  if (path) toast.success(files.length > 1 ? `处理完成，共 ${files.length} 个文件` : '处理完成');
-  return path;
+/** 临时处理结果与输入绑定：更换输入即失效，重新处理失败则保留上次成功结果。 */
+export function useImageProcessingResult(sourceFiles: File[]) {
+  const [result, setResult] = useState<ImageProcessingResult | null>(null);
+  const sourceKey = useMemo(
+    () => sourceFiles.map((file) => `${file.name}:${file.size}:${file.lastModified}`).join('|'),
+    [sourceFiles]
+  );
+
+  useEffect(() => {
+    setResult(null);
+  }, [sourceKey]);
+
+  return { result, setResult };
 }

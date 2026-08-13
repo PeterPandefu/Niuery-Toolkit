@@ -4,9 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { OptionRow } from '@/tools/pdf/common';
 import { calcCenterCrop, calcRatioCrop, calcResizeSize, canvasToBlob, fileToCanvas } from '@/lib/image-utils';
-import { baseName, saveImageResults, useBusyRun } from './common';
+import { baseName, useBusyRun, useImageProcessingResult } from './common';
 import { ImagePreview } from './image-preview';
 import { ImageFileDropzone } from './image-file-dropzone';
+import { ProcessingResultPreview } from './processing-result-preview';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
@@ -18,6 +19,7 @@ type PerFile = (file: File) => Promise<{ blob: Blob; ext: string }>;
 /** 批量处理模板：逐文件处理 → 保存结果 */
 function useBatch(files: File[]) {
   const { busy, progress, setProgress, run } = useBusyRun();
+  const { result, setResult } = useImageProcessingResult(files);
 
   useEffect(() => {
     if (files.length === 0) return;
@@ -42,7 +44,7 @@ function useBatch(files: File[]) {
           const { blob, ext } = await perFile(files[i]);
           results.push({ name: `${baseName(files[i].name)}-处理.${ext}`, blob });
         }
-        await saveImageResults(results, zipName);
+        setResult({ files: results, zipName });
         log.info('操作成功', { operation, count: files.length });
       } catch (e) {
         log.error('操作失败', { operation, error: e });
@@ -50,7 +52,7 @@ function useBatch(files: File[]) {
       }
     });
 
-  return { busy, progress, runBatch };
+  return { busy, progress, runBatch, result };
 }
 
 function RunButton({ busy, disabled, onClick, children }: { busy: boolean; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -73,7 +75,7 @@ export function CompressPanel() {
   const [quality, setQuality] = useState(80);
   const [targetKB, setTargetKB] = useState('');
   const [format, setFormat] = useState<'image/jpeg' | 'image/webp'>('image/jpeg');
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   const handleRun = () =>
     runBatch(async (file) => {
@@ -127,6 +129,7 @@ export function CompressPanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -136,7 +139,7 @@ export function ConvertPanel() {
   const [files, setFiles] = useState<File[]>([]);
   const [format, setFormat] = useState<'image/png' | 'image/jpeg' | 'image/webp'>('image/png');
   const [quality, setQuality] = useState(90);
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   const ext = format === 'image/png' ? 'png' : format === 'image/webp' ? 'webp' : 'jpg';
 
@@ -177,6 +180,7 @@ export function ConvertPanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -187,7 +191,7 @@ export function ResizePanel() {
   const [width, setWidth] = useState('');
   const [height, setHeight] = useState('');
   const [lock, setLock] = useState(true);
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   // 首张图片加载后初始化默认尺寸
   useEffect(() => {
@@ -243,6 +247,7 @@ export function ResizePanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -257,7 +262,7 @@ export function WatermarkPanel() {
   const [opacity, setOpacity] = useState(30);
   const [position, setPosition] = useState<WatermarkPosition>('tile');
   const [rotation, setRotation] = useState(-30);
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   const handleRun = () =>
     runBatch(async (file) => {
@@ -336,6 +341,7 @@ export function WatermarkPanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -344,7 +350,7 @@ export function WatermarkPanel() {
 export function RoundedPanel() {
   const [files, setFiles] = useState<File[]>([]);
   const [radius, setRadius] = useState(24);
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   const handleRun = () =>
     runBatch(async (file) => {
@@ -374,6 +380,7 @@ export function RoundedPanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -383,7 +390,7 @@ export function PaddingPanel() {
   const [files, setFiles] = useState<File[]>([]);
   const [padding, setPadding] = useState(24);
   const [color, setColor] = useState('#ffffff');
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   const handleRun = () =>
     runBatch(async (file) => {
@@ -412,6 +419,7 @@ export function PaddingPanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -422,7 +430,7 @@ export function CropPanel() {
   const [mode, setMode] = useState<'1:1' | '4:3' | '16:9' | '9:16' | 'custom'>('1:1');
   const [customW, setCustomW] = useState('800');
   const [customH, setCustomH] = useState('600');
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   const handleRun = () =>
     runBatch(async (file) => {
@@ -467,6 +475,7 @@ export function CropPanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -475,7 +484,7 @@ export function CropPanel() {
 export function RotatePanel() {
   const [files, setFiles] = useState<File[]>([]);
   const [angle, setAngle] = useState(90);
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   const handleRun = () =>
     runBatch(async (file) => {
@@ -506,6 +515,7 @@ export function RotatePanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
@@ -515,7 +525,7 @@ export function FlipPanel() {
   const [files, setFiles] = useState<File[]>([]);
   const [flipH, setFlipH] = useState(true);
   const [flipV, setFlipV] = useState(false);
-  const { busy, progress, runBatch } = useBatch(files);
+  const { busy, progress, runBatch, result } = useBatch(files);
 
   const handleRun = () =>
     runBatch(async (file) => {
@@ -545,6 +555,7 @@ export function FlipPanel() {
         开始处理
       </RunButton>
       <ProgressText text={progress} />
+      <ProcessingResultPreview sourceFiles={files} result={result} />
     </div>
   );
 }
