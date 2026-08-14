@@ -109,12 +109,12 @@ describe('useAppStore', () => {
     });
 
     it('sets active category', () => {
-      useAppStore.getState().setActiveCategory('encoder');
-      expect(useAppStore.getState().activeCategory).toBe('encoder');
+      useAppStore.getState().setActiveCategory('security');
+      expect(useAppStore.getState().activeCategory).toBe('security');
     });
 
     it('clears active category with null', () => {
-      useAppStore.getState().setActiveCategory('converter');
+      useAppStore.getState().setActiveCategory('data');
       useAppStore.getState().setActiveCategory(null);
       expect(useAppStore.getState().activeCategory).toBeNull();
     });

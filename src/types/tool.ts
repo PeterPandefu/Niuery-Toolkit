@@ -1,55 +1,70 @@
 import { ComponentType, LazyExoticComponent } from 'react';
 import {
-  ArrowLeftRight,
-  Code2,
-  FileJson,
-  FileStack,
+  Camera,
+  Database,
+  FileText,
+  Globe2,
   Languages,
+  MonitorCog,
+  PenTool,
+  ShieldCheck,
   Sparkles,
-  Type,
   Image,
-  Globe,
 } from 'lucide-react';
 
 /** 工具分类 */
 export type ToolCategory =
-  | 'converter'
-  | 'encoder'
-  | 'formatter'
-  | 'generator'
+  | 'data'
+  | 'security'
   | 'text'
-  | 'graphic'
+  | 'generator'
+  | 'image'
+  | 'canvas'
+  | 'capture'
   | 'network'
   | 'system'
-  | 'translate'
-  | 'pdf';
+  | 'language';
 
 /** 分类显示名称映射 */
 export const CATEGORY_NAMES: Record<ToolCategory, string> = {
-  converter: '转换器',
-  encoder: '编码器',
-  formatter: '格式化器',
-  generator: '生成器',
-  text: '文本工具',
-  graphic: '图形工具',
-  network: '网络工具',
-  system: '系统工具',
-  translate: '翻译工具',
-  pdf: 'PDF 工具',
+  data: '数据与转换',
+  security: '编码与安全',
+  text: '文本与代码',
+  generator: '生成工具',
+  image: '图像与文档',
+  canvas: '图表与画布',
+  capture: '截图与录制',
+  network: '接口与网络',
+  system: '系统与剪贴板',
+  language: '语言翻译',
 };
+
+/** 导航与设置使用的稳定分类顺序。 */
+export const TOOL_CATEGORY_ORDER: ToolCategory[] = [
+  'data',
+  'security',
+  'text',
+  'generator',
+  'image',
+  'canvas',
+  'capture',
+  'network',
+  'system',
+  'language',
+];
 
 /** 分类图标映射 */
 export const CATEGORY_ICONS: Record<ToolCategory, ComponentType<{ className?: string }>> = {
-  converter: ArrowLeftRight,
-  encoder: Code2,
-  formatter: FileJson,
+  data: Database,
+  security: ShieldCheck,
+  text: FileText,
   generator: Sparkles,
-  text: Type,
-  graphic: Image,
-  network: Globe,
-  system: Globe,
-  translate: Languages,
-  pdf: FileStack,
+  image: Image,
+  canvas: PenTool,
+  capture: Camera,
+  network: Globe2,
+  system: MonitorCog,
+  language: Languages,
 };
 
 /** 工具定义接口 */

@@ -1,20 +1,14 @@
 import { Suspense, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import {
-  getAllTools,
-  getAvailableCategories,
-  getToolById,
-  getToolsByCategory,
-} from '@/registry/tool-registry';
+import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } from '@/registry/tool-registry';
 import { useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useTheme } from '@/hooks/use-theme';
 import { Button } from '@/components/ui/button';
-import { BrandMark } from '@/components/shared/BrandMark';
 import { LogPanel } from '@/components/layout/LogPanel';
 import { useLogStore } from '@/store/log-store';
-import { ScrollText, Search, Moon, Sun, Monitor, Loader2, Languages, Sparkles, Power, Pin, Settings, Zap } from 'lucide-react';
+import { Activity, ArrowUpRight, Command, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, ShieldCheck, Sun } from 'lucide-react';
 
 interface ToolPanelProps {
   toolId: string | null;
@@ -23,181 +17,133 @@ interface ToolPanelProps {
 
 function ToolLoader() {
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-7 w-7 animate-spin text-primary" />
-        <span className="text-xs text-muted-foreground">加载中…</span>
+    <div className="flex h-full items-center justify-center bg-background">
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        正在载入工具
       </div>
     </div>
   );
 }
 
-/** 无工具被选中时的「工作台」开场 —— 非常规居中 hero，而是左对齐的命令中心 */
 function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void }) {
   const { t } = useTranslation();
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setActiveCategory = useAppStore((s) => s.setActiveCategory);
   const recentTools = useAppStore((s) => s.recentTools);
   const pinnedTools = useAppStore((s) => s.pinnedTools);
-
   const allTools = useMemo(() => getAllTools(), []);
   const categories = useMemo(() => getAvailableCategories(), []);
 
-  // 快捷栏：用户固定的工具
-  const pinnedToolDefs = useMemo(() => {
-    return pinnedTools
-      .map((id) => allTools.find((tool) => tool.id === id))
-      .filter(Boolean) as NonNullable<ReturnType<typeof getToolById>>[];
-  }, [pinnedTools, allTools]);
-
-  // 快速访问：优先最近使用，否则展示一组常用工具
   const quickTools = useMemo(() => {
-    const POPULAR = [
-      'json-formatter',
-      'base64',
-      'timestamp',
-      'uuid-generator',
-      'text-diff',
-      'qrcode',
-      'regex-tester',
-      'api-tester',
-    ];
-    const recent = recentTools
-      .map((id) => allTools.find((tool) => tool.id === id))
-      .filter(Boolean);
-    if (recent.length >= 4) return recent.slice(0, 8);
-    const ids = new Set(recent.map((tool) => tool!.id));
-    const popular = POPULAR.map((id) => allTools.find((tool) => tool.id === id)).filter(
-      (tool) => tool && !ids.has(tool.id)
-    );
-    return [...recent, ...popular].slice(0, 8);
-  }, [recentTools, allTools]);
+    const defaults = ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'text-diff', 'qrcode'];
+    const recent = recentTools.map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean);
+    const selected = new Set(recent.map((tool) => tool?.id));
+    return [...recent, ...defaults.map((id) => allTools.find((tool) => tool.id === id)).filter((tool) => tool && !selected.has(tool.id))].slice(0, 6);
+  }, [allTools, recentTools]);
+
+  const pinnedToolDefs = useMemo(
+    () => pinnedTools.map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean),
+    [allTools, pinnedTools]
+  );
 
   return (
-    <div className="app-ambient h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-3xl px-8 pb-16 pt-12">
-        {/* 品牌与标语 */}
-        <div className="animate-rise-in">
-          <BrandMark size={46} />
-          <h1 className="mt-5 font-heading text-[32px] font-bold leading-tight tracking-tight text-foreground">
-            {t('app.welcome')}
-          </h1>
-          <p className="mt-2.5 max-w-md text-sm leading-relaxed text-muted-foreground">
-            {t('app.welcomeDesc')}
-          </p>
-
-          {/* 搜索触发器 */}
-          <button
-            onClick={() => setSearchOpen(true)}
-            className={cn(
-              'group mt-6 flex w-full max-w-md items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left',
-              'shadow-tinted-sm transition-all duration-200',
-              'hover:border-primary/40 hover:shadow-tinted active:scale-[0.99]'
-            )}
-          >
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-            <span className="flex-1 text-sm text-muted-foreground">
-              {t('app.searchHint', { count: allTools.length })}
-            </span>
-            <span className="flex items-center gap-1">
-              <kbd className="kbd">Ctrl</kbd>
-              <kbd className="kbd">K</kbd>
-            </span>
-          </button>
-        </div>
-
-        {/* 快捷栏：用户固定的工具 */}
-        {pinnedToolDefs.length > 0 && (
-          <section className="mt-9">
-            <div className="mb-3 flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5 text-warning" />
-              <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                {t('app.pinnedBar')}
-              </h2>
+    <div className="app-workbench h-full overflow-y-auto">
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-8 xl:grid-cols-[minmax(0,1fr)_260px] xl:px-10 xl:py-10">
+        <div>
+          <section className="border-b border-border pb-8">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              {t('app.localFirstWorkspace')}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {pinnedToolDefs.map((tool, i) => {
+            <h1 className="mt-4 max-w-2xl font-heading text-4xl font-semibold tracking-[-0.04em] text-foreground sm:text-5xl">
+              {t('app.welcome')}
+            </h1>
+            <p className="mt-4 max-w-xl text-[15px] leading-7 text-muted-foreground">{t('app.welcomeDesc')}</p>
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="group mt-7 flex min-h-12 w-full max-w-xl items-center gap-3 rounded-xl border border-border bg-card px-4 text-left shadow-tinted-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Search className="h-4 w-4" /></span>
+              <span className="flex-1 text-sm text-muted-foreground">{t('app.searchHint', { count: allTools.length })}</span>
+              <kbd className="kbd">Ctrl K</kbd>
+              <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </button>
+          </section>
+
+          {pinnedToolDefs.length > 0 && (
+            <section className="pt-8">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('app.pinnedBar')}</p>
+                  <h2 className="mt-1 font-heading text-xl font-semibold tracking-tight">{t('app.startNow')}</h2>
+                </div>
+                <Pin className="h-4 w-4 text-primary" aria-hidden="true" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {pinnedToolDefs.map((tool) => {
+                  if (!tool) return null;
+                  const Icon = tool.icon;
+                  return (
+                    <button key={tool.id} onClick={() => onSelectTool(tool.id)} className="tool-card group text-left">
+                      <span className="tool-card-icon"><Icon className="h-4 w-4" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[14px] font-semibold leading-snug text-foreground">{t(`tools.${tool.id}`, tool.name)}</span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">{tool.description}</span>
+                      </span>
+                      <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          <section className="pt-8">
+            <div className="mb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('app.quickTools')}</p>
+              <h2 className="mt-1 font-heading text-xl font-semibold tracking-tight">常用工具</h2>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {quickTools.map((tool) => {
+                if (!tool) return null;
                 const Icon = tool.icon;
                 return (
-                  <button
-                    key={tool.id}
-                    onClick={() => onSelectTool(tool.id)}
-                    className="animate-rise-in group flex items-center gap-2 rounded-lg border border-border bg-card/80 px-3 py-2 text-[13px] font-medium text-foreground shadow-tinted-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-warning/50 hover:shadow-tinted active:translate-y-0 active:scale-[0.97]"
-                    style={{ animationDelay: `${40 + i * 35}ms` }}
-                  >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-md bg-warning/10 transition-colors duration-200 group-hover:bg-warning/20">
-                      <Icon className="h-3.5 w-3.5 text-warning" />
+                  <button key={tool.id} onClick={() => onSelectTool(tool.id)} className="tool-card group text-left">
+                    <span className="tool-card-icon"><Icon className="h-4 w-4" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[14px] font-semibold leading-snug text-foreground">{t(`tools.${tool.id}`, tool.name)}</span>
+                      <span className="mt-1 block truncate text-xs text-muted-foreground">{tool.description}</span>
                     </span>
-                    {t(`tools.${tool.id}`, tool.name)}
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
                   </button>
                 );
               })}
             </div>
           </section>
-        )}
+        </div>
 
-        {/* 快速访问网格 */}
-        <section className="mt-9">
-          <div className="mb-3 flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {t('app.quickTools')}
-            </h2>
+        <aside className="self-start border border-border bg-card p-5 xl:sticky xl:top-0" aria-label="工具概览">
+          <div className="flex items-center gap-2 text-primary"><Activity className="h-4 w-4" /><span className="text-[11px] font-semibold uppercase tracking-[0.16em]">{t('app.workspaceOverview')}</span></div>
+          <div className="mt-5 border-y border-border py-5">
+            <p className="font-heading text-4xl font-semibold tracking-tight text-foreground">{allTools.length}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('app.offlineTools')}</p>
           </div>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
-            {quickTools.map((tool, i) => {
-              if (!tool) return null;
-              const Icon = tool.icon;
-              return (
-                <button
-                  key={tool.id}
-                  onClick={() => onSelectTool(tool.id)}
-                  className="animate-rise-in group panel-raised flex flex-col gap-2.5 p-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-tinted active:translate-y-0 active:scale-[0.98]"
-                  style={{ animationDelay: `${60 + i * 45}ms` }}
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-md bg-accent/70 transition-colors duration-200 group-hover:bg-primary/15">
-                    <Icon className="h-4 w-4 text-muted-foreground transition-colors duration-200 group-hover:text-primary" />
-                  </span>
-                  <span className="text-[13px] font-medium leading-snug text-foreground">
-                    {t(`tools.${tool.id}`, tool.name)}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="mt-5 space-y-1">
+            {categories.map((category) => (
+              <button key={category} onClick={() => setActiveCategory(category)} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                <span>{t(`categories.${category}`)}</span>
+                <span className="font-mono text-[11px] text-primary">{getToolsByCategory(category).length}</span>
+              </button>
+            ))}
           </div>
-        </section>
-
-        {/* 分类快捷入口 */}
-        <section className="mt-9">
-          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {t('app.allCategories')}
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category, i) => {
-              const tools = getToolsByCategory(category);
-              const count = tools.length;
-              return (
-                <button
-                  key={category}
-                  onClick={() => setActiveCategory(category)}
-                  className="animate-rise-in group flex items-center gap-2 rounded-full border border-border bg-card/60 px-3.5 py-1.5 text-[13px] text-muted-foreground transition-all duration-200 hover:border-primary/40 hover:bg-accent/50 hover:text-foreground active:scale-95"
-                  style={{ animationDelay: `${300 + i * 40}ms` }}
-                >
-                  <span className="font-medium">{t(`categories.${category}`)}</span>
-                  <span className="font-mono text-[10px] text-muted-foreground/60 transition-colors group-hover:text-primary">
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+          <div className="mt-5 flex items-center gap-2 border-t border-border pt-4 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden="true" /> {t('app.localProcessing')}</div>
+        </aside>
       </div>
     </div>
   );
 }
 
-/** 工具已停止时的占位屏 */
 function ToolStoppedScreen({ toolId }: { toolId: string }) {
   const { t } = useTranslation();
   const startTool = useToolLifecycleStore((s) => s.startTool);
@@ -206,97 +152,47 @@ function ToolStoppedScreen({ toolId }: { toolId: string }) {
   const Icon = toolDef.icon;
 
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="animate-rise-in flex flex-col items-center gap-4 text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border/60 bg-muted/40">
-          <Icon className="h-6 w-6 text-muted-foreground/60" />
-        </span>
-        <div>
-          <p className="text-sm font-medium text-foreground">
-            {t(`tools.${toolDef.id}`, toolDef.name)}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">{t('app.toolStoppedDesc')}</p>
-        </div>
-        <button
-          onClick={() => startTool(toolId)}
-          className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-2 text-[13px] font-medium text-success transition-all duration-200 hover:bg-success/20 hover:shadow-tinted-sm active:scale-[0.97]"
-        >
-          <Power className="h-3.5 w-3.5" />
-          {t('app.startTool')}
-        </button>
+    <div className="app-workbench flex h-full items-center justify-center p-6">
+      <div className="max-w-sm border border-border bg-card p-7 text-center shadow-tinted-sm">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span>
+        <h2 className="mt-5 font-heading text-xl font-semibold">{t(`tools.${toolDef.id}`, toolDef.name)}</h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('app.toolStoppedDesc')}</p>
+        <Button className="mt-6" onClick={() => startTool(toolId)}><Power className="h-4 w-4" />{t('app.startTool')}</Button>
       </div>
     </div>
   );
 }
 
-/** 工具运行开关 —— 类似 uTools 的进程开关 */
 function ToolPowerSwitch({ toolId }: { toolId: string }) {
   const { t } = useTranslation();
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
   const toggleTool = useToolLifecycleStore((s) => s.toggleTool);
   const setActiveTool = useAppStore((s) => s.setActiveTool);
-
   const isActive = activeTools.includes(toolId);
   const isAlwaysOn = alwaysOnTools.includes(toolId);
 
   const handleToggle = () => {
     if (isAlwaysOn) return;
+    toggleTool(toolId);
     if (isActive) {
-      // 关闭当前工具：切换到下一个活跃工具或回到欢迎页
-      toggleTool(toolId);
       const remaining = useToolLifecycleStore.getState().activeTools;
       setActiveTool(remaining.length > 0 ? remaining[remaining.length - 1] : null);
-    } else {
-      toggleTool(toolId);
     }
   };
 
+  const label = isAlwaysOn ? t('app.toolAlwaysOn') : isActive ? t('app.stopTool') : t('app.startTool');
   return (
-    <button
-      onClick={handleToggle}
-      disabled={isAlwaysOn}
-      title={
-        isAlwaysOn
-          ? t('app.toolAlwaysOn')
-          : isActive
-            ? t('app.stopTool')
-            : t('app.startTool')
-      }
-      className={cn(
-        'group relative flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-200',
-        isAlwaysOn
-          ? 'cursor-default border-warning/30 bg-warning/10 text-warning'
-          : isActive
-            ? 'border-success/30 bg-success/10 text-success hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive'
-            : 'border-border bg-muted/50 text-muted-foreground hover:border-success/40 hover:bg-success/10 hover:text-success'
-      )}
-    >
-      {isAlwaysOn ? (
-        <Pin className="h-3 w-3" />
-      ) : (
-        <Power className={cn('h-3 w-3 transition-transform duration-200', !isActive && 'group-hover:scale-110')} />
-      )}
-      <span className="hidden sm:inline">
-        {isAlwaysOn ? t('app.alwaysOn') : isActive ? t('app.toolRunning') : t('app.toolStopped')}
-      </span>
-      {/* 运行状态呼吸灯 */}
-      {isActive && !isAlwaysOn && (
-        <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-success animate-glow-pulse" />
-      )}
+    <button onClick={handleToggle} disabled={isAlwaysOn} aria-label={label} className={cn('flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors disabled:cursor-default', isAlwaysOn ? 'border-warning/35 bg-warning/10 text-warning' : isActive ? 'border-success/35 bg-success/10 text-success hover:border-destructive/45 hover:bg-destructive/10 hover:text-destructive' : 'border-border bg-muted text-muted-foreground hover:border-success/40 hover:text-success')}>
+      {isAlwaysOn ? <Pin className="h-3 w-3" /> : <Power className="h-3 w-3" />}
+      {isAlwaysOn ? t('app.alwaysOn') : isActive ? t('app.toolRunning') : t('app.toolStopped')}
     </button>
   );
 }
 
-/** 日志未读数徽标 */
 function UnreadLogBadge() {
   const unreadCount = useLogStore((s) => s.unreadCount);
-  if (unreadCount === 0) return null;
-  return (
-    <span className="ml-0.5 rounded-full bg-primary/15 px-1 text-[9px] font-semibold leading-4 text-primary">
-      {unreadCount > 99 ? '99+' : unreadCount}
-    </span>
-  );
+  return unreadCount > 0 ? <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold text-primary">{unreadCount > 99 ? '99+' : unreadCount}</span> : null;
 }
 
 export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
@@ -305,10 +201,11 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setActiveTool = useAppStore((s) => s.setActiveTool);
   const addRecentTool = useAppStore((s) => s.addRecentTool);
-  // 生命周期：仅渲染运行中的工具组件
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const startTool = useToolLifecycleStore((s) => s.startTool);
   const tool = toolId ? getToolById(toolId) : null;
+  const isChinese = (i18n.resolvedLanguage ?? i18n.language).startsWith('zh');
+  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
 
   const handleSelectTool = (id: string) => {
     startTool(id);
@@ -318,134 +215,44 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
 
   const cycleTheme = () => {
     const themes = ['light', 'dark', 'system'] as const;
-    const currentIndex = themes.indexOf(theme);
-    setTheme(themes[(currentIndex + 1) % themes.length]);
-  };
-
-  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
-  const isChinese = (i18n.resolvedLanguage ?? i18n.language).startsWith('zh');
-
-  const toggleLanguage = () => {
-    const newLang = isChinese ? 'en' : 'zh';
-    i18n.changeLanguage(newLang);
+    setTheme(themes[(themes.indexOf(theme) + 1) % themes.length]);
   };
 
   return (
-    <div className="flex h-full flex-col">
-      {/* 顶部栏 */}
-      <header className="flex h-[46px] shrink-0 items-center justify-between border-b border-border/80 bg-background/70 px-4 backdrop-blur-sm">
-        <div className="flex min-w-0 items-center gap-2.5">
-          {tool ? (
-            <>
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent/70">
-                <tool.icon className="h-3.5 w-3.5 text-primary" />
-              </span>
-              <h1 className="truncate font-heading text-[15px] font-semibold tracking-tight text-foreground">
-                {t(`tools.${tool.id}`, tool.name)}
-              </h1>
-              <span className="shrink-0 rounded-full border border-border/70 bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {t(`categories.${tool.category}`)}
-              </span>
-              {/* 工具进程开关 */}
-              <ToolPowerSwitch toolId={tool.id} />
-            </>
-          ) : (
-            <span className="text-[13px] text-muted-foreground">{t('app.noToolSelected')}</span>
-          )}
+    <div className="flex h-full min-w-0 flex-col bg-background">
+      <a href="#workspace-main" className="skip-link">{t('app.skipToMain')}</a>
+      <header className="flex min-h-[68px] shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-5">
+        <div className="flex min-w-0 items-center gap-3">
+          {tool ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><tool.icon className="h-4 w-4" /></span> : <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"><LayoutDashboard className="h-4 w-4" /></span>}
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{tool ? t(`categories.${tool.category}`) : 'Niuery Toolkit'}</p>
+            <h1 className="truncate font-heading text-lg font-semibold tracking-tight text-foreground">{tool ? t(`tools.${tool.id}`, tool.name) : t('app.workspace')}</h1>
+          </div>
+          {tool && <ToolPowerSwitch toolId={tool.id} />}
         </div>
-        <div className="flex items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={() => setSearchOpen(true)}
-            title="Ctrl+K"
-          >
-            <Search className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={toggleLanguage}
-            title={isChinese ? 'English' : '中文'}
-          >
-            <Languages className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={cycleTheme}
-            title={t(`theme.${theme}`)}
-          >
-            <ThemeIcon className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={onOpenSettings}
-            title={t('app.settings')}
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)} aria-label={t('app.searchTools')} title="Ctrl+K"><Search /></Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => i18n.changeLanguage(isChinese ? 'en' : 'zh')} aria-label={isChinese ? '切换为英语' : 'Switch to Chinese'} title={isChinese ? 'English' : '中文'}><Languages /></Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={cycleTheme} aria-label={t(`theme.${theme}`)} title={t(`theme.${theme}`)}><ThemeIcon /></Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onOpenSettings} aria-label={t('app.settings')} title={t('app.settings')}><Settings /></Button>
         </div>
       </header>
 
-      {/* 内容区：仅渲染运行中的工具 */}
-      <main className="flex-1 overflow-hidden">
-        {tool && activeTools.includes(tool.id) ? (
-          activeTools.map((id) => {
-            const activeToolDef = getToolById(id);
-            if (!activeToolDef) return null;
-            const isActive = id === toolId;
-            return (
-              <div
-                key={id}
-                className={isActive ? 'h-full animate-tool-enter' : 'hidden'}
-                aria-hidden={!isActive}
-              >
-                <Suspense fallback={<ToolLoader />}>
-                  <activeToolDef.component />
-                </Suspense>
-              </div>
-            );
-          })
-        ) : tool ? (
-          /* 工具存在但未启动：显示已停止占位 */
-          <ToolStoppedScreen toolId={tool.id} />
-        ) : (
-          <WelcomeScreen onSelectTool={handleSelectTool} />
-        )}
+      <main id="workspace-main" className="min-h-0 flex-1 overflow-hidden" tabIndex={-1}>
+        {tool && activeTools.includes(tool.id) ? activeTools.map((id) => {
+          const definition = getToolById(id);
+          if (!definition) return null;
+          return <div key={id} className={id === toolId ? 'h-full animate-tool-enter' : 'hidden'} aria-hidden={id !== toolId}><Suspense fallback={<ToolLoader />}><definition.component /></Suspense></div>;
+        }) : tool ? <ToolStoppedScreen toolId={tool.id} /> : <WelcomeScreen onSelectTool={handleSelectTool} />}
       </main>
 
-      {/* 日志面板 */}
       <LogPanel />
-
-      {/* 状态栏 */}
-      <footer className="flex h-[26px] shrink-0 items-center justify-between border-t border-border/80 bg-background/70 px-3 font-mono text-[10.5px] text-muted-foreground">
-        <div className="flex min-w-0 items-center gap-3">
-          {tool && <span className="truncate">{t(`tools.${tool.id}`, tool.name)}</span>}
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => useLogStore.getState().setPanelOpen(!useLogStore.getState().panelOpen)}
-            className={cn(
-              'relative flex items-center gap-1 rounded px-1 transition-colors hover:text-foreground',
-              useLogStore((s) => s.panelOpen) && 'text-primary'
-            )}
-            title={t('app.logs', '日志')}
-          >
-            <ScrollText className="h-3 w-3" />
-            <span>{t('app.logs', '日志')}</span>
-            <UnreadLogBadge />
-          </button>
-          <span>UTF-8</span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-success animate-glow-pulse" />
-            {t('app.offlineMode')}
-          </span>
+      <footer className="flex h-8 shrink-0 items-center justify-between border-t border-border bg-card px-5 font-mono text-[10px] text-muted-foreground">
+        <span className="min-w-0 truncate">{tool ? t(`tools.${tool.id}`, tool.name) : t('app.offlineWorkspace')}</span>
+        <div className="flex items-center gap-4">
+          <button onClick={() => useLogStore.getState().setPanelOpen(!useLogStore.getState().panelOpen)} className="flex items-center gap-1.5 rounded px-1 py-0.5 transition-colors hover:text-foreground" aria-label={t('app.logs', '日志')}><Command className="h-3 w-3" />{t('app.logs', '日志')}<UnreadLogBadge /></button>
+          <span className="hidden sm:inline">UTF-8</span>
+          <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-success" />{t('app.offlineMode')}</span>
         </div>
       </footer>
     </div>

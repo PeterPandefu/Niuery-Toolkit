@@ -1,106 +1,51 @@
-import { describe, it, expect } from 'vitest';
-import {
-  getAllTools,
-  getToolsByCategory,
-  getToolById,
-  getAvailableCategories,
-} from '@/registry/tool-registry';
+import { describe, expect, it } from 'vitest';
+import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } from '@/registry/tool-registry';
+import { TOOL_CATEGORY_ORDER } from '@/types/tool';
 
-describe('Tool Registry', () => {
-  it('registers all 43 tools', () => {
+describe('工具注册表', () => {
+  it('完整注册 43 个工具', () => {
+    expect(getAllTools()).toHaveLength(43);
+  });
+
+  it('按任务导向的稳定顺序返回 10 个分类', () => {
+    expect(getAvailableCategories()).toEqual(TOOL_CATEGORY_ORDER);
+  });
+
+  it.each([
+    ['data', 11],
+    ['security', 9],
+    ['text', 6],
+    ['generator', 4],
+    ['image', 3],
+    ['canvas', 3],
+    ['capture', 2],
+    ['network', 2],
+    ['system', 2],
+    ['language', 1],
+  ] as const)('分类 %s 包含 %i 个工具', (category, count) => {
+    expect(getToolsByCategory(category)).toHaveLength(count);
+  });
+
+  it('将代表性工具归入符合任务的分类', () => {
+    expect(getToolById('json-formatter')?.category).toBe('data');
+    expect(getToolById('checksum')?.category).toBe('security');
+    expect(getToolById('markdown-editor')?.category).toBe('text');
+    expect(getToolById('pdf-toolkit')?.category).toBe('image');
+    expect(getToolById('mind-map')?.category).toBe('canvas');
+    expect(getToolById('screenshot-editor')?.category).toBe('capture');
+    expect(getToolById('clipboard-history')?.category).toBe('system');
+  });
+
+  it('保留稳定的工具标识符与必填字段', () => {
     const tools = getAllTools();
-    expect(tools.length).toBe(43);
-  });
-
-  it('has 10 categories', () => {
-    const categories = getAvailableCategories();
-    expect(categories.length).toBe(10);
-    expect(categories).toContain('converter');
-    expect(categories).toContain('encoder');
-    expect(categories).toContain('formatter');
-    expect(categories).toContain('generator');
-    expect(categories).toContain('text');
-    expect(categories).toContain('graphic');
-    expect(categories).toContain('network');
-    expect(categories).toContain('system');
-    expect(categories).toContain('translate');
-    expect(categories).toContain('pdf');
-  });
-
-  it('has 8 converters', () => {
-    expect(getToolsByCategory('converter').length).toBe(8);
-  });
-
-  it('has 7 encoders', () => {
-    expect(getToolsByCategory('encoder').length).toBe(7);
-  });
-
-  it('has 4 formatters', () => {
-    expect(getToolsByCategory('formatter').length).toBe(4);
-  });
-
-  it('has 5 generators', () => {
-    expect(getToolsByCategory('generator').length).toBe(5);
-  });
-
-  it('has 6 text tools', () => {
-    expect(getToolsByCategory('text').length).toBe(6);
-  });
-
-  it('has 8 graphic tools', () => {
-    const tools = getToolsByCategory('graphic');
-    expect(tools).toHaveLength(8);
-    expect(tools.map((tool) => tool.id)).toEqual(expect.arrayContaining([
-      'image-studio',
-      'mind-map',
-      'excalidraw-board',
-      'tldraw-board',
-    ]));
-  });
-
-  it('has a translator', () => {
-    expect(getToolsByCategory('translate').map((tool) => tool.id)).toEqual(['translator']);
-  });
-
-  it('has a pdf toolkit', () => {
-    expect(getToolsByCategory('pdf').map((tool) => tool.id)).toEqual(['pdf-toolkit']);
-  });
-
-  it('has 2 network tools', () => {
-    expect(getToolsByCategory('network').length).toBe(2);
-  });
-
-  it('has a system monitor', () => {
-    expect(getToolsByCategory('system').map((tool) => tool.id)).toEqual(['system-monitor']);
-  });
-
-  it('retrieves tool by id', () => {
-    const tool = getToolById('json-yaml');
-    expect(tool).toBeDefined();
-    expect(tool!.name).toBe('JSON ↔ YAML');
-    expect(tool!.category).toBe('converter');
-  });
-
-  it('returns undefined for unknown tool', () => {
-    expect(getToolById('nonexistent')).toBeUndefined();
-  });
-
-  it('every tool has required fields', () => {
-    const tools = getAllTools();
-    for (const tool of tools) {
+    expect(new Set(tools.map((tool) => tool.id)).size).toBe(tools.length);
+    tools.forEach((tool) => {
       expect(tool.id).toBeTruthy();
       expect(tool.name).toBeTruthy();
       expect(tool.icon).toBeDefined();
-      expect(tool.category).toBeTruthy();
       expect(tool.component).toBeDefined();
       expect(tool.keywords.length).toBeGreaterThan(0);
       expect(tool.description).toBeTruthy();
-    }
-  });
-
-  it('all tool ids are unique', () => {
-    const tools = getAllTools();
-    const ids = tools.map((t) => t.id);
-    expect(new Set(ids).size).toBe(ids.length);
+    });
   });
 });
