@@ -15,12 +15,34 @@ import { isTauri } from '@/lib/api-client';
 import { MindMapSurface, type MindMapSurfaceHandle } from './MindMapSurface';
 import {
   createMindMapDocument,
+  mindMapToMarkdown,
   markdownToMindMap,
   parseMindMapDocument,
   type MindMapDocument,
 } from './document';
 
 const TOOL_ID = 'mind-map';
+
+const LAYOUTS = [
+  { value: 'logicalStructure', key: 'layoutLogical' },
+  { value: 'mindMap', key: 'layoutMindMap' },
+  { value: 'organizationStructure', key: 'layoutOrganization' },
+] as const;
+
+const APPEARANCES = [
+  { value: 'default', key: 'appearanceDefault', config: {} },
+  {
+    value: 'contrast',
+    key: 'appearanceContrast',
+    config: {
+      backgroundColor: '#172033',
+      lineColor: '#7dd3fc',
+      root: { fillColor: '#0369a1' },
+      second: { fillColor: '#24324a', color: '#e2e8f0', borderColor: '#7dd3fc' },
+      node: { color: '#cbd5e1' },
+    },
+  },
+] as const;
 
 function createRecoveryId() {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
@@ -31,10 +53,20 @@ function filenameFromPath(path: string | null, fallback: string, extension: stri
   return path.split(/[\\/]/).pop() ?? `${fallback}${extension}`;
 }
 
+function findNodeByUid(node: MindMapDocument['root'], uid: string): MindMapDocument['root'] | null {
+  if (node.data.uid === uid) return node;
+  for (const child of node.children) {
+    const match = findNodeByUid(child, uid);
+    if (match) return match;
+  }
+  return null;
+}
+
 export default function MindMapTool() {
   const { t } = useTranslation();
   const surfaceRef = useRef<MindMapSurfaceHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const recoveryId = useRef(createRecoveryId());
   const [document, setDocument] = useState<MindMapDocument>(() => createMindMapDocument(t('mindMap.unnamed')));
   const [documentVersion, setDocumentVersion] = useState(0);
@@ -42,6 +74,9 @@ export default function MindMapTool() {
   const [dirty, setDirty] = useState(false);
   const [recoverySnapshots, setRecoverySnapshots] = useState<RecoverySnapshot[]>([]);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInfo, setSearchInfo] = useState({ currentIndex: -1, total: 0 });
+  const [focusedUid, setFocusedUid] = useState<string | null>(null);
 
   const title = useMemo(() => String(document.root.data.text || t('mindMap.unnamed')), [document, t]);
   const templates = useMemo(() => [
@@ -55,7 +90,7 @@ export default function MindMapTool() {
           { data: { text: '里程碑' }, children: [{ data: { text: '第一阶段' }, children: [] }, { data: { text: '发布' }, children: [] }] },
           { data: { text: '风险' }, children: [{ data: { text: '应对方案' }, children: [] }] },
         ] },
-        layout: 'logicalStructure', theme: { template: 'classic4', config: {} },
+        layout: 'logicalStructure', theme: { template: 'default', config: {} },
       } satisfies MindMapDocument,
     },
     {
@@ -69,7 +104,7 @@ export default function MindMapTool() {
           { data: { text: '证据与反思' }, children: [] },
           { data: { text: '行动' }, children: [{ data: { text: '下一步' }, children: [] }] },
         ] },
-        layout: 'logicalStructure', theme: { template: 'classic4', config: {} },
+        layout: 'logicalStructure', theme: { template: 'default', config: {} },
       } satisfies MindMapDocument,
     },
   ], [t]);
@@ -79,6 +114,7 @@ export default function MindMapTool() {
     setDocumentPath(path);
     setDocumentVersion((value) => value + 1);
     setDirty(false);
+    setFocusedUid(null);
   }, []);
 
   useEffect(() => {
@@ -100,10 +136,10 @@ export default function MindMapTool() {
 
   const save = useCallback(async () => {
     const path = await saveBytes(
-      filenameFromPath(documentPath, title, '.smm'),
+      filenameFromPath(documentPath, title, '.json'),
       new TextEncoder().encode(JSON.stringify(document, null, 2)),
       t('tools.mind-map'),
-      ['smm'],
+      ['json'],
     );
     if (!path) return;
     setDocumentPath(path);
@@ -148,15 +184,91 @@ export default function MindMapTool() {
     }
   }, [t, title]);
 
+  const exportMarkdown = useCallback(async () => {
+    try {
+      const filename = `${title.replace(/[\\/:*?"<>|]/g, '-').slice(0, 48) || t('mindMap.unnamed')}.md`;
+      await saveBytes(filename, new TextEncoder().encode(mindMapToMarkdown(document)), 'Markdown', ['md']);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('mindMap.exportFailed'));
+    }
+  }, [document, t, title]);
+
+  const updateSearch = useCallback((value: string) => {
+    setSearchTerm(value);
+    if (!value.trim()) {
+      surfaceRef.current?.clearSearch();
+      setSearchInfo({ currentIndex: -1, total: 0 });
+      return;
+    }
+    surfaceRef.current?.search(value);
+  }, []);
+
+  const exitFocus = useCallback(() => setFocusedUid(null), []);
+
+  const focusActiveBranch = useCallback(() => {
+    const uid = surfaceRef.current?.activeNodeUid();
+    if (!uid || !findNodeByUid(document.root, uid)) {
+      toast.message(t('mindMap.focusRequired'));
+      return;
+    }
+    surfaceRef.current?.clearSearch();
+    setSearchTerm('');
+    setSearchInfo({ currentIndex: -1, total: 0 });
+    setFocusedUid(uid);
+  }, [document.root, t]);
+
+  const updateLayout = useCallback((layout: string) => {
+    setDocument((current) => ({ ...current, layout }));
+    setDocumentVersion((value) => value + 1);
+    setDirty(true);
+  }, []);
+
+  const updateAppearance = useCallback((appearance: string) => {
+    const preset = APPEARANCES.find((item) => item.value === appearance) ?? APPEARANCES[0];
+    setDocument((current) => ({
+      ...current,
+      theme: { template: preset.value, config: structuredClone(preset.config) },
+    }));
+    setDocumentVersion((value) => value + 1);
+    setDirty(true);
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') return;
-      event.preventDefault();
-      void save();
+      if (event.key === 'Escape' && focusedUid) {
+        event.preventDefault();
+        exitFocus();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Home') {
+        event.preventDefault();
+        surfaceRef.current?.goRoot();
+        return;
+      }
+      if (!(event.ctrlKey || event.metaKey)) return;
+      if (event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void save();
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [save]);
+  }, [exitFocus, focusedUid, save]);
+
+  const focusedDocument = useMemo(() => {
+    if (!focusedUid) return document;
+    const node = findNodeByUid(document.root, focusedUid);
+    return node ? { ...document, root: structuredClone(node) } : document;
+  }, [document, focusedUid]);
+
+  const currentAppearance = APPEARANCES.some((item) => item.value === document.theme?.template)
+    ? document.theme?.template ?? 'default'
+    : 'default';
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-background">
@@ -173,20 +285,62 @@ export default function MindMapTool() {
         <Button variant={templatesOpen ? 'secondary' : 'ghost'} size="sm" onClick={() => setTemplatesOpen((value) => !value)}>
           <Library className="mr-1.5 h-4 w-4" />{t('mindMap.template')}
         </Button>
+        <label className="ml-1 flex items-center gap-1 text-xs text-muted-foreground">
+          {t('mindMap.layout')}
+          <select
+            className="h-8 rounded border border-border bg-background px-1 text-foreground"
+            value={document.layout ?? 'logicalStructure'}
+            disabled={Boolean(focusedUid)}
+            onChange={(event) => updateLayout(event.target.value)}
+          >
+            {LAYOUTS.map((layout) => <option key={layout.value} value={layout.value}>{t(`mindMap.${layout.key}`)}</option>)}
+          </select>
+        </label>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          {t('mindMap.appearance')}
+          <select
+            className="h-8 rounded border border-border bg-background px-1 text-foreground"
+            value={currentAppearance}
+            disabled={Boolean(focusedUid)}
+            onChange={(event) => updateAppearance(event.target.value)}
+          >
+            {APPEARANCES.map((appearance) => <option key={appearance.value} value={appearance.value}>{t(`mindMap.${appearance.key}`)}</option>)}
+          </select>
+        </label>
         <span className="mx-1 h-5 w-px bg-border" />
-        <Button variant="ghost" size="sm" onClick={() => surfaceRef.current?.command('INSERT_CHILD_NODE')}>
+        <Button variant="ghost" size="sm" disabled={Boolean(focusedUid)} onClick={() => surfaceRef.current?.command('INSERT_CHILD_NODE')}>
           <Plus className="mr-1.5 h-4 w-4" />{t('mindMap.child')}
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => surfaceRef.current?.command('BACK')} title={t('mindMap.undo')}>
+        <Button variant="ghost" size="icon" disabled={Boolean(focusedUid)} onClick={() => surfaceRef.current?.command('BACK')} title={t('mindMap.undo')}>
           <Undo2 className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => surfaceRef.current?.command('FORWARD')} title={t('mindMap.redo')}>
+        <Button variant="ghost" size="icon" disabled={Boolean(focusedUid)} onClick={() => surfaceRef.current?.command('FORWARD')} title={t('mindMap.redo')}>
           <Redo2 className="h-4 w-4" />
         </Button>
         <Button variant="ghost" size="icon" onClick={() => surfaceRef.current?.fit()} title={t('mindMap.fit')}>
           <ZoomIn className="h-4 w-4" />
         </Button>
+        <Button variant="ghost" size="sm" onClick={() => surfaceRef.current?.goRoot()} title={t('mindMap.rootTitle')}>
+          {t('mindMap.root')}
+        </Button>
+        <Button variant="ghost" size="sm" disabled={Boolean(focusedUid)} onClick={() => surfaceRef.current?.command('UNEXPAND_ALL')}>
+          {t('mindMap.collapseAll')}
+        </Button>
+        <Button variant="ghost" size="sm" disabled={Boolean(focusedUid)} onClick={() => surfaceRef.current?.command('EXPAND_ALL')}>
+          {t('mindMap.expandAll')}
+        </Button>
+        <Button variant="ghost" size="sm" disabled={Boolean(focusedUid)} onClick={() => surfaceRef.current?.command('UNEXPAND_TO_LEVEL', 3)}>
+          {t('mindMap.expandToLevel', { level: 3 })}
+        </Button>
+        {focusedUid ? (
+          <Button variant="secondary" size="sm" onClick={exitFocus}>{t('mindMap.exitFocus')}</Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={focusActiveBranch}>{t('mindMap.focus')}</Button>
+        )}
         <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => void exportMarkdown()}>
+            <Download className="mr-1.5 h-4 w-4" />Markdown
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => void exportImage('png')}>
             <Download className="mr-1.5 h-4 w-4" />PNG
           </Button>
@@ -194,6 +348,34 @@ export default function MindMapTool() {
             <Download className="mr-1.5 h-4 w-4" />SVG
           </Button>
         </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/70 bg-card/20 px-3 py-1.5">
+        <input
+          ref={searchInputRef}
+          value={searchTerm}
+          onChange={(event) => updateSearch(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              updateSearch('');
+              searchInputRef.current?.blur();
+            } else if (event.key === 'Enter' && searchInfo.total > 0) {
+              event.preventDefault();
+              const offset = event.shiftKey ? -1 : 1;
+              surfaceRef.current?.searchNext((searchInfo.currentIndex + offset + searchInfo.total) % searchInfo.total);
+            }
+          }}
+          className="h-8 w-52 rounded border border-border bg-background px-2 text-sm"
+          placeholder={t('mindMap.searchPlaceholder')}
+          aria-label={t('mindMap.search')}
+        />
+        <span className="min-w-12 text-xs text-muted-foreground">
+          {searchTerm ? t('mindMap.searchCount', { current: searchInfo.total ? searchInfo.currentIndex + 1 : 0, total: searchInfo.total }) : t('mindMap.searchHint')}
+        </span>
+        <Button variant="ghost" size="sm" disabled={searchInfo.total === 0} onClick={() => surfaceRef.current?.searchNext((searchInfo.currentIndex - 1 + searchInfo.total) % searchInfo.total)}>{t('mindMap.previous')}</Button>
+        <Button variant="ghost" size="sm" disabled={searchInfo.total === 0} onClick={() => surfaceRef.current?.searchNext()}>{t('mindMap.next')}</Button>
+        {searchTerm && <Button variant="ghost" size="sm" onClick={() => updateSearch('')}>{t('mindMap.clearSearch')}</Button>}
+        {focusedUid && <span className="ml-auto text-xs text-muted-foreground">{t('mindMap.focusHint')}</span>}
       </div>
       {templatesOpen && <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/80 bg-card/30 px-3 py-2">
         <span className="text-sm text-muted-foreground">{t('mindMap.templatePrompt')}</span>
@@ -240,11 +422,19 @@ export default function MindMapTool() {
         </div>
       )}
       <div className="min-h-0 flex-1">
-        <MindMapSurface ref={surfaceRef} document={document} documentVersion={documentVersion} onChange={handleChange} />
+        <MindMapSurface
+          key={focusedUid ?? 'full'}
+          ref={surfaceRef}
+          document={focusedDocument}
+          documentVersion={documentVersion}
+          readOnly={Boolean(focusedUid)}
+          onChange={handleChange}
+          onSearchInfoChange={setSearchInfo}
+        />
       </div>
       <div className="flex shrink-0 items-center justify-between border-t border-border/80 px-3 py-1.5 text-xs text-muted-foreground">
         <span>{title}{dirty ? t('mindMap.unsaved') : ''}</span>
-        <span>{t('mindMap.hint')}</span>
+        <span>{focusedUid ? t('mindMap.focusHint') : t('mindMap.hint')}</span>
       </div>
       <input
         ref={fileInputRef}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createMindMapDocument, markdownToMindMap, parseMindMapDocument } from '@/tools/graphic/mind-map/document';
+import { createMindMapDocument, markdownToMindMap, mindMapToMarkdown, parseMindMapDocument } from '@/tools/graphic/mind-map/document';
 
 describe('思维导图文档', () => {
   it('将首个一级标题和嵌套列表转换为可编辑的导图层级', () => {
@@ -19,7 +19,7 @@ describe('思维导图文档', () => {
   it('保留完整导图配置', () => {
     const document = createMindMapDocument('离线导图');
     const parsed = parseMindMapDocument(JSON.stringify(document));
-    expect(parsed.theme?.template).toBe('classic4');
+    expect(parsed.theme?.template).toBe('default');
     expect(parsed.root.data.text).toBe('离线导图');
   });
 
@@ -27,5 +27,22 @@ describe('思维导图文档', () => {
     const document = createMindMapDocument();
     document.root.data.image = 'https://example.com/image.png';
     expect(() => parseMindMapDocument(JSON.stringify(document))).toThrow('嵌入式图片');
+  });
+
+  it('将主题层级和备注导出为可再次导入的 Markdown', () => {
+    const document = createMindMapDocument('项目规划');
+    document.root.data.note = '离线优先\n可携带';
+    document.root.children.push({
+      data: { text: '研发', note: '先做原型' },
+      children: [{ data: { text: '测试' }, children: [] }],
+    });
+
+    const markdown = mindMapToMarkdown(document);
+    expect(markdown).toBe('# 项目规划\n> 离线优先\n> 可携带\n- 研发\n  > 先做原型\n  - 测试\n');
+
+    const imported = markdownToMindMap(markdown);
+    expect(imported.root.data.note).toBe('离线优先\n可携带');
+    expect(imported.root.children[0].data.note).toBe('先做原型');
+    expect(imported.root.children[0].children[0].data.text).toBe('测试');
   });
 });
