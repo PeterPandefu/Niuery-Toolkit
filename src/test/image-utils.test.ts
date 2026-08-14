@@ -1,5 +1,46 @@
-import { describe, expect, it } from 'vitest';
-import { calcCenterCrop, calcMergeLayout, calcRatioCrop, calcResizeSize } from '@/lib/image-utils';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { calcCenterCrop, calcMergeLayout, calcRatioCrop, calcResizeSize, fileToCanvas } from '@/lib/image-utils';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe('fileToCanvas', () => {
+  it('在释放临时对象 URL 前复制图像像素到返回画布', async () => {
+    const drawImage = vi.fn();
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({ drawImage })),
+    } as unknown as HTMLCanvasElement;
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tagName: string) =>
+      tagName === 'canvas' ? canvas : originalCreateElement(tagName)) as typeof document.createElement);
+
+    const sourceImage = {
+      naturalWidth: 320,
+      naturalHeight: 240,
+      onload: null as ((event: Event) => void) | null,
+      onerror: null as ((event: Event | string) => void) | null,
+      set src(_: string) {
+        queueMicrotask(() => this.onload?.(new Event('load')));
+      },
+    };
+    vi.stubGlobal('Image', function ImageMock() { return sourceImage; });
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:source'),
+      revokeObjectURL: vi.fn(),
+    });
+
+    const { canvas: returned } = await fileToCanvas(new File(['image'], 'source.png', { type: 'image/png' }));
+
+    expect(returned).toBe(canvas);
+    expect(canvas.width).toBe(320);
+    expect(canvas.height).toBe(240);
+    expect(drawImage).toHaveBeenCalledWith(sourceImage, 0, 0);
+  });
+});
 
 describe('calcResizeSize', () => {
   const orig = { width: 1000, height: 500 };
