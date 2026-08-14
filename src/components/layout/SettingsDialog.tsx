@@ -7,7 +7,7 @@ import { useAppStore } from '@/store/app-store';
 import { isTauri } from '@/lib/api-client';
 import { emitHotkeysChanged } from '@/lib/hotkeys';
 import { CATEGORY_ICONS } from '@/types/tool';
-import { Check, Monitor, Moon, Palette, Pin, Power, RotateCcw, Search, Sun, X, Zap, Keyboard } from 'lucide-react';
+import { Check, Contrast, Keyboard, Monitor, Moon, Palette, Pin, Power, RotateCcw, Search, Sunrise, Sun, Trees, Waves, X, Zap } from 'lucide-react';
 import { getThemeTokens, SKIN_IDS } from '@/lib/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -201,6 +201,7 @@ function AppearanceSettings() {
           {SKIN_IDS.map((skinId) => {
             const tokens = getThemeTokens(skinId, scheme);
             const selected = skin === skinId;
+            const SkinIcon = { forge: Sunrise, ocean: Waves, forest: Trees, mono: Contrast }[skinId];
             return (
               <button
                 key={skinId}
@@ -217,7 +218,7 @@ function AppearanceSettings() {
                   <span className="h-2.5 flex-1 rounded-sm" style={{ backgroundColor: `hsl(${tokens.muted})` }} />
                   <span className="h-3 w-3 rounded-full" style={{ backgroundColor: `hsl(${tokens.success})` }} />
                 </span>
-                <span className="block text-[13px] font-semibold text-foreground">{t(`theme.${skinId}`)}</span>
+                <span className="flex items-center gap-1.5 text-[13px] font-semibold text-foreground"><SkinIcon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />{t(`theme.${skinId}`)}</span>
                 <span className="mt-0.5 block text-[10px] text-muted-foreground">{t(`theme.${skinId}Desc`)}</span>
                 {selected && (
                   <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -353,8 +354,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label={t('actions.close')}
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 

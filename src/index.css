@@ -9,96 +9,96 @@
    * 亮色模式使用深余烬 + 暖白文字。单一强调色，全局锁定。
    */
   :root {
-    --background: 33 26% 97%;
-    --foreground: 20 16% 13%;
-    --card: 33 30% 99%;
-    --card-foreground: 20 16% 13%;
-    --popover: 33 26% 98%;
-    --popover-foreground: 20 16% 13%;
-    --primary: 24 82% 40%;
-    --primary-foreground: 30 30% 98%;
-    --secondary: 30 16% 92%;
-    --secondary-foreground: 20 14% 20%;
-    --muted: 30 16% 92%;
-    --muted-foreground: 24 8% 44%;
-    --accent: 28 45% 92%;
-    --accent-foreground: 22 35% 24%;
-    --destructive: 0 72% 45%;
+    --background: 48 58% 97%;
+    --foreground: 21 48% 18%;
+    --card: 44 100% 99%;
+    --card-foreground: 21 48% 18%;
+    --popover: 44 100% 99%;
+    --popover-foreground: 21 48% 18%;
+    --primary: 13 82% 64%;
+    --primary-foreground: 21 48% 18%;
+    --secondary: 53 82% 93%;
+    --secondary-foreground: 28 39% 23%;
+    --muted: 49 44% 93%;
+    --muted-foreground: 25 22% 37%;
+    --accent: 154 32% 88%;
+    --accent-foreground: 152 28% 22%;
+    --destructive: 4 73% 44%;
     --destructive-foreground: 0 0% 98%;
-    --success: 153 63% 30%;
-    --success-foreground: 0 0% 100%;
-    --warning: 36 92% 38%;
-    --warning-foreground: 33 25% 9%;
-    --info: 214 82% 38%;
+    --success: 65 27% 35%;
+    --success-foreground: 44 100% 99%;
+    --warning: 50 78% 40%;
+    --warning-foreground: 21 48% 18%;
+    --info: 198 52% 36%;
     --info-foreground: 0 0% 100%;
-    --border: 30 13% 87%;
-    --input: 30 13% 82%;
-    --ring: 24 82% 40%;
-    --radius: 0.625rem;
-    --sidebar: 30 20% 94%;
-    --sidebar-foreground: 20 12% 30%;
-    --sidebar-accent: 28 26% 88%;
-    --sidebar-border: 30 15% 87%;
+    --border: 38 32% 84%;
+    --input: 37 28% 78%;
+    --ring: 9 48% 49%;
+    --radius: 0.75rem;
+    --sidebar: 48 54% 95%;
+    --sidebar-foreground: 21 43% 20%;
+    --sidebar-accent: 154 31% 88%;
+    --sidebar-border: 38 32% 84%;
 
     /* 扩展令牌 */
-    --surface-raised: 33 30% 99%;
-    --surface-overlay: 33 26% 98%;
-    --ember-glow: 24 82% 40%;
-    --shadow-tint: 30 20% 60%;
-    --syntax-keyword: 262 60% 37%;
-    --syntax-string: 158 62% 28%;
-    --syntax-number: 27 82% 35%;
-    --syntax-title: 215 75% 38%;
-    --syntax-type: 36 80% 33%;
-    --syntax-variable: 0 68% 40%;
-    --syntax-regexp: 330 63% 40%;
-    --syntax-meta: 215 15% 36%;
+    --surface-raised: 44 100% 99%;
+    --surface-overlay: 48 58% 98%;
+    --ember-glow: 13 82% 64%;
+    --shadow-tint: 22 29% 42%;
+    --syntax-keyword: 265 49% 42%;
+    --syntax-string: 152 35% 30%;
+    --syntax-number: 11 57% 40%;
+    --syntax-title: 198 58% 33%;
+    --syntax-type: 65 36% 28%;
+    --syntax-variable: 4 62% 40%;
+    --syntax-regexp: 329 56% 43%;
+    --syntax-meta: 25 18% 40%;
   }
 
   .dark {
-    --background: 20 14% 7%;
-    --foreground: 32 22% 92%;
-    --card: 20 13% 9.5%;
-    --card-foreground: 32 22% 92%;
-    --popover: 20 14% 8.5%;
-    --popover-foreground: 32 22% 92%;
-    --primary: 27 88% 60%;
-    --primary-foreground: 24 30% 9%;
-    --secondary: 20 11% 14%;
-    --secondary-foreground: 32 18% 88%;
-    --muted: 20 11% 14%;
-    --muted-foreground: 26 9% 56%;
-    --accent: 24 32% 15%;
-    --accent-foreground: 30 45% 90%;
-    --destructive: 0 72% 55%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 153 62% 54%;
-    --success-foreground: 153 35% 10%;
-    --warning: 40 95% 62%;
-    --warning-foreground: 40 35% 10%;
-    --info: 214 90% 68%;
-    --info-foreground: 214 40% 10%;
-    --border: 20 11% 15%;
-    --input: 20 11% 18%;
-    --ring: 27 88% 60%;
-    --sidebar: 20 15% 5.5%;
-    --sidebar-foreground: 30 15% 85%;
-    --sidebar-accent: 22 20% 12%;
-    --sidebar-border: 20 12% 12%;
+    --background: 22 36% 9%;
+    --foreground: 43 70% 94%;
+    --card: 22 29% 12%;
+    --card-foreground: 43 70% 94%;
+    --popover: 22 32% 11%;
+    --popover-foreground: 43 70% 94%;
+    --primary: 11 77% 77%;
+    --primary-foreground: 21 48% 18%;
+    --secondary: 23 19% 18%;
+    --secondary-foreground: 43 52% 89%;
+    --muted: 23 19% 18%;
+    --muted-foreground: 37 24% 70%;
+    --accent: 149 17% 18%;
+    --accent-foreground: 154 32% 88%;
+    --destructive: 9 81% 69%;
+    --destructive-foreground: 12 50% 13%;
+    --success: 78 33% 68%;
+    --success-foreground: 105 28% 13%;
+    --warning: 48 100% 72%;
+    --warning-foreground: 43 55% 13%;
+    --info: 197 69% 78%;
+    --info-foreground: 199 51% 14%;
+    --border: 22 17% 24%;
+    --input: 22 17% 29%;
+    --ring: 11 77% 77%;
+    --sidebar: 22 41% 7%;
+    --sidebar-foreground: 43 51% 89%;
+    --sidebar-accent: 22 24% 15%;
+    --sidebar-border: 22 19% 18%;
 
     /* 扩展令牌 */
-    --surface-raised: 20 13% 11%;
-    --surface-overlay: 20 14% 9%;
-    --ember-glow: 27 88% 60%;
-    --shadow-tint: 20 30% 3%;
-    --syntax-keyword: 267 91% 78%;
-    --syntax-string: 157 66% 65%;
-    --syntax-number: 31 95% 68%;
-    --syntax-title: 211 95% 72%;
-    --syntax-type: 45 96% 68%;
-    --syntax-variable: 0 86% 73%;
-    --syntax-regexp: 329 89% 75%;
-    --syntax-meta: 215 18% 70%;
+    --surface-raised: 22 25% 15%;
+    --surface-overlay: 22 32% 11%;
+    --ember-glow: 11 77% 77%;
+    --shadow-tint: 20 46% 3%;
+    --syntax-keyword: 267 82% 81%;
+    --syntax-string: 151 45% 72%;
+    --syntax-number: 20 91% 74%;
+    --syntax-title: 196 77% 76%;
+    --syntax-type: 65 65% 71%;
+    --syntax-variable: 5 84% 76%;
+    --syntax-regexp: 330 78% 79%;
+    --syntax-meta: 35 20% 71%;
   }
 }
 
@@ -126,51 +126,59 @@
    * 为主内容区提供「工坊」氛围，而非一片死寂的纯色。
    */
   .app-ambient {
-    background-image:
-      radial-gradient(
-        ellipse 80% 50% at 50% -10%,
-        hsl(var(--ember-glow) / 0.06),
-        transparent 60%
-      ),
-      radial-gradient(
-        hsl(var(--foreground) / 0.045) 1px,
-        transparent 1px
-      );
-    background-size: 100% 100%, 22px 22px;
+    background-color: hsl(var(--background));
   }
-  .dark .app-ambient {
+
+  .app-workbench {
+    background-color: hsl(var(--background));
     background-image:
-      radial-gradient(
-        ellipse 80% 50% at 50% -10%,
-        hsl(var(--ember-glow) / 0.07),
-        transparent 60%
-      ),
-      radial-gradient(
-        hsl(var(--foreground) / 0.05) 1px,
-        transparent 1px
-      );
-    background-size: 100% 100%, 22px 22px;
+      radial-gradient(hsl(var(--foreground) / 0.055) 0.8px, transparent 0.9px),
+      repeating-linear-gradient(135deg, hsl(var(--primary) / 0.045) 0 1px, transparent 1px 8px);
+    background-size: 18px 18px, auto;
+  }
+
+  .dark .app-workbench {
+    background-image:
+      radial-gradient(hsl(var(--foreground) / 0.045) 0.8px, transparent 0.9px),
+      repeating-linear-gradient(135deg, hsl(var(--primary) / 0.035) 0 1px, transparent 1px 8px);
+  }
+
+  .app-sidebar {
+    background-image:
+      linear-gradient(145deg, hsl(var(--primary) / 0.055), transparent 42%),
+      repeating-linear-gradient(135deg, hsl(var(--foreground) / 0.025) 0 1px, transparent 1px 9px);
+  }
+
+  .brand-mark {
+    background-image: repeating-linear-gradient(135deg, hsl(var(--primary-foreground) / 0.16) 0 1px, transparent 1px 5px);
   }
 
   /* 面板质感：抬升表面 + 色调化阴影 + 顶部高光线 */
   .panel-raised {
-    @apply rounded-lg border bg-card;
-    box-shadow:
-      0 1px 0 0 hsl(var(--foreground) / 0.04) inset,
-      0 1px 2px 0 hsl(var(--shadow-tint) / 0.06),
-      0 4px 12px -2px hsl(var(--shadow-tint) / 0.08);
+    @apply rounded-xl border bg-card shadow-tinted-sm;
   }
 
   /* 余烬辉光（用于品牌标识、焦点强调） */
   .ember-glow {
-    box-shadow: 0 0 0 1px hsl(var(--ember-glow) / 0.25),
-      0 2px 12px -2px hsl(var(--ember-glow) / 0.4);
+    box-shadow: 0 0 0 1px hsl(var(--ember-glow) / 0.25);
   }
 
   /* kbd 键帽样式 */
   .kbd {
     @apply inline-flex h-5 min-w-5 items-center justify-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground;
     box-shadow: 0 1px 0 0 hsl(var(--shadow-tint) / 0.15);
+  }
+
+  .tool-card {
+    @apply flex min-h-[88px] items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-tinted-sm transition-colors duration-150 hover:border-primary/45 hover:bg-accent/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+
+  .tool-card-icon {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary;
+  }
+
+  .skip-link {
+    @apply sr-only fixed left-4 top-3 z-[100] rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
   }
 }
 

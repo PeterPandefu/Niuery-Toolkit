@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { ToolDefinition, ToolCategory } from '@/types/tool';
+import { TOOL_CATEGORY_ORDER, ToolDefinition, ToolCategory } from '@/types/tool';
 import {
   ArrowLeftRight,
   Binary,
@@ -64,7 +64,7 @@ export function getToolById(id: string): ToolDefinition | undefined {
 // 获取所有分类（有工具的）
 export function getAvailableCategories(): ToolCategory[] {
   const categories = new Set(getAllTools().map((tool) => tool.category));
-  return Array.from(categories);
+  return TOOL_CATEGORY_ORDER.filter((category) => categories.has(category));
 }
 
 // ==================== 注册所有工具 ====================
@@ -74,7 +74,7 @@ registerTool({
   id: 'json-yaml',
   name: 'JSON ↔ YAML',
   icon: ArrowLeftRight,
-  category: 'converter',
+  category: 'data',
   component: lazy(() => import('@/tools/converter/json-yaml')),
   keywords: ['json', 'yaml', 'yml', '转换', 'convert'],
   description: 'JSON 与 YAML 双向实时转换',
@@ -84,7 +84,7 @@ registerTool({
   id: 'xml-json',
   name: 'XML ↔ JSON',
   icon: FileCode2,
-  category: 'converter',
+  category: 'data',
   component: lazy(() => import('@/tools/converter/xml-json')),
   keywords: ['xml', 'json', '转换', 'convert'],
   description: 'XML 与 JSON 双向转换',
@@ -94,7 +94,7 @@ registerTool({
   id: 'timestamp',
   name: '时间戳转换',
   icon: Clock,
-  category: 'converter',
+  category: 'data',
   component: lazy(() => import('@/tools/converter/timestamp')),
   keywords: ['timestamp', 'unix', '时间', '日期', 'date', 'time'],
   description: 'Unix 时间戳与日期互转',
@@ -104,7 +104,7 @@ registerTool({
   id: 'number-base',
   name: '进制转换',
   icon: Binary,
-  category: 'converter',
+  category: 'data',
   component: lazy(() => import('@/tools/converter/number-base')),
   keywords: ['binary', 'hex', 'octal', 'decimal', '进制', '二进制', '十六进制'],
   description: '二/八/十/十六进制互转',
@@ -112,9 +112,9 @@ registerTool({
 
 registerTool({
   id: 'color-picker',
-  name: '颜色助手',
+  name: '颜色与取色',
   icon: Palette,
-  category: 'converter',
+  category: 'data',
   component: lazy(() => import('@/tools/converter/color-assistant')),
   keywords: ['color', 'hex', 'rgb', 'hsl', '颜色', '取色', '色卡', '渐变', '传统色', 'palette', 'gradient'],
   description: '颜色选择、UI色卡、传统色、渐变色、图片取色',
@@ -122,9 +122,9 @@ registerTool({
 
 registerTool({
   id: 'data-size',
-  name: '数据大小转换',
+  name: '数据单位换算',
   icon: FileDigit,
-  category: 'converter',
+  category: 'data',
   component: lazy(() => import('@/tools/converter/data-size')),
   keywords: ['byte', 'kb', 'mb', 'gb', '数据', '大小', 'size'],
   description: 'B/KB/MB/GB/TB 数据大小互转',
@@ -134,7 +134,7 @@ registerTool({
   id: 'angle',
   name: '角度转换',
   icon: Compass,
-  category: 'converter',
+  category: 'data',
   component: lazy(() => import('@/tools/converter/angle')),
   keywords: ['angle', 'degree', 'radian', 'grad', '角度', '弧度'],
   description: '度/弧度/梯度互转',
@@ -142,9 +142,9 @@ registerTool({
 
 registerTool({
   id: 'province-lookup',
-  name: '经纬度查省份',
+  name: '坐标归属查询',
   icon: MapPinned,
-  category: 'converter',
+  category: 'data',
   component: lazy(() => import('@/tools/converter/province-lookup')),
   keywords: [
     'province',
@@ -166,7 +166,7 @@ registerTool({
   id: 'base64',
   name: 'Base64',
   icon: Code2,
-  category: 'encoder',
+  category: 'security',
   component: lazy(() => import('@/tools/encoder/base64')),
   keywords: ['base64', 'encode', 'decode', '编码', '解码'],
   description: '文本/文件 Base64 编解码',
@@ -176,7 +176,7 @@ registerTool({
   id: 'url-encode',
   name: 'URL 编解码',
   icon: Link2,
-  category: 'encoder',
+  category: 'security',
   component: lazy(() => import('@/tools/encoder/url-encode')),
   keywords: ['url', 'uri', 'encode', 'decode', '编码', '解码', 'percent'],
   description: 'URL 组件编解码',
@@ -186,7 +186,7 @@ registerTool({
   id: 'html-entity',
   name: 'HTML 实体',
   icon: FileText,
-  category: 'encoder',
+  category: 'security',
   component: lazy(() => import('@/tools/encoder/html-entity')),
   keywords: ['html', 'entity', '实体', '转义', 'escape'],
   description: 'HTML 实体编解码',
@@ -196,7 +196,7 @@ registerTool({
   id: 'unicode',
   name: 'Unicode 转义',
   icon: Type,
-  category: 'encoder',
+  category: 'security',
   component: lazy(() => import('@/tools/encoder/unicode')),
   keywords: ['unicode', 'utf', '转义', 'escape', '\\u'],
   description: 'Unicode 转义/反转义',
@@ -206,7 +206,7 @@ registerTool({
   id: 'jwt-decoder',
   name: 'JWT 解析器',
   icon: Shield,
-  category: 'encoder',
+  category: 'security',
   component: lazy(() => import('@/tools/encoder/jwt-decoder')),
   keywords: ['jwt', 'token', 'json web token', '解析'],
   description: 'JWT 令牌解析与验证',
@@ -214,9 +214,9 @@ registerTool({
 
 registerTool({
   id: 'qrcode',
-  name: '二维码',
+  name: '二维码生成与识别',
   icon: QrCode,
-  category: 'encoder',
+  category: 'generator',
   component: lazy(() => import('@/tools/encoder/qrcode')),
   keywords: ['qr', 'qrcode', '二维码', '扫码'],
   description: '文本与二维码互转',
@@ -226,7 +226,7 @@ registerTool({
   id: 'gzip',
   name: 'GZip 压缩',
   icon: Wind,
-  category: 'encoder',
+  category: 'security',
   component: lazy(() => import('@/tools/encoder/gzip')),
   keywords: ['gzip', 'deflate', 'compress', '压缩', '解压', 'decompress'],
   description: 'GZip/Deflate 压缩解压',
@@ -237,7 +237,7 @@ registerTool({
   id: 'json-formatter',
   name: 'JSON 格式化',
   icon: FileJson,
-  category: 'formatter',
+  category: 'data',
   component: lazy(() => import('@/tools/formatter/json-formatter')),
   keywords: ['json', 'format', 'beautify', '格式化', '美化'],
   description: 'JSON 美化/压缩/校验',
@@ -247,7 +247,7 @@ registerTool({
   id: 'xml-formatter',
   name: 'XML 格式化',
   icon: FileCode2,
-  category: 'formatter',
+  category: 'data',
   component: lazy(() => import('@/tools/formatter/xml-formatter')),
   keywords: ['xml', 'format', 'beautify', '格式化', '美化'],
   description: 'XML 美化/压缩',
@@ -257,7 +257,7 @@ registerTool({
   id: 'sql-formatter',
   name: 'SQL 格式化',
   icon: Braces,
-  category: 'formatter',
+  category: 'data',
   component: lazy(() => import('@/tools/formatter/sql-formatter')),
   keywords: ['sql', 'mysql', 'postgres', 'format', '格式化', '查询'],
   description: 'SQL 查询美化',
@@ -267,7 +267,7 @@ registerTool({
   id: 'markdown-editor',
   name: 'Markdown 编辑器',
   icon: FileText,
-  category: 'formatter',
+  category: 'text',
   component: lazy(() => import('@/tools/formatter/markdown-editor')),
   keywords: ['markdown', 'md', 'editor', 'preview', '编辑', '预览', '渲染', '写作'],
   description: 'Markdown 编辑器：实时预览、工具栏、导出',
@@ -276,7 +276,7 @@ registerTool({
 // === 生成器 ===
 registerTool({
   id: 'uuid-generator',
-  name: 'UUID 生成器',
+  name: 'UUID 与随机 ID',
   icon: Fingerprint,
   category: 'generator',
   component: lazy(() => import('@/tools/generator/uuid-generator')),
@@ -286,9 +286,9 @@ registerTool({
 
 registerTool({
   id: 'hash-generator',
-  name: 'Hash 生成器',
+  name: '哈希计算',
   icon: Hash,
-  category: 'generator',
+  category: 'security',
   component: lazy(() => import('@/tools/generator/hash-generator')),
   keywords: ['hash', 'md5', 'sha', 'sha256', 'sha512', '哈希', '校验'],
   description: 'MD5/SHA1/SHA256/SHA512 哈希计算',
@@ -298,7 +298,7 @@ registerTool({
   id: 'password-generator',
   name: '密码生成器',
   icon: KeyRound,
-  category: 'generator',
+  category: 'security',
   component: lazy(() => import('@/tools/generator/password-generator')),
   keywords: ['password', '密码', '随机', '安全'],
   description: '安全密码生成',
@@ -318,7 +318,7 @@ registerTool({
   id: 'checksum',
   name: '文件校验和',
   icon: ShieldCheck,
-  category: 'generator',
+  category: 'security',
   component: lazy(() => import('@/tools/generator/checksum')),
   keywords: ['checksum', 'hash', 'file', '校验', '文件', 'md5', 'sha'],
   description: '文件校验和计算',
@@ -377,9 +377,9 @@ registerTool({
 
 registerTool({
   id: 'clipboard-history',
-  name: '粘贴板历史',
+  name: '剪贴板历史记录',
   icon: ClipboardList,
-  category: 'text',
+  category: 'system',
   component: lazy(() => import('@/tools/text/clipboard-history')),
   keywords: ['clipboard', 'paste', 'copy', 'history', '粘贴板', '剪贴板', '复制', '历史', '记录'],
   description: '剪贴板历史记录与重新复制',
@@ -388,9 +388,9 @@ registerTool({
 // === 图形工具 ===
 registerTool({
   id: 'image-studio',
-  name: '图片处理',
+  name: '图片工作室',
   icon: ImagePlus,
-  category: 'graphic',
+  category: 'image',
   component: lazy(() => import('@/tools/graphic/image-studio')),
   keywords: ['image', 'compress', 'convert', 'resize', 'watermark', 'crop', 'rotate', 'gif', 'pdf', '图片', '压缩', '转换', '尺寸', '水印', '圆角', '裁剪', '旋转', '翻转', '合并'],
   description: '图片压缩/转换/尺寸/水印/圆角/裁剪/旋转/合并等一站式处理',
@@ -400,7 +400,7 @@ registerTool({
   id: 'mind-map',
   name: '思维导图',
   icon: Workflow,
-  category: 'graphic',
+  category: 'canvas',
   component: lazy(() => import('@/tools/graphic/mind-map')),
   keywords: ['mind map', 'mind-map', '思维导图', '大纲', 'markdown', 'smm', '离线'],
   description: '离线思维导图：本地 .smm 保存、Markdown 导入与 PNG/SVG 导出',
@@ -410,7 +410,7 @@ registerTool({
   id: 'excalidraw-board',
   name: 'Excalidraw 白板',
   icon: PenTool,
-  category: 'graphic',
+  category: 'canvas',
   component: lazy(() => import('@/tools/graphic/excalidraw-board')),
   keywords: ['excalidraw', 'whiteboard', 'board', '白板', '画布', '绘图', '离线'],
   description: '离线 Excalidraw 无限白板：本地保存、打开与 PNG/SVG 导出',
@@ -420,7 +420,7 @@ registerTool({
   id: 'tldraw-board',
   name: 'Tldraw 白板',
   icon: PenTool,
-  category: 'graphic',
+  category: 'canvas',
   component: lazy(() => import('@/tools/graphic/tldraw-board')),
   keywords: ['tldraw', 'whiteboard', 'board', '白板', '画布', '绘图', '离线'],
   description: '离线 Tldraw 无限白板：本地 .tldr 保存、打开与 SVG 导出',
@@ -430,7 +430,7 @@ registerTool({
   id: 'svg-optimizer',
   name: 'SVG 优化',
   icon: Paintbrush,
-  category: 'graphic',
+  category: 'image',
   component: lazy(() => import('@/tools/graphic/svg-optimizer')),
   keywords: ['svg', 'optimize', '优化', '矢量'],
   description: 'SVG 精简优化',
@@ -438,9 +438,9 @@ registerTool({
 
 registerTool({
   id: 'icon-generator',
-  name: '图标生成器',
+  name: '应用图标生成',
   icon: Square,
-  category: 'graphic',
+  category: 'generator',
   component: lazy(() => import('@/tools/graphic/icon-generator')),
   keywords: ['icon', 'favicon', '图标', '生成', 'app', 'ios', 'android'],
   description: '从图片生成应用图标',
@@ -448,9 +448,9 @@ registerTool({
 
 registerTool({
   id: 'screenshot-editor',
-  name: '截图',
+  name: '截图与标注',
   icon: Camera,
-  category: 'graphic',
+  category: 'capture',
   component: lazy(() => import('@/tools/graphic/screenshot-editor')),
   keywords: ['screenshot', 'capture', 'annotate', '截图', '截屏', '标注', '编辑'],
   description: '屏幕截图捕获与标注编辑',
@@ -460,7 +460,7 @@ registerTool({
   id: 'screen-recorder',
   name: '屏幕录制',
   icon: Video,
-  category: 'graphic',
+  category: 'capture',
   component: lazy(() => import('@/tools/graphic/screen-recorder')),
   keywords: ['screen', 'record', 'video', 'gif', '录屏', '录制', '窗口录制', '动图'],
   description: '区域、窗口与显示器录制，并支持 GIF 编辑导出',
@@ -479,7 +479,7 @@ registerTool({
 // === 网络工具 ===
 registerTool({
   id: 'socket-tool',
-  name: 'Socket 调试',
+  name: 'WebSocket 调试',
   icon: Globe,
   category: 'network',
   component: lazy(() => import('@/tools/network/socket-tool')),
@@ -490,7 +490,7 @@ registerTool({
 // === 网络工具 ===
 registerTool({
   id: 'api-tester',
-  name: '接口测试',
+  name: 'HTTP API 调试',
   icon: Globe,
   category: 'network',
   component: lazy(() => import('@/tools/network/api-tester')),
@@ -501,9 +501,9 @@ registerTool({
 // === 翻译工具 ===
 registerTool({
   id: 'translator',
-  name: '翻译',
+  name: '多语言翻译',
   icon: Languages,
-  category: 'translate',
+  category: 'language',
   component: lazy(() => import('@/tools/translate')),
   keywords: ['translate', 'translation', 'baidu', 'language', '翻译', '译文', '语言'],
   description: '百度翻译：多语种互译，自动检测源语言',
@@ -512,9 +512,9 @@ registerTool({
 // === PDF 工具 ===
 registerTool({
   id: 'pdf-toolkit',
-  name: 'PDF 工具',
+  name: 'PDF 处理',
   icon: FileStack,
-  category: 'pdf',
+  category: 'image',
   component: lazy(() => import('@/tools/pdf')),
   keywords: ['pdf', 'merge', 'split', 'watermark', 'compress', '合并', '拆分', '水印', '压缩', '提取图片', '转图片'],
   description: 'PDF 合并/拆分/水印/压缩/转图片/提取图片，全程本地处理',

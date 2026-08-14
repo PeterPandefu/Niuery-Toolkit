@@ -104,9 +104,9 @@ export function ToolLayout({
   }, [vertical]);
 
   return (
-    <div className={cn('flex h-full flex-col', className)}>
+    <div className={cn('flex h-full flex-col bg-background p-3', className)}>
       {/* 工具栏 */}
-      <div className="flex items-center justify-end gap-1 border-b border-border/70 bg-background/50 px-4 py-1">
+      <div className="mb-3 flex min-h-10 items-center justify-end gap-1 rounded-xl border border-border bg-card px-2 shadow-tinted-sm">
         {onSwap && (
           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={onSwap} title="交换输入输出">
             <ArrowDownUp className="h-3.5 w-3.5" />
@@ -126,11 +126,11 @@ export function ToolLayout({
       {/* Panels */}
       <div
         ref={containerRef}
-        className={cn('flex min-h-0 flex-1', vertical ? 'flex-col' : 'flex-row')}
+        className={cn('flex min-h-0 flex-1 gap-3', vertical ? 'flex-col' : 'flex-row')}
       >
         {/* Input Panel */}
         <div
-          className="relative flex min-h-0 flex-col overflow-hidden"
+          className="relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-tinted-sm"
           style={vertical ? { height: `${splitRatio}%` } : { width: `${splitRatio}%` }}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -159,9 +159,9 @@ export function ToolLayout({
               <span className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-tinted">拖放文件或文本到此处</span>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5">
+          <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-2">
             <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              <span className="h-[3px] w-[3px] rounded-full bg-primary/70" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               {inputTitle}
             </span>
             <div className="ml-auto flex items-center gap-1">
@@ -173,7 +173,7 @@ export function ToolLayout({
               )}
             </div>
           </div>
-          <div className="min-h-0 flex-1 px-4 pb-2">{input}</div>
+          <div className="min-h-0 flex-1 p-4">{input}</div>
         </div>
 
         {/* 拖拽手柄 */}
@@ -193,10 +193,10 @@ export function ToolLayout({
         </div>
 
         {/* 输出面板 */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-tinted-sm">
+          <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-2">
             <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              <span className="h-[3px] w-[3px] rounded-full bg-primary/70" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               {outputTitle}
             </span>
             <div className="ml-auto flex items-center gap-1">
@@ -208,7 +208,7 @@ export function ToolLayout({
               )}
             </div>
           </div>
-          <div className="min-h-0 flex-1 px-4 pb-2">{output}</div>
+          <div className="min-h-0 flex-1 p-4">{output}</div>
         </div>
       </div>
     </div>
