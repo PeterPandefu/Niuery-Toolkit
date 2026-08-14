@@ -3,6 +3,7 @@ import {
   wrapSelection,
   toggleLinePrefix,
   insertCodeBlock,
+  insertMermaidTemplate,
   insertLink,
   insertImage,
   insertTable,
@@ -112,6 +113,24 @@ describe('insertCodeBlock', () => {
   it('文本中间插入时应添加换行', () => {
     const result = insertCodeBlock('before', 6, 6);
     expect(result.text).toBe('before\n```\n// 代码\n```\n');
+  });
+});
+
+describe('insertMermaidTemplate', () => {
+  it('应插入流程图 Mermaid 围栏代码块并选中图表源码', () => {
+    const result = insertMermaidTemplate('', 0, 0, 'flowchart');
+
+    expect(result.text).toBe('```mermaid\nflowchart TD\n  Start([开始]) --> End([结束])\n```\n');
+    expect(result.selectionStart).toBe('```mermaid\n'.length);
+    expect(result.selectionEnd).toBe(result.text.indexOf('\n```'));
+  });
+
+  it('应以模板替换当前选区', () => {
+    const result = insertMermaidTemplate('前缀旧内容后缀', 2, 5, 'state');
+
+    expect(result.text).toContain('前缀\n```mermaid\nstateDiagram-v2');
+    expect(result.text).toContain('\n```\n后缀');
+    expect(result.text).not.toContain('旧内容');
   });
 });
 

@@ -270,7 +270,12 @@
       "link": "Insert Link",
       "image": "Insert Image",
       "table": "Insert Table",
-      "hr": "Horizontal Rule"
+      "hr": "Horizontal Rule",
+      "mermaid": "Mermaid Diagram",
+      "mermaidFlowchart": "Flowchart",
+      "mermaidSequence": "Sequence Diagram",
+      "mermaidClass": "Class Diagram",
+      "mermaidState": "State Diagram"
     },
     "status": {
       "line": "Ln {{line}}, Col {{col}}",

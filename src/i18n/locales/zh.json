@@ -270,7 +270,12 @@
       "link": "插入链接",
       "image": "插入图片",
       "table": "插入表格",
-      "hr": "水平线"
+      "hr": "水平线",
+      "mermaid": "Mermaid 图表",
+      "mermaidFlowchart": "流程图",
+      "mermaidSequence": "时序图",
+      "mermaidClass": "类图",
+      "mermaidState": "状态图"
     },
     "status": {
       "line": "行 {{line}}, 列 {{col}}",

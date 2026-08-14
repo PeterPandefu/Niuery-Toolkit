@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import type { MermaidTemplateKind } from '@/lib/markdown-utils';
 import {
   Bold,
   Italic,
@@ -18,6 +19,7 @@ import {
   Image,
   Table,
   Minus,
+  GitBranch,
 } from 'lucide-react';
 
 export type ToolbarAction =
@@ -40,6 +42,7 @@ export type ToolbarAction =
 
 interface ToolbarProps {
   onAction: (action: ToolbarAction) => void;
+  onMermaidTemplate: (template: MermaidTemplateKind) => void;
   disabled?: boolean;
 }
 
@@ -77,14 +80,39 @@ const TOOL_GROUPS: ToolButton[][] = [
   ],
 ];
 
-export function Toolbar({ onAction, disabled }: ToolbarProps) {
+const MERMAID_TEMPLATE_OPTIONS: { template: MermaidTemplateKind; i18nKey: string }[] = [
+  { template: 'flowchart', i18nKey: 'mermaidFlowchart' },
+  { template: 'sequence', i18nKey: 'mermaidSequence' },
+  { template: 'class', i18nKey: 'mermaidClass' },
+  { template: 'state', i18nKey: 'mermaidState' },
+];
+
+export function Toolbar({ onAction, onMermaidTemplate, disabled }: ToolbarProps) {
   const { t } = useTranslation();
+  const [isMermaidMenuOpen, setIsMermaidMenuOpen] = useState(false);
+  const mermaidMenuRef = useRef<HTMLDivElement>(null);
   const handleClick = useCallback(
     (action: ToolbarAction) => {
       if (!disabled) onAction(action);
     },
     [onAction, disabled]
   );
+
+  useEffect(() => {
+    if (!isMermaidMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!mermaidMenuRef.current?.contains(event.target as Node)) setIsMermaidMenuOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMermaidMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMermaidMenuOpen]);
 
   return (
     <div className="flex flex-wrap items-center gap-0.5 border-b px-2 py-1">
@@ -109,6 +137,40 @@ export function Toolbar({ onAction, disabled }: ToolbarProps) {
           })}
         </div>
       ))}
+      <div ref={mermaidMenuRef} className="relative ml-1 border-l pl-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          disabled={disabled}
+          onClick={() => setIsMermaidMenuOpen((open) => !open)}
+          title={t('markdownEditor.toolbar.mermaid')}
+          aria-label={t('markdownEditor.toolbar.mermaid')}
+          aria-haspopup="menu"
+          aria-expanded={isMermaidMenuOpen}
+        >
+          <GitBranch className="h-3.5 w-3.5" />
+        </Button>
+        {isMermaidMenuOpen && (
+          <div className="absolute right-0 z-20 mt-1 w-40 rounded-md border bg-popover p-1 shadow-md" role="menu" aria-label={t('markdownEditor.toolbar.mermaid')}>
+            {MERMAID_TEMPLATE_OPTIONS.map(({ template, i18nKey }) => (
+              <Button
+                key={template}
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                role="menuitem"
+                onClick={() => {
+                  onMermaidTemplate(template);
+                  setIsMermaidMenuOpen(false);
+                }}
+              >
+                {t(`markdownEditor.toolbar.${i18nKey}`)}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
