@@ -173,6 +173,7 @@ export async function fileToCanvas(file: File): Promise<{ canvas: HTMLCanvasElem
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
     const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
     return { canvas, ctx, img };
   } finally {
     URL.revokeObjectURL(url);

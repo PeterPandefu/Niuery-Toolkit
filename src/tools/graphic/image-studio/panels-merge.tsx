@@ -189,8 +189,9 @@ export function CutoutPanel() {
   const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null);
   const maskRef = useRef<HTMLCanvasElement | null>(null);
   const displayRef = useRef<HTMLCanvasElement | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const drawing = useRef(false);
-  const lastPoint = useRef<{ x: number; y: number } | null>(null);
+  const lastPoint = useRef<{ x: number; y: number; scale: number } | null>(null);
   const { busy, progress, setProgress, run } = useBusyRun();
   const { result, setResult } = useImageProcessingResult(file);
 
@@ -200,6 +201,7 @@ export function CutoutPanel() {
     setImgUrl(null);
     setImgSize(null);
     maskRef.current = null;
+    imageRef.current = null;
     if (!f) return;
     const url = URL.createObjectURL(f);
     loadImageElement(url)
@@ -208,6 +210,7 @@ export function CutoutPanel() {
         mask.width = img.naturalWidth;
         mask.height = img.naturalHeight;
         maskRef.current = mask;
+        imageRef.current = img;
         setImgSize({ width: img.naturalWidth, height: img.naturalHeight });
         setImgUrl(url);
         log.info('图片加载', {
@@ -233,17 +236,19 @@ export function CutoutPanel() {
     return {
       x: (e.clientX - rect.left) * scale,
       y: (e.clientY - rect.top) * scale,
+      scale,
     };
   };
 
-  const paintStroke = (from: { x: number; y: number } | null, to: { x: number; y: number }) => {
+  const paintStroke = (from: { x: number; y: number; scale: number } | null, to: { x: number; y: number; scale: number }) => {
     const mask = maskRef.current;
     if (!mask) return;
     const ctx = mask.getContext('2d')!;
+    const size = brushSize * to.scale;
     ctx.globalCompositeOperation = tool === 'brush' ? 'source-over' : 'destination-out';
     ctx.strokeStyle = '#ff0000';
     ctx.fillStyle = '#ff0000';
-    ctx.lineWidth = brushSize;
+    ctx.lineWidth = size;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     if (from) {
@@ -253,7 +258,7 @@ export function CutoutPanel() {
       ctx.stroke();
     } else {
       ctx.beginPath();
-      ctx.arc(to.x, to.y, brushSize / 2, 0, Math.PI * 2);
+      ctx.arc(to.x, to.y, size / 2, 0, Math.PI * 2);
       ctx.fill();
     }
   };
@@ -262,16 +267,19 @@ export function CutoutPanel() {
   const redrawPreview = () => {
     const display = displayRef.current;
     const mask = maskRef.current;
-    if (!display || !mask || !imgUrl) return;
-    loadImageElement(imgUrl).then((img) => {
-      const ctx = display.getContext('2d')!;
-      ctx.clearRect(0, 0, display.width, display.height);
-      ctx.drawImage(img, 0, 0);
-      ctx.globalAlpha = 0.4;
-      ctx.drawImage(mask, 0, 0);
-      ctx.globalAlpha = 1;
-    });
+    const image = imageRef.current;
+    if (!display || !mask || !image) return;
+    const ctx = display.getContext('2d')!;
+    ctx.clearRect(0, 0, display.width, display.height);
+    ctx.drawImage(image, 0, 0);
+    ctx.globalAlpha = 0.4;
+    ctx.drawImage(mask, 0, 0);
+    ctx.globalAlpha = 1;
   };
+
+  useEffect(() => {
+    redrawPreview();
+  }, [imgSize, imgUrl]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!maskRef.current) return;
@@ -361,6 +369,7 @@ export function CutoutPanel() {
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
               onPointerLeave={handlePointerUp}
               className="mx-auto block max-h-[420px] max-w-full cursor-crosshair touch-none"
               style={{ imageRendering: 'auto' }}
