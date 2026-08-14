@@ -1,10 +1,14 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import yaml from 'js-yaml';
 import { ToolLayout } from '@/components/shared/ToolLayout';
-import { Textarea } from '@/components/ui/textarea';
+import {
+  FoldableCodeEditor,
+  type FoldableCodeEditorHandle,
+} from '@/components/shared/FoldableCodeEditor';
+import { hasFoldableStructure, type StructuredLanguage } from '@/lib/structured-editor-folding';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, FoldVertical, UnfoldVertical } from 'lucide-react';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Direction = 'json-to-yaml' | 'yaml-to-json';
@@ -14,6 +18,8 @@ export default function JsonYamlConverter() {
   const [input, setInput] = useState('');
   const [direction, setDirection] = useState<Direction>('json-to-yaml');
   const [indent, setIndent] = useState('2');
+  const inputEditorRef = useRef<FoldableCodeEditorHandle>(null);
+  const outputEditorRef = useRef<FoldableCodeEditorHandle>(null);
 
   const { output, error } = useMemo(() => {
     if (!input.trim()) return { output: '', error: null };
@@ -67,6 +73,18 @@ features:
 author:
   name: Developer
   email: dev@example.com`;
+  const inputLanguage: StructuredLanguage = direction === 'json-to-yaml' ? 'json' : 'yaml';
+  const outputLanguage: StructuredLanguage = direction === 'json-to-yaml' ? 'yaml' : 'json';
+  const hasFoldableContent = hasFoldableStructure(input, inputLanguage) || hasFoldableStructure(output, outputLanguage);
+
+  const unfoldAll = () => {
+    void inputEditorRef.current?.unfoldAll();
+    void outputEditorRef.current?.unfoldAll();
+  };
+
+  useEffect(() => {
+    unfoldAll();
+  }, [input, output, direction, indent]);
 
   return (
     <ToolLayout
@@ -108,15 +126,41 @@ author:
           >
             示例
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              void inputEditorRef.current?.foldAll();
+              void outputEditorRef.current?.foldAll();
+            }}
+            disabled={!hasFoldableContent}
+            title="全部折叠"
+            aria-label="全部折叠"
+          >
+            <FoldVertical className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={unfoldAll}
+            disabled={!hasFoldableContent}
+            title="全部展开"
+            aria-label="全部展开"
+          >
+            <UnfoldVertical className="h-3.5 w-3.5" />
+          </Button>
         </div>
       }
       input={
-        <Textarea
+        <FoldableCodeEditor
+          ref={inputEditorRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={setInput}
+          language={inputLanguage}
           placeholder={direction === 'json-to-yaml' ? '输入 JSON...' : '输入 YAML...'}
-          className="h-full resize-none font-mono text-sm"
-          spellCheck={false}
+          tabSize={parseInt(indent)}
         />
       }
       output={
@@ -130,12 +174,13 @@ author:
               </div>
             </div>
           ) : (
-            <Textarea
+            <FoldableCodeEditor
+              ref={outputEditorRef}
               value={output}
               readOnly
+              language={outputLanguage}
               placeholder="转换结果..."
-              className="h-full resize-none bg-muted/50 font-mono text-sm"
-              spellCheck={false}
+              tabSize={parseInt(indent)}
             />
           )}
         </div>

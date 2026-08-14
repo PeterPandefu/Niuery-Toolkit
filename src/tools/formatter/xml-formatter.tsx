@@ -1,17 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { ToolLayout } from '@/components/shared/ToolLayout';
-import { Textarea } from '@/components/ui/textarea';
+import {
+  FoldableCodeEditor,
+  type FoldableCodeEditorHandle,
+} from '@/components/shared/FoldableCodeEditor';
+import { hasFoldableStructure } from '@/lib/structured-editor-folding';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useToolLogger } from '@/hooks/use-tool-logger';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, FoldVertical, UnfoldVertical } from 'lucide-react';
 
 export default function XmlFormatter() {
   const [input, setInput] = useState('');
   const [indent, setIndent] = useState('2');
   const [mode, setMode] = useState<'format' | 'minify'>('format');
   const log = useToolLogger('xml-formatter');
+  const inputEditorRef = useRef<FoldableCodeEditorHandle>(null);
+  const outputEditorRef = useRef<FoldableCodeEditorHandle>(null);
 
   const { output, error } = useMemo(() => {
     if (!input.trim()) return { output: '', error: null };
@@ -46,6 +52,16 @@ export default function XmlFormatter() {
   }, [input, indent, mode, log]);
 
   const sampleXml = `<root><item id="1"><name>Test</name><value>123</value></item><item id="2"><name>Test2</name><value>456</value></item></root>`;
+  const hasFoldableContent = hasFoldableStructure(input, 'xml') || hasFoldableStructure(output, 'xml');
+
+  const unfoldAll = () => {
+    void inputEditorRef.current?.unfoldAll();
+    void outputEditorRef.current?.unfoldAll();
+  };
+
+  useEffect(() => {
+    unfoldAll();
+  }, [input, output, indent, mode]);
 
   return (
     <ToolLayout
@@ -95,15 +111,41 @@ export default function XmlFormatter() {
           >
             示例
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              void inputEditorRef.current?.foldAll();
+              void outputEditorRef.current?.foldAll();
+            }}
+            disabled={!hasFoldableContent}
+            title="全部折叠"
+            aria-label="全部折叠"
+          >
+            <FoldVertical className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={unfoldAll}
+            disabled={!hasFoldableContent}
+            title="全部展开"
+            aria-label="全部展开"
+          >
+            <UnfoldVertical className="h-3.5 w-3.5" />
+          </Button>
         </div>
       }
       input={
-        <Textarea
+        <FoldableCodeEditor
+          ref={inputEditorRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={setInput}
+          language="xml"
           placeholder="输入 XML..."
-          className="h-full resize-none font-mono text-sm"
-          spellCheck={false}
+          tabSize={parseInt(indent)}
         />
       }
       output={
@@ -117,12 +159,13 @@ export default function XmlFormatter() {
               </div>
             </div>
           ) : (
-            <Textarea
+            <FoldableCodeEditor
+              ref={outputEditorRef}
               value={output}
               readOnly
+              language="xml"
               placeholder="结果..."
-              className="h-full resize-none bg-muted/50 font-mono text-sm"
-              spellCheck={false}
+              tabSize={parseInt(indent)}
             />
           )}
         </div>

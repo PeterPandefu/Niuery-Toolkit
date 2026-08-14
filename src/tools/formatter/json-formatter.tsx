@@ -1,11 +1,14 @@
-import { useState, useMemo } from 'react';
-import Editor from '@monaco-editor/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ToolLayout } from '@/components/shared/ToolLayout';
+import {
+  FoldableCodeEditor,
+  type FoldableCodeEditorHandle,
+} from '@/components/shared/FoldableCodeEditor';
+import { hasFoldableStructure } from '@/lib/structured-editor-folding';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { useTheme } from '@/hooks/use-theme';
 import { useToolLogger } from '@/hooks/use-tool-logger';
-import { AlertCircle, CheckCircle2, Minimize2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, FoldVertical, Minimize2, UnfoldVertical } from 'lucide-react';
 
 type SortMode = 'none' | 'alpha' | 'alpha-desc';
 
@@ -30,8 +33,9 @@ export default function JsonFormatter() {
   const [indent, setIndent] = useState('2');
   const [sortMode, setSortMode] = useState<SortMode>('none');
   const [mode, setMode] = useState<'format' | 'minify'>('format');
-  const { monacoTheme } = useTheme();
   const log = useToolLogger('json-formatter');
+  const inputEditorRef = useRef<FoldableCodeEditorHandle>(null);
+  const outputEditorRef = useRef<FoldableCodeEditorHandle>(null);
 
   const { output, error, isValid } = useMemo(() => {
     if (!input.trim()) return { output: '', error: null, isValid: null };
@@ -56,6 +60,16 @@ export default function JsonFormatter() {
   }, [input, indent, sortMode, mode, log]);
 
   const sampleJson = `{"name":"Niuery Toolkit","version":"1.0.0","features":["offline","secure","fast"],"nested":{"key":"value","array":[1,2,3]}}`;
+  const hasFoldableContent = hasFoldableStructure(input, 'json') || hasFoldableStructure(output, 'json');
+
+  const unfoldAll = () => {
+    void inputEditorRef.current?.unfoldAll();
+    void outputEditorRef.current?.unfoldAll();
+  };
+
+  useEffect(() => {
+    unfoldAll();
+  }, [input, output]);
 
   return (
     <ToolLayout
@@ -134,26 +148,42 @@ export default function JsonFormatter() {
           >
             示例
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              void inputEditorRef.current?.foldAll();
+              void outputEditorRef.current?.foldAll();
+            }}
+            disabled={!hasFoldableContent}
+            title="全部折叠"
+            aria-label="全部折叠"
+          >
+            <FoldVertical className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={unfoldAll}
+            disabled={!hasFoldableContent}
+            title="全部展开"
+            aria-label="全部展开"
+          >
+            <UnfoldVertical className="h-3.5 w-3.5" />
+          </Button>
         </div>
       }
       input={
         <div className="relative h-full overflow-hidden rounded-md border">
-          <Editor
-            height="100%"
+          <FoldableCodeEditor
+            ref={inputEditorRef}
             language="json"
-            theme={monacoTheme}
             value={input}
-            onChange={(v) => setInput(v || '')}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 13,
-              lineNumbers: 'on',
-              wordWrap: 'on',
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: parseInt(indent) === 8 ? 4 : parseInt(indent),
-              placeholder: '输入 JSON...',
-            }}
+            onChange={setInput}
+            tabSize={parseInt(indent) === 8 ? 4 : parseInt(indent)}
+            placeholder="输入 JSON..."
           />
           {isValid !== null && (
             <div className="absolute bottom-2 right-2 z-10">
@@ -177,24 +207,14 @@ export default function JsonFormatter() {
               </div>
             </div>
           ) : (
-            <div className="h-full overflow-hidden rounded-md border">
-              <Editor
-                height="100%"
+            <FoldableCodeEditor
+                ref={outputEditorRef}
                 language="json"
-                theme={monacoTheme}
                 value={output}
-                options={{
-                  readOnly: true,
-                  minimap: { enabled: false },
-                  fontSize: 13,
-                  lineNumbers: 'on',
-                  wordWrap: 'on',
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  domReadOnly: true,
-                }}
+                readOnly
+                tabSize={parseInt(indent) === 8 ? 4 : parseInt(indent)}
+                placeholder="结果..."
               />
-            </div>
           )}
         </div>
       }
