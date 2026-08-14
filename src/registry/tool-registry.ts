@@ -35,6 +35,7 @@ import {
   Wind,
   Activity,
   Workflow,
+  PenTool,
 } from 'lucide-react';
 
 // 工具注册表
@@ -403,6 +404,26 @@ registerTool({
   component: lazy(() => import('@/tools/graphic/mind-map')),
   keywords: ['mind map', 'mind-map', '思维导图', '大纲', 'markdown', 'smm', '离线'],
   description: '离线思维导图：本地 .smm 保存、Markdown 导入与 PNG/SVG 导出',
+});
+
+registerTool({
+  id: 'excalidraw-board',
+  name: 'Excalidraw 白板',
+  icon: PenTool,
+  category: 'graphic',
+  component: lazy(() => import('@/tools/graphic/excalidraw-board')),
+  keywords: ['excalidraw', 'whiteboard', 'board', '白板', '画布', '绘图', '离线'],
+  description: '离线 Excalidraw 无限白板：本地保存、打开与 PNG/SVG 导出',
+});
+
+registerTool({
+  id: 'tldraw-board',
+  name: 'Tldraw 白板',
+  icon: PenTool,
+  category: 'graphic',
+  component: lazy(() => import('@/tools/graphic/tldraw-board')),
+  keywords: ['tldraw', 'whiteboard', 'board', '白板', '画布', '绘图', '离线'],
+  description: '离线 Tldraw 无限白板：本地 .tldr 保存、打开与 SVG 导出',
 });
 
 registerTool({

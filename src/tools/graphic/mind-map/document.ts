@@ -9,7 +9,7 @@ export function createMindMapDocument(title = '未命名思维导图'): MindMapD
       children: [],
     },
     layout: 'logicalStructure',
-    theme: { template: 'classic4', config: {} },
+    theme: { template: 'default', config: {} },
   };
 }
 
@@ -40,7 +40,7 @@ export function parseMindMapDocument(source: string): MindMapDocument {
     throw new Error('文件不是有效的 JSON');
   }
   if (!value || typeof value !== 'object' || !isNode((value as { root?: unknown }).root)) {
-    throw new Error('文件不是兼容的 .smm 思维导图');
+    throw new Error('文件不是兼容的思维导图 JSON');
   }
   const document = value as MindMapDocument;
   if (!hasOnlyEmbeddedImages(document.root)) {
@@ -71,6 +71,11 @@ export function markdownToMindMap(markdown: string): MindMapDocument {
   let current = root;
 
   for (const rawLine of markdown.replace(/\r\n/g, '\n').split('\n')) {
+    const noteLine = rawLine.match(/^\s*>\s?(.*)$/);
+    if (noteLine) {
+      appendNote(listStack[listStack.length - 1] ?? current, noteLine[1]);
+      continue;
+    }
     const heading = rawLine.match(/^(#{1,6})\s+(.+?)\s*$/);
     if (heading) {
       const level = heading[1].length;
@@ -109,4 +114,36 @@ export function markdownToMindMap(markdown: string): MindMapDocument {
   }
 
   return document;
+}
+
+function markdownText(value: unknown) {
+  return String(value ?? '').replace(/\r?\n/g, ' ').trim() || '未命名主题';
+}
+
+function appendMarkdownNote(lines: string[], note: unknown, indent: string) {
+  if (typeof note !== 'string' || !note.trim()) return;
+  for (const line of note.replace(/\r\n/g, '\n').split('\n')) {
+    lines.push(`${indent}> ${line}`);
+  }
+}
+
+/**
+ * 导出为可读的 Markdown：主主题为一级标题，子主题为缩进列表，备注为引用块。
+ * 图形布局、主题及折叠状态属于 .json 文档专有信息，不写入 Markdown。
+ */
+export function mindMapToMarkdown(document: MindMapDocument): string {
+  const lines = [`# ${markdownText(document.root.data.text)}`];
+  appendMarkdownNote(lines, document.root.data.note, '');
+
+  const appendChildren = (nodes: MindMapNode[], depth: number) => {
+    for (const node of nodes) {
+      const indent = '  '.repeat(depth);
+      lines.push(`${indent}- ${markdownText(node.data.text)}`);
+      appendMarkdownNote(lines, node.data.note, `${indent}  `);
+      appendChildren(node.children, depth + 1);
+    }
+  };
+
+  appendChildren(document.root.children, 0);
+  return `${lines.join('\n')}\n`;
 }
