@@ -173,6 +173,36 @@ export function insertCodeBlock(
   };
 }
 
+export const MERMAID_TEMPLATES = {
+  flowchart: 'flowchart TD\n  Start([开始]) --> End([结束])',
+  sequence: 'sequenceDiagram\n  participant A as 用户\n  participant B as 服务\n  A->>B: 发起请求\n  B-->>A: 返回结果',
+  class: 'classDiagram\n  class User {\n    +String name\n    +login()\n  }\n  class Session {\n    +String token\n  }\n  User --> Session',
+  state: 'stateDiagram-v2\n  [*] --> 待处理\n  待处理 --> 已完成\n  已完成 --> [*]',
+} as const;
+
+export type MermaidTemplateKind = keyof typeof MERMAID_TEMPLATES;
+
+/** 插入 Mermaid 模板，选中的内容会被模板替换。 */
+export function insertMermaidTemplate(
+  text: string,
+  selectionStart: number,
+  selectionEnd: number,
+  template: MermaidTemplateKind
+): EditResult {
+  const before = text.slice(0, selectionStart);
+  const after = text.slice(selectionEnd);
+  const prefix = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+  const diagram = MERMAID_TEMPLATES[template];
+  const block = `${prefix}\`\`\`mermaid\n${diagram}\n\`\`\`\n`;
+  const contentStart = selectionStart + prefix.length + '```mermaid\n'.length;
+
+  return {
+    text: before + block + after,
+    selectionStart: contentStart,
+    selectionEnd: contentStart + diagram.length,
+  };
+}
+
 /**
  * 插入链接
  */
@@ -421,6 +451,14 @@ export function generateExportHtml(renderedBody: string, title = 'Markdown Expor
   li { margin: 0.25em 0; }
   input[type="checkbox"] { margin-right: 0.5em; }
   del { color: var(--muted); }
+  .mermaid-diagram { margin: 1em 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg); }
+  .mermaid-svg { display: flex; width: max-content; min-width: 100%; justify-content: center; padding: 1rem; }
+  .mermaid-svg svg { max-width: none; height: auto; }
+  .mermaid-source { border-top: 1px solid var(--border); padding: 0.5rem 0.75rem; color: var(--muted); font-size: 0.75rem; }
+  .mermaid-source summary { cursor: pointer; }
+  .mermaid-source pre { margin: 0.5rem 0 0; white-space: pre-wrap; }
+  .mermaid-error { margin: 0.75rem; border: 1px solid #ef4444; border-radius: 6px; background: #fef2f2; color: #b91c1c; padding: 0.75rem; }
+  @media (prefers-color-scheme: dark) { .mermaid-error { background: #450a0a; color: #fecaca; } }
 </style>
 </head>
 <body>

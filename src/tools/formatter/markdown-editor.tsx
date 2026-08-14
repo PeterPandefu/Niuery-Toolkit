@@ -3,6 +3,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { useTranslation } from 'react-i18next';
 import { Toolbar, ToolbarAction } from '@/components/markdown/Toolbar';
+import type { MermaidTemplateKind } from '@/lib/markdown-utils';
 import { Preview, PreviewHandle, renderMarkdown } from '@/components/markdown/Preview';
 import { StatusBar } from '@/components/markdown/StatusBar';
 import { Outline } from '@/components/markdown/Outline';
@@ -26,6 +27,7 @@ import {
   wrapSelection,
   toggleLinePrefix,
   insertCodeBlock,
+  insertMermaidTemplate,
   insertLink,
   insertImage,
   insertTable,
@@ -69,7 +71,7 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 }
 
 export default function MarkdownEditor() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [content, setContent] = useState(loadDraft);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
@@ -79,7 +81,7 @@ export default function MarkdownEditor() {
   const previewRef = useRef<PreviewHandle>(null);
   const isEditorScrolling = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(null);
-  const { monacoTheme } = useTheme();
+  const { monacoTheme, scheme } = useTheme();
   const log = useToolLogger('markdown-editor');
 
   // 预览使用 debounce 150ms (NF-02)
@@ -254,6 +256,13 @@ export default function MarkdownEditor() {
     [applyEdit]
   );
 
+  const handleMermaidTemplate = useCallback(
+    (template: MermaidTemplateKind) => {
+      applyEdit(insertMermaidTemplate, template);
+    },
+    [applyEdit]
+  );
+
   // 循环切换视图模式
   const cycleViewMode = useCallback(() => {
     setViewMode((prev) => {
@@ -287,16 +296,17 @@ export default function MarkdownEditor() {
   }, [content, t, log]);
 
   // 导出 HTML
-  const handleExportHtml = useCallback(() => {
-    const html = generateExportHtml(renderMarkdown(content));
+  const handleExportHtml = useCallback(async () => {
+    const rendered = await renderMarkdown(content, { scheme, locale: i18n.resolvedLanguage ?? i18n.language });
+    const html = generateExportHtml(rendered);
     downloadFile(html, 'document.html', 'text/html');
     log.info('导出 HTML 文件', { length: html.length });
     toast.success(t('markdownEditor.exportedHtml'));
-  }, [content, t, log]);
+  }, [content, i18n.language, i18n.resolvedLanguage, log, scheme, t]);
 
   // 复制 HTML
   const handleCopyHtml = useCallback(async () => {
-    const html = renderMarkdown(content);
+    const html = await renderMarkdown(content, { scheme, locale: i18n.resolvedLanguage ?? i18n.language });
     const success = await copyToClipboard(html);
     if (success) {
       log.info('复制 HTML 到剪贴板', { length: html.length });
@@ -304,7 +314,7 @@ export default function MarkdownEditor() {
     } else {
       log.warn('复制 HTML 失败');
     }
-  }, [content, t, log]);
+  }, [content, i18n.language, i18n.resolvedLanguage, log, scheme, t]);
 
   // 拖放导入
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -413,7 +423,7 @@ export default function MarkdownEditor() {
       </div>
 
       {/* 工具栏 */}
-      {showEditor && <Toolbar onAction={applyAction} />}
+      {showEditor && <Toolbar onAction={applyAction} onMermaidTemplate={handleMermaidTemplate} />}
 
       {/* 主内容区 */}
       <div className="flex min-h-0 flex-1">
