@@ -1,10 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { ToolLayout } from '@/components/shared/ToolLayout';
-import { Textarea } from '@/components/ui/textarea';
+import {
+  FoldableCodeEditor,
+  type FoldableCodeEditorHandle,
+} from '@/components/shared/FoldableCodeEditor';
+import { hasFoldableStructure, type StructuredLanguage } from '@/lib/structured-editor-folding';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, FoldVertical, UnfoldVertical } from 'lucide-react';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 
 type Direction = 'xml-to-json' | 'json-to-xml';
@@ -14,6 +18,8 @@ export default function XmlJsonConverter() {
   const [input, setInput] = useState('');
   const [direction, setDirection] = useState<Direction>('xml-to-json');
   const [ignoreAttrs, setIgnoreAttrs] = useState('false');
+  const inputEditorRef = useRef<FoldableCodeEditorHandle>(null);
+  const outputEditorRef = useRef<FoldableCodeEditorHandle>(null);
 
   const { output, error } = useMemo(() => {
     if (!input.trim()) return { output: '', error: null };
@@ -65,6 +71,18 @@ export default function XmlJsonConverter() {
     }
   }
 }`;
+  const inputLanguage: StructuredLanguage = direction === 'xml-to-json' ? 'xml' : 'json';
+  const outputLanguage: StructuredLanguage = direction === 'xml-to-json' ? 'json' : 'xml';
+  const hasFoldableContent = hasFoldableStructure(input, inputLanguage) || hasFoldableStructure(output, outputLanguage);
+
+  const unfoldAll = () => {
+    void inputEditorRef.current?.unfoldAll();
+    void outputEditorRef.current?.unfoldAll();
+  };
+
+  useEffect(() => {
+    unfoldAll();
+  }, [input, output, direction, ignoreAttrs]);
 
   return (
     <ToolLayout
@@ -105,15 +123,40 @@ export default function XmlJsonConverter() {
           >
             示例
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              void inputEditorRef.current?.foldAll();
+              void outputEditorRef.current?.foldAll();
+            }}
+            disabled={!hasFoldableContent}
+            title="全部折叠"
+            aria-label="全部折叠"
+          >
+            <FoldVertical className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={unfoldAll}
+            disabled={!hasFoldableContent}
+            title="全部展开"
+            aria-label="全部展开"
+          >
+            <UnfoldVertical className="h-3.5 w-3.5" />
+          </Button>
         </div>
       }
       input={
-        <Textarea
+        <FoldableCodeEditor
+          ref={inputEditorRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={setInput}
+          language={inputLanguage}
           placeholder={direction === 'xml-to-json' ? '输入 XML...' : '输入 JSON...'}
-          className="h-full resize-none font-mono text-sm"
-          spellCheck={false}
         />
       }
       output={
@@ -127,12 +170,12 @@ export default function XmlJsonConverter() {
               </div>
             </div>
           ) : (
-            <Textarea
+            <FoldableCodeEditor
+              ref={outputEditorRef}
               value={output}
               readOnly
+              language={outputLanguage}
               placeholder="转换结果..."
-              className="h-full resize-none bg-muted/50 font-mono text-sm"
-              spellCheck={false}
             />
           )}
         </div>
