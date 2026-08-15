@@ -30,17 +30,14 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
   const { t } = useTranslation();
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setActiveCategory = useAppStore((s) => s.setActiveCategory);
-  const recentTools = useAppStore((s) => s.recentTools);
   const pinnedTools = useAppStore((s) => s.pinnedTools);
   const allTools = useMemo(() => getAllTools(), []);
   const categories = useMemo(() => getAvailableCategories(), []);
 
   const quickTools = useMemo(() => {
     const defaults = ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'text-diff', 'qrcode'];
-    const recent = recentTools.map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean);
-    const selected = new Set(recent.map((tool) => tool?.id));
-    return [...recent, ...defaults.map((id) => allTools.find((tool) => tool.id === id)).filter((tool) => tool && !selected.has(tool.id))].slice(0, 6);
-  }, [allTools, recentTools]);
+    return defaults.map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean);
+  }, [allTools]);
 
   const pinnedToolDefs = useMemo(
     () => pinnedTools.map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean),
@@ -200,7 +197,6 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   const { theme, setTheme } = useTheme();
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setActiveTool = useAppStore((s) => s.setActiveTool);
-  const addRecentTool = useAppStore((s) => s.addRecentTool);
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const startTool = useToolLifecycleStore((s) => s.startTool);
   const tool = toolId ? getToolById(toolId) : null;
@@ -210,7 +206,6 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   const handleSelectTool = (id: string) => {
     startTool(id);
     setActiveTool(id);
-    addRecentTool(id);
   };
 
   const cycleTheme = () => {
