@@ -103,6 +103,5 @@ export interface AppState {
   theme: ThemeMode;
   skin: SkinId;
   activeCategory: ToolCategory | null;
-  recentTools: string[];
   activeToolId: string | null;
 }

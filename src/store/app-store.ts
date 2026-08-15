@@ -15,10 +15,6 @@ interface AppStore {
   activeCategory: ToolCategory | null;
   setActiveCategory: (category: ToolCategory | null) => void;
 
-  // 最近使用的工具
-  recentTools: string[];
-  addRecentTool: (toolId: string) => void;
-
   // 当前活动工具
   activeToolId: string | null;
   setActiveTool: (toolId: string | null) => void;
@@ -47,14 +43,6 @@ export const useAppStore = create<AppStore>()(
       activeCategory: null,
       setActiveCategory: (category) => set({ activeCategory: category }),
 
-      // 最近使用
-      recentTools: [],
-      addRecentTool: (toolId) =>
-        set((state) => {
-          const filtered = state.recentTools.filter((id) => id !== toolId);
-          return { recentTools: [toolId, ...filtered].slice(0, 10) };
-        }),
-
       // 活动工具
       activeToolId: null,
       setActiveTool: (toolId) => set({ activeToolId: toolId }),
@@ -81,16 +69,14 @@ export const useAppStore = create<AppStore>()(
       partialize: (state) => ({
         theme: state.theme,
         skin: state.skin,
-        recentTools: state.recentTools,
         pinnedTools: state.pinnedTools,
       }),
-      version: 1,
+      version: 2,
       migrate: (persistedState) => {
-        const persisted = persistedState as Partial<Pick<AppStore, 'theme' | 'skin' | 'recentTools' | 'pinnedTools'>>;
+        const persisted = persistedState as Partial<Pick<AppStore, 'theme' | 'skin' | 'pinnedTools'>>;
         return {
           theme: persisted.theme ?? 'system',
           skin: persisted.skin ?? DEFAULT_SKIN,
-          recentTools: persisted.recentTools ?? [],
           pinnedTools: persisted.pinnedTools ?? ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'qrcode', 'text-diff'],
         };
       },

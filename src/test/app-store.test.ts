@@ -7,7 +7,6 @@ describe('useAppStore', () => {
       theme: 'system',
       skin: 'forge',
       activeCategory: null,
-      recentTools: [],
       activeToolId: null,
       searchOpen: false,
     });
@@ -36,36 +35,6 @@ describe('useAppStore', () => {
       useAppStore.getState().resetAppearance();
       expect(useAppStore.getState().skin).toBe('forge');
       expect(useAppStore.getState().theme).toBe('system');
-    });
-  });
-
-  describe('addRecentTool', () => {
-    it('adds a tool to empty list', () => {
-      useAppStore.getState().addRecentTool('base64');
-      expect(useAppStore.getState().recentTools).toEqual(['base64']);
-    });
-
-    it('prepends new tool to front', () => {
-      useAppStore.getState().addRecentTool('base64');
-      useAppStore.getState().addRecentTool('uuid');
-      expect(useAppStore.getState().recentTools).toEqual(['uuid', 'base64']);
-    });
-
-    it('deduplicates existing tool and moves to front', () => {
-      useAppStore.getState().addRecentTool('base64');
-      useAppStore.getState().addRecentTool('uuid');
-      useAppStore.getState().addRecentTool('base64');
-      expect(useAppStore.getState().recentTools).toEqual(['base64', 'uuid']);
-    });
-
-    it('caps at 10 entries', () => {
-      for (let i = 0; i < 15; i++) {
-        useAppStore.getState().addRecentTool(`tool-${i}`);
-      }
-      const recent = useAppStore.getState().recentTools;
-      expect(recent).toHaveLength(10);
-      expect(recent[0]).toBe('tool-14');
-      expect(recent[9]).toBe('tool-5');
     });
   });
 

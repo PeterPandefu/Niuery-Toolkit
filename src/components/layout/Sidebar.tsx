@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
-import { getAllTools, getAvailableCategories, getToolsByCategory } from '@/registry/tool-registry';
+import { getAvailableCategories, getToolsByCategory } from '@/registry/tool-registry';
 import { CATEGORY_ICONS } from '@/types/tool';
-import { ChevronDown, Clock3, Home, Pin, Search, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Home, Pin, Search, ShieldCheck } from 'lucide-react';
 import { BrandMark } from '@/components/shared/BrandMark';
 
 interface SidebarProps {
@@ -52,15 +52,10 @@ function ToolItem({
 
 export function Sidebar({ onSelectTool }: SidebarProps) {
   const { t } = useTranslation();
-  const { activeToolId, recentTools, setSearchOpen, setActiveTool, activeCategory, setActiveCategory } = useAppStore();
+  const { activeToolId, setSearchOpen, setActiveTool, activeCategory, setActiveCategory } = useAppStore();
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
   const categories = getAvailableCategories();
-
-  const recentToolList = useMemo(() => {
-    const allTools = getAllTools();
-    return recentTools.map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean).slice(0, 3);
-  }, [recentTools]);
 
   const categoryTools = useMemo(
     () => (activeCategory ? getToolsByCategory(activeCategory) : []),
@@ -149,20 +144,6 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
           })}
         </div>
       </nav>
-
-      {recentToolList.length > 0 && (
-        <section className="mt-3 border-t border-sidebar-border pt-3" aria-label={t('app.recentTools')}>
-          <div className="mb-1.5 flex items-center gap-2 px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-            <Clock3 className="h-3.5 w-3.5" />
-            {t('app.recentTools')}
-          </div>
-          <div className="space-y-0.5">
-            {recentToolList.map((tool) => tool && (
-              <ToolItem key={tool.id} active={activeToolId === tool.id} icon={tool.icon} label={t(`tools.${tool.id}`, tool.name)} running={activeTools.includes(tool.id)} alwaysOn={alwaysOnTools.includes(tool.id)} onClick={() => onSelectTool(tool.id)} />
-            ))}
-          </div>
-        </section>
-      )}
 
       <div className="mt-3 flex items-center justify-between border-t border-sidebar-border px-2 pt-3 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden="true" />{t('app.offlineMode')}</span>

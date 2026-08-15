@@ -16,7 +16,7 @@ export default function App() {
   // 初始化主题
   useApplyTheme();
 
-  const { activeToolId, setActiveTool, addRecentTool, setActiveCategory } = useAppStore();
+  const { activeToolId, setActiveTool, setActiveCategory } = useAppStore();
   const startTool = useToolLifecycleStore((s) => s.startTool);
   const initAlwaysOnTools = useToolLifecycleStore((s) => s.initAlwaysOnTools);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -30,14 +30,13 @@ export default function App() {
     (toolId: string) => {
       startTool(toolId);
       setActiveTool(toolId);
-      addRecentTool(toolId);
       // 自动展开工具所属分类面板
       const tool = getToolById(toolId);
       if (tool) {
         setActiveCategory(tool.category);
       }
     },
-    [startTool, setActiveTool, addRecentTool, setActiveCategory]
+    [startTool, setActiveTool, setActiveCategory]
   );
 
   useEffect(() => {

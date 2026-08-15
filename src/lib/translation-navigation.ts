@@ -28,7 +28,6 @@ export function openTranslatorWithText(text: string) {
   restoreMainWindowForTranslation();
   const appStore = useAppStore.getState();
   appStore.setActiveTool('translator');
-  appStore.addRecentTool('translator');
   const tool = getToolById('translator');
   if (tool) appStore.setActiveCategory(tool.category);
 }
@@ -37,7 +36,6 @@ export function openScreenshotEditor() {
   useToolLifecycleStore.getState().startTool('screenshot-editor');
   const appStore = useAppStore.getState();
   appStore.setActiveTool('screenshot-editor');
-  appStore.addRecentTool('screenshot-editor');
   const tool = getToolById('screenshot-editor');
   if (tool) appStore.setActiveCategory(tool.category);
 }
