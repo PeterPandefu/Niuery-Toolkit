@@ -214,13 +214,13 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   };
 
   return (
-    <div className="flex h-full min-w-0 flex-col bg-background">
+    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
       <a href="#workspace-main" className="skip-link">{t('app.skipToMain')}</a>
-      <header className="flex min-h-[68px] shrink-0 items-center justify-between gap-4 border-b border-border bg-background px-5">
+      <header className="flex min-h-[68px] shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
           {tool ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><tool.icon className="h-4 w-4" /></span> : <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"><LayoutDashboard className="h-4 w-4" /></span>}
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{tool ? t(`categories.${tool.category}`) : 'Niuery Toolkit'}</p>
+            <p className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:block">{tool ? t(`categories.${tool.category}`) : 'Niuery Toolkit'}</p>
             <h1 className="truncate font-heading text-lg font-semibold tracking-tight text-foreground">{tool ? t(`tools.${tool.id}`, tool.name) : t('app.workspace')}</h1>
           </div>
           {tool && <ToolPowerSwitch toolId={tool.id} />}

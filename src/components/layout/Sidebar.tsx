@@ -68,7 +68,7 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
   };
 
   return (
-    <aside className="app-sidebar flex h-full w-[272px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-3" aria-label="工具导航">
+    <aside className="app-sidebar flex h-full w-[clamp(13.5rem,18vw,17rem)] shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-3" aria-label="工具导航">
       <div className="flex items-center gap-3 px-2 py-2">
         <button onClick={handleHome} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={t('app.home', '首页')}>
           <BrandMark size={34} className="brand-mark" />

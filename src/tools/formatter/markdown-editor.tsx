@@ -342,9 +342,9 @@ export default function MarkdownEditor() {
   const showPreview = viewMode === 'split' || viewMode === 'preview';
 
   return (
-    <div className="flex h-full flex-col" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+    <div className="flex h-full min-h-0 min-w-0 flex-col" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
       {/* 顶部操作栏 */}
-      <div className="flex items-center justify-between border-b px-3 py-1">
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b px-3 py-1">
         <div className="flex items-center gap-1">
           {/* 视图切换 */}
           <Button
@@ -426,15 +426,15 @@ export default function MarkdownEditor() {
       {showEditor && <Toolbar onAction={applyAction} onMermaidTemplate={handleMermaidTemplate} />}
 
       {/* 主内容区 */}
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
         {/* 大纲侧栏 */}
         {showOutline && (
-          <div className="w-48 shrink-0 border-r">
+          <div className="w-full shrink-0 border-b lg:w-48 lg:border-b-0 lg:border-r">
             <Outline content={content} onJumpToLine={handleJumpToLine} />
           </div>
         )}
         {showEditor && (
-          <div className={`min-h-0 ${showPreview ? 'w-1/2 border-r' : 'flex-1'}`}>
+          <div className={`min-h-0 min-w-0 ${showPreview ? 'flex-1 w-full border-b lg:w-1/2 lg:border-b-0 lg:border-r' : 'flex-1'}`}>
             <Editor
               height="100%"
               language="markdown"
@@ -458,7 +458,7 @@ export default function MarkdownEditor() {
           </div>
         )}
         {showPreview && (
-          <div className={`min-h-0 p-2 ${showEditor ? 'w-1/2' : 'flex-1'}`}>
+          <div className={`min-h-0 min-w-0 p-2 ${showEditor ? 'flex-1 w-full lg:w-1/2' : 'flex-1'}`}>
             <Preview ref={previewRef} source={debouncedContent} />
           </div>
         )}
