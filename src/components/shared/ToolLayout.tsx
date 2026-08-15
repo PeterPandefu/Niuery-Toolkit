@@ -44,10 +44,23 @@ export function ToolLayout({
 }: ToolLayoutProps) {
   const [copied, setCopied] = useState(false);
   const [vertical, setVertical] = useState(false);
+  const [isWideLayout, setIsWideLayout] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 1024px)').matches
+  );
   const [splitRatio, setSplitRatio] = useState(50);
   const [dragOver, setDragOver] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
+  const isVertical = vertical || !isWideLayout;
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const updateLayout = () => setIsWideLayout(mediaQuery.matches);
+    updateLayout();
+    mediaQuery.addEventListener('change', updateLayout);
+    return () => mediaQuery.removeEventListener('change', updateLayout);
+  }, []);
 
   const handleCopy = useCallback(async () => {
     if (outputValue) {
@@ -76,14 +89,14 @@ export function ToolLayout({
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDragging.current = true;
-    document.body.style.cursor = vertical ? 'row-resize' : 'col-resize';
+    document.body.style.cursor = isVertical ? 'row-resize' : 'col-resize';
     document.body.style.userSelect = 'none';
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isDragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       let ratio: number;
-      if (vertical) {
+      if (isVertical) {
         ratio = ((moveEvent.clientY - rect.top) / rect.height) * 100;
       } else {
         ratio = ((moveEvent.clientX - rect.left) / rect.width) * 100;
@@ -101,10 +114,10 @@ export function ToolLayout({
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-  }, [vertical]);
+  }, [isVertical]);
 
   return (
-    <div className={cn('flex h-full flex-col bg-background p-3', className)}>
+    <div className={cn('flex h-full min-h-0 min-w-0 flex-col bg-background p-2 sm:p-3', className)}>
       {/* 工具栏 */}
       <div className="mb-3 flex min-h-10 items-center justify-end gap-1 rounded-xl border border-border bg-card px-2 shadow-tinted-sm">
         {onSwap && (
@@ -117,21 +130,22 @@ export function ToolLayout({
           size="icon"
           className="h-7 w-7 text-muted-foreground hover:text-foreground"
           onClick={() => setVertical(!vertical)}
-          title={vertical ? '切换为水平布局' : '切换为垂直布局'}
+          disabled={!isWideLayout}
+          title={isWideLayout ? (vertical ? '切换为水平布局' : '切换为垂直布局') : '窗口较窄时自动使用上下布局'}
         >
-          {vertical ? <Columns2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
+          {isVertical ? <Columns2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
         </Button>
       </div>
 
       {/* Panels */}
       <div
         ref={containerRef}
-        className={cn('flex min-h-0 flex-1 gap-3', vertical ? 'flex-col' : 'flex-row')}
+        className={cn('flex min-h-0 min-w-0 flex-1 gap-2 sm:gap-3', isVertical ? 'flex-col' : 'flex-row')}
       >
         {/* Input Panel */}
         <div
-          className="relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-tinted-sm"
-          style={vertical ? { height: `${splitRatio}%` } : { width: `${splitRatio}%` }}
+          className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-tinted-sm"
+          style={isVertical ? { height: `${splitRatio}%` } : { width: `${splitRatio}%` }}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={async (e) => {
@@ -181,19 +195,19 @@ export function ToolLayout({
           onMouseDown={handleDragStart}
           className={cn(
             'group relative flex shrink-0 items-center justify-center transition-colors hover:bg-primary/15',
-            vertical ? 'h-2 w-full cursor-row-resize' : 'w-2 h-full cursor-col-resize'
+            isVertical ? 'h-2 w-full cursor-row-resize' : 'w-2 h-full cursor-col-resize'
           )}
         >
           <div
             className={cn(
               'rounded-full bg-muted-foreground/25 transition-all duration-200 group-hover:bg-primary/60',
-              vertical ? 'h-0.5 w-10 group-hover:w-14' : 'w-0.5 h-10 group-hover:h-14'
+              isVertical ? 'h-0.5 w-10 group-hover:w-14' : 'w-0.5 h-10 group-hover:h-14'
             )}
           />
         </div>
 
         {/* 输出面板 */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-tinted-sm">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-tinted-sm">
           <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-2">
             <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />

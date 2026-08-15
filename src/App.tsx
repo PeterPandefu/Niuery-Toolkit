@@ -73,9 +73,9 @@ export default function App() {
   }, [handleSelectTool]);
 
   return (
-    <div className="flex min-h-dvh overflow-hidden bg-background">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-background">
       <Sidebar onSelectTool={handleSelectTool} />
-      <div className="flex-1 overflow-hidden">
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         <ToolPanel toolId={activeToolId} onOpenSettings={() => setSettingsOpen(true)} />
       </div>
       <SearchDialog onSelectTool={handleSelectTool} />
