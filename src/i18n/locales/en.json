@@ -47,6 +47,8 @@
   "hotkeys": {
     "showWindow": "Show Window",
     "showWindowDesc": "Press this shortcut from any app to show the main window",
+    "stickyNote": "Sticky Note",
+    "stickyNoteDesc": "Show the floating desktop note from any app",
     "screenshot": "Screenshot",
     "screenshotDesc": "Global screenshot shortcut, similar to WeChat capture",
     "longshot": "Long Screenshot",
@@ -57,6 +59,44 @@
     "reset": "Reset Defaults",
     "desktopOnly": "Global hotkeys are only available in the desktop app (Tauri). System-level shortcuts cannot be registered in browser environment.",
     "footerHint": "Global hotkeys work regardless of which app is focused"
+  },
+  "stickyNoteLauncher": {
+    "description": "Keep a lightweight note on your desktop for tasks and ideas.",
+    "open": "Open floating note",
+    "desktopOnly": "The floating note is available only in the desktop app.",
+    "openFailed": "The floating note could not be opened. Please try again."
+  },
+  "stickyNote": {
+    "add": "New note",
+    "addTimelineEntry": "Add timeline entry",
+    "delete": "Delete note",
+    "noteMenu": "Note actions",
+    "keepOne": "Keep at least one note",
+    "all": "All",
+    "noteList": "Note list",
+    "search": "Search notes",
+    "searchPlaceholder": "Search title or content",
+    "toggleMode": "Toggle plain note/timeline",
+    "timeline": "Timeline note",
+    "timelinePlaceholder": "Click the top + to add a timeline entry",
+    "title": "Sticky Note",
+    "rename": "Rename note",
+    "placeholder": "Write down what is on your mind…",
+    "editorLabel": "Note content",
+    "colorLabel": "Choose note color",
+    "colors": {
+      "yellow": "Warm yellow",
+      "lime": "Lime",
+      "pink": "Pink",
+      "blue": "Mist blue",
+      "purple": "Lavender"
+    },
+    "pin": "Keep note on top",
+    "unpin": "Stop keeping note on top",
+    "hide": "Hide note",
+    "autoSaved": "Saved automatically",
+    "saveFailed": "Save failed. Please try again later.",
+    "characters": "characters"
   },
   "categories": {
     "data": "Data & Conversion",
@@ -90,6 +130,7 @@
     "xml-formatter": "XML Formatter",
     "sql-formatter": "SQL Formatter",
     "markdown-editor": "Markdown Editor",
+    "sticky-note": "Sticky Note",
     "uuid-generator": "UUID & Random IDs",
     "hash-generator": "Hash Calculator",
     "password-generator": "Password Generator",

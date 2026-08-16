@@ -54,6 +54,7 @@ function Toggle({
 /** 快捷键动作定义 */
 const HOTKEY_ACTIONS = [
   { id: 'showWindow', labelKey: 'hotkeys.showWindow', descKey: 'hotkeys.showWindowDesc' },
+  { id: 'stickyNote', labelKey: 'hotkeys.stickyNote', descKey: 'hotkeys.stickyNoteDesc' },
   { id: 'screenshot', labelKey: 'hotkeys.screenshot', descKey: 'hotkeys.screenshotDesc' },
   { id: 'longshot', labelKey: 'hotkeys.longshot', descKey: 'hotkeys.longshotDesc' },
   { id: 'screenRecorder', labelKey: 'hotkeys.screenRecorder', descKey: 'hotkeys.screenRecorderDesc' },

@@ -5,6 +5,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 /// 快捷键动作类型
 pub const ACTION_SHOW_WINDOW: &str = "showWindow";
+pub const ACTION_STICKY_NOTE: &str = "stickyNote";
 pub const ACTION_SCREENSHOT: &str = "screenshot";
 pub const ACTION_LONGSHOT: &str = "longshot";
 pub const ACTION_SCREEN_RECORDER: &str = "screenRecorder";
@@ -13,6 +14,7 @@ pub const ACTION_SCREEN_RECORDER: &str = "screenRecorder";
 pub fn default_bindings() -> HashMap<String, String> {
     let mut m = HashMap::new();
     m.insert(ACTION_SHOW_WINDOW.to_string(), "Ctrl+Shift+T".to_string());
+    m.insert(ACTION_STICKY_NOTE.to_string(), "Ctrl+Alt+N".to_string());
     m.insert(ACTION_SCREENSHOT.to_string(), "Ctrl+Alt+A".to_string());
     m.insert(ACTION_LONGSHOT.to_string(), "Ctrl+Alt+S".to_string());
     m.insert(ACTION_SCREEN_RECORDER.to_string(), "Ctrl+Shift+R".to_string());

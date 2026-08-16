@@ -13,6 +13,7 @@ import ScreenshotApp from './screenshot/ScreenshotApp.tsx'
 import LongshotPanel from './screenshot/longshot/LongshotPanel.tsx'
 import CursorHighlightOverlay from './recording/CursorHighlightOverlay.tsx'
 import RecordingCaptureBorderOverlay from './recording/RecordingCaptureBorderOverlay.tsx'
+import StickyNoteApp from './sticky-note/StickyNoteApp.tsx'
 
 // 截图窗口使用独立渲染路径（由 Tauri 以 #/screenshot 打开）
 const hash = window.location.hash
@@ -21,6 +22,7 @@ const isScreenshotWindow = hash === '#/screenshot' || hash.startsWith('#/screens
 const isLongshotPanel = hash.startsWith('#/longshot-panel')
 const isCursorHighlightWindow = hash === '#/recording-cursor-highlight'
 const isRecordingCaptureBorderWindow = hash === '#/recording-capture-border'
+const isStickyNoteWindow = window.location.pathname.endsWith('/sticky-note.html') || hash === '#/sticky-note'
 
 // 截图窗口/长截图边框窗口需要透明背景，覆盖 index.css 中的 bg-background
 if (isScreenshotWindow || isLongshotPanel || isCursorHighlightWindow || isRecordingCaptureBorderWindow) {
@@ -45,6 +47,6 @@ appLogger.info('应用启动', {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isScreenshotWindow ? <ScreenshotApp /> : isLongshotPanel ? <LongshotPanel /> : isCursorHighlightWindow ? <CursorHighlightOverlay /> : isRecordingCaptureBorderWindow ? <RecordingCaptureBorderOverlay /> : <App />}
+    {isScreenshotWindow ? <ScreenshotApp /> : isLongshotPanel ? <LongshotPanel /> : isCursorHighlightWindow ? <CursorHighlightOverlay /> : isRecordingCaptureBorderWindow ? <RecordingCaptureBorderOverlay /> : isStickyNoteWindow ? <StickyNoteApp /> : <App />}
   </StrictMode>,
 )

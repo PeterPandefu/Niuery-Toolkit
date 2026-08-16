@@ -4,6 +4,7 @@ mod file_saver;
 mod hotkey;
 pub mod recorder;
 mod screenshot;
+mod sticky_note;
 mod system_monitor;
 mod ws_server;
 
@@ -92,7 +93,7 @@ mod dev_server {
 
 use capture_guard::{CaptureActivity, CaptureGuardState, CaptureShortcut, ShortcutDecision};
 use clipboard::ClipboardHistoryState;
-use hotkey::{HotkeyState, ACTION_LONGSHOT, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW};
+use hotkey::{HotkeyState, ACTION_LONGSHOT, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW, ACTION_STICKY_NOTE};
 use recorder::RecorderState;
 use screenshot::ScreenshotState;
 use system_monitor::SystemMonitorState;
@@ -104,6 +105,10 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_global_shortcut::ShortcutState;
 use ws_server::WsServerState;
+
+fn is_window_shown(is_visible: bool, is_minimized: bool) -> bool {
+    is_visible && !is_minimized
+}
 
 /// 关闭行为状态（仅在本次运行期间有效，不持久化）
 #[derive(Default)]
@@ -200,10 +205,24 @@ pub fn run() {
                             }
                             ACTION_SHOW_WINDOW => {
                                 if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.show();
-                                    let _ = window.unminimize();
-                                    let _ = window.set_focus();
+                                    let is_shown =
+                                        match (window.is_visible(), window.is_minimized()) {
+                                            (Ok(is_visible), Ok(is_minimized)) => {
+                                                is_window_shown(is_visible, is_minimized)
+                                            }
+                                            _ => false,
+                                        };
+                                    if is_shown {
+                                        let _ = window.hide();
+                                    } else {
+                                        let _ = window.show();
+                                        let _ = window.unminimize();
+                                        let _ = window.set_focus();
+                                    }
                                 }
+                            }
+                            ACTION_STICKY_NOTE => {
+                                sticky_note::toggle_sticky_note(app);
                             }
                             ACTION_SCREEN_RECORDER => {
                                 match capture_guard::decide_shortcut(
@@ -287,6 +306,14 @@ pub fn run() {
             hotkey::update_hotkey,
             hotkey::get_hotkeys,
             hotkey::reset_hotkeys,
+            sticky_note::get_sticky_note,
+            sticky_note::update_sticky_note,
+            sticky_note::get_sticky_notes,
+            sticky_note::update_sticky_notes,
+            sticky_note::hide_sticky_note,
+            sticky_note::start_sticky_note_drag,
+            sticky_note::set_sticky_note_always_on_top,
+            sticky_note::show_sticky_note_window,
             system_monitor::get_system_stats,
             file_saver::save_file_dialog,
             file_saver::open_text_file_dialog,
@@ -400,6 +427,13 @@ pub fn run() {
                 }
                 return;
             }
+            if window.label() == "sticky-note" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                return;
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 // 只对主窗口应用关闭拦截逻辑，截图窗口等其他窗口允许正常关闭
                 if window.label() != "main" {
@@ -457,4 +491,16 @@ pub fn run() {
                 dev_server::kill_spawned();
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_window_shown;
+
+    #[test]
+    fn 唤出快捷键仅在窗口实际显示时隐藏窗口() {
+        assert!(is_window_shown(true, false));
+        assert!(!is_window_shown(false, false));
+        assert!(!is_window_shown(true, true));
+    }
 }
