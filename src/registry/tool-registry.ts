@@ -31,6 +31,7 @@ import {
   Square,
   Type,
   Video,
+  Images,
   Wind,
   Activity,
 } from 'lucide-react';
@@ -410,6 +411,16 @@ registerTool({
   component: lazy(() => import('@/tools/graphic/screen-recorder')),
   keywords: ['screen', 'record', 'video', 'gif', '录屏', '录制', '窗口录制', '动图'],
   description: '区域、窗口与显示器录制，并支持 GIF 编辑导出',
+});
+
+registerTool({
+  id: 'wallpaper',
+  name: '壁纸',
+  icon: Images,
+  category: 'graphic',
+  component: lazy(() => import('@/tools/graphic/wallpaper')),
+  keywords: ['wallpaper', 'desktop', 'background', 'ai', 'bing', '壁纸', '桌面', '背景', '生成'],
+  description: '在线下载、AI 生成去水印，并设为系统桌面壁纸',
 });
 
 registerTool({

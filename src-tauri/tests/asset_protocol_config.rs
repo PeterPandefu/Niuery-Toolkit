@@ -27,3 +27,13 @@ fn content_security_policy_allows_recording_preview_blobs() {
         "内容安全策略必须允许读取 blob 预览数据"
     );
 }
+
+#[test]
+fn content_security_policy_allows_wallpaper_images() {
+    let html = include_str!("../../index.html");
+
+    assert!(
+        html.contains("img-src 'self' data: blob: asset: http://asset.localhost https:"),
+        "内容安全策略必须允许本地资产协议与 HTTPS 壁纸缩略图"
+    );
+}

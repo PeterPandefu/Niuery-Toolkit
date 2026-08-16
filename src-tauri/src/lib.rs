@@ -5,6 +5,7 @@ mod hotkey;
 pub mod recorder;
 mod screenshot;
 mod system_monitor;
+pub mod wallpaper;
 mod ws_server;
 
 /// 开发模式专用：独立启动（如开机自启动）时自动拉起前端 dev 服务
@@ -300,6 +301,14 @@ pub fn run() {
             hotkey::reset_hotkeys,
             system_monitor::get_system_stats,
             file_saver::save_file_dialog,
+            wallpaper::search_online_wallpapers,
+            wallpaper::download_online_wallpaper,
+            wallpaper::generate_ai_wallpaper,
+            wallpaper::import_wallpaper,
+            wallpaper::list_local_wallpapers,
+            wallpaper::delete_local_wallpaper,
+            wallpaper::set_desktop_wallpaper,
+            wallpaper::reveal_wallpaper_folder,
         ])
         .setup(move |app| {
             // 开发模式下：开机自启动等独立启动场景自动拉起前端 dev 服务
