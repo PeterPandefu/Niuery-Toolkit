@@ -112,7 +112,11 @@ mod win_clipboard {
             GlobalUnlock(handle);
             CloseClipboard();
 
-            if paths.is_empty() { None } else { Some(paths) }
+            if paths.is_empty() {
+                None
+            } else {
+                Some(paths)
+            }
         }
     }
 
@@ -287,11 +291,19 @@ fn save_history(config_dir: &PathBuf, entries: &[ClipboardEntry]) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&path, serde_json::to_string_pretty(entries).unwrap_or_default());
+    let _ = std::fs::write(
+        &path,
+        serde_json::to_string_pretty(entries).unwrap_or_default(),
+    );
 }
 
 /// 保存图片到磁盘，返回文件名
-fn save_image(config_dir: &PathBuf, rgba_data: &[u8], width: usize, height: usize) -> Option<String> {
+fn save_image(
+    config_dir: &PathBuf,
+    rgba_data: &[u8],
+    width: usize,
+    height: usize,
+) -> Option<String> {
     let dir = images_dir(config_dir);
     let _ = std::fs::create_dir_all(&dir);
 
@@ -366,7 +378,11 @@ pub fn start_clipboard_monitor(app: AppHandle) {
             #[cfg(target_os = "windows")]
             if let Some(files) = win_clipboard::get_clipboard_files() {
                 if !files.is_empty() {
-                    let joined: String = files.iter().map(|p| p.to_string_lossy().to_string()).collect::<Vec<_>>().join("\n");
+                    let joined: String = files
+                        .iter()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .collect::<Vec<_>>()
+                        .join("\n");
                     last_files_hash = Some(hash_str(&joined));
                 }
             }
@@ -385,7 +401,10 @@ pub fn start_clipboard_monitor(app: AppHandle) {
             {
                 if let Some(files) = win_clipboard::get_clipboard_files() {
                     if !files.is_empty() {
-                        let paths: Vec<String> = files.iter().map(|p| p.to_string_lossy().to_string()).collect();
+                        let paths: Vec<String> = files
+                            .iter()
+                            .map(|p| p.to_string_lossy().to_string())
+                            .collect();
                         let joined = paths.join("\n");
                         let hash = hash_str(&joined);
 

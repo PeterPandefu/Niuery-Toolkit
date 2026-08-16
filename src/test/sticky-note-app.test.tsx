@@ -110,7 +110,25 @@ describe('StickyNoteApp', () => {
     expect(invokeMock).not.toHaveBeenCalledWith('start_sticky_note_drag');
   });
 
-  it('顶部和左侧均提供新增便签入口', async () => {
+  it('鼠标进入贴边后露出的区域时请求展开便签', async () => {
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    invokeMock.mockClear();
+    fireEvent.mouseEnter(document.querySelector('.sticky-note-shell')!);
+
+    expect(invokeMock).toHaveBeenCalledWith('expand_sticky_note_from_edge');
+  });
+
+  it('顶部和左侧均提供新增便签入口，左侧新增后自动定位到新标签', async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
     render(<StickyNoteApp />);
     await act(async () => {
       await Promise.resolve();
@@ -120,6 +138,8 @@ describe('StickyNoteApp', () => {
     expect(screen.getAllByRole('button', { name: 'stickyNote.add' })).toHaveLength(2);
     fireEvent.click(screen.getAllByRole('button', { name: 'stickyNote.add' })[0]);
     expect(document.querySelectorAll('.sticky-note-tab')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: '便签 2' })).toHaveAttribute('aria-pressed', 'true');
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
   });
 
   it('新增便签按照随机结果使用预设颜色，而非固定暖黄', async () => {

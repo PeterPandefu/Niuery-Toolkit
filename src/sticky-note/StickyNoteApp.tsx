@@ -65,6 +65,8 @@ export default function StickyNoteApp() {
   const [contextMenu, setContextMenu] = useState<NoteContextMenu | null>(null);
   const contextMenuRenameRef = useRef<HTMLButtonElement>(null);
   const contextMenuDeleteRef = useRef<HTMLButtonElement>(null);
+  const noteTabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const addedNoteIdRef = useRef<string | null>(null);
   const [timelineTimestamp] = useState(() => new Date().toLocaleString());
   const [editingTitle, setEditingTitle] = useState(false);
 
@@ -111,6 +113,17 @@ export default function StickyNoteApp() {
   }, [contextMenu]);
 
   useEffect(() => {
+    const addedNoteId = addedNoteIdRef.current;
+    if (!addedNoteId || addedNoteId !== document.activeId) return;
+
+    const noteTab = noteTabRefs.current.get(addedNoteId);
+    if (!noteTab) return;
+
+    noteTab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    addedNoteIdRef.current = null;
+  }, [document.activeId, document.notes.length]);
+
+  useEffect(() => {
     const syncTheme = (event: StorageEvent) => {
       if (event.key === 'niuery-toolkit-store') void useAppStore.persist.rehydrate();
     };
@@ -134,8 +147,10 @@ export default function StickyNoteApp() {
   }, []);
 
   const addNote = useCallback(() => {
+    setSearchQuery('');
     setDocument((current) => {
       const note = createNote(current.notes.length + 1);
+      addedNoteIdRef.current = note.id;
       return { ...current, notes: [...current.notes, note], activeId: note.id };
     });
   }, []);
@@ -169,6 +184,11 @@ export default function StickyNoteApp() {
     const target = event.target as HTMLElement;
     if (!isTauri || target.closest('[data-note-control]') || target.closest('input') || target.closest('.sticky-note-title')) return;
     void invoke('start_sticky_note_drag');
+  }, []);
+
+  const handleEdgeReveal = useCallback(() => {
+    if (!isTauri) return;
+    void invoke('expand_sticky_note_from_edge').catch(() => setSaveError(true));
   }, []);
 
   const toggleAlwaysOnTop = useCallback(() => {
@@ -226,6 +246,7 @@ export default function StickyNoteApp() {
     <main
       className="sticky-note-shell"
       style={{ '--note-surface': selectedColor.surface, '--note-border': selectedColor.border } as React.CSSProperties}
+      onMouseEnter={handleEdgeReveal}
       onPointerDown={() => setContextMenu(null)}
       onKeyDown={(event) => {
         if (event.key === 'Escape') setContextMenu(null);
@@ -252,6 +273,10 @@ export default function StickyNoteApp() {
                   aria-pressed={note.id === document.activeId}
                   title={note.title}
                   style={{ backgroundColor: color.surface, borderColor: color.border }}
+                  ref={(element) => {
+                    if (element) noteTabRefs.current.set(note.id, element);
+                    else noteTabRefs.current.delete(note.id);
+                  }}
                   onClick={() => setDocument((current) => ({ ...current, activeId: note.id }))}
                   onContextMenu={(event) => openNoteContextMenu(event, note.id)}
                   onKeyDown={(event) => {

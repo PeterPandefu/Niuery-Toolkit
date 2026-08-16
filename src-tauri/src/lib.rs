@@ -312,6 +312,7 @@ pub fn run() {
             sticky_note::update_sticky_notes,
             sticky_note::hide_sticky_note,
             sticky_note::start_sticky_note_drag,
+            sticky_note::expand_sticky_note_from_edge,
             sticky_note::set_sticky_note_always_on_top,
             sticky_note::show_sticky_note_window,
             system_monitor::get_system_stats,
@@ -428,9 +429,15 @@ pub fn run() {
                 return;
             }
             if window.label() == "sticky-note" {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = window.hide();
+                match event {
+                    WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                    WindowEvent::Moved(position) => {
+                        sticky_note::hide_sticky_note_at_edge(window, *position);
+                    }
+                    _ => {}
                 }
                 return;
             }

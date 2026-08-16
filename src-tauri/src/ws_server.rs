@@ -219,10 +219,7 @@ pub async fn stop_ws_server(state: State<'_, WsServerState>) -> Result<(), Strin
 }
 
 #[tauri::command]
-pub async fn ws_broadcast(
-    message: String,
-    state: State<'_, WsServerState>,
-) -> Result<(), String> {
+pub async fn ws_broadcast(message: String, state: State<'_, WsServerState>) -> Result<(), String> {
     let mut clients = state.clients.lock().await;
 
     for (_id, sink) in clients.iter_mut() {

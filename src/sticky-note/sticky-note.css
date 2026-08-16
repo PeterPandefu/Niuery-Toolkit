@@ -2,10 +2,29 @@
   --note-stage-inset: 12px;
   --note-header-height: 40px;
   --note-footer-height: 35px;
+  --sticky-note-texture-dot: hsl(var(--foreground) / 0.055);
+  --sticky-note-texture-line: hsl(var(--primary) / 0.045);
+  --sticky-note-sidebar-wash: hsl(var(--primary) / 0.055);
+  --sticky-note-sidebar-line: hsl(var(--foreground) / 0.025);
+  --sticky-note-paper-dot: hsl(var(--foreground) / 0.04);
+  --sticky-note-paper-line: hsl(var(--primary) / 0.032);
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background: hsl(var(--background));
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(var(--sticky-note-texture-dot) 0.8px, transparent 0.9px),
+    repeating-linear-gradient(135deg, var(--sticky-note-texture-line) 0 1px, transparent 1px 8px);
+  background-size: 18px 18px, auto;
+}
+
+.dark .sticky-note-shell {
+  --sticky-note-texture-dot: hsl(var(--foreground) / 0.045);
+  --sticky-note-texture-line: hsl(var(--primary) / 0.035);
+  --sticky-note-sidebar-wash: hsl(var(--primary) / 0.04);
+  --sticky-note-sidebar-line: hsl(var(--foreground) / 0.02);
+  --sticky-note-paper-dot: hsl(var(--foreground) / 0.028);
+  --sticky-note-paper-line: hsl(var(--primary) / 0.022);
 }
 
 .sticky-note-sidebar {
@@ -16,7 +35,10 @@
   flex: 0 0 68px;
   flex-direction: column;
   padding: 12px 0 12px 8px;
-  background: hsl(var(--sidebar));
+  background-color: hsl(var(--sidebar));
+  background-image:
+    linear-gradient(145deg, var(--sticky-note-sidebar-wash), transparent 42%),
+    repeating-linear-gradient(135deg, var(--sticky-note-sidebar-line) 0 1px, transparent 1px 9px);
   color: hsl(var(--sidebar-foreground));
 }
 
@@ -196,7 +218,7 @@
   min-width: 0;
   flex: 1;
   padding: var(--note-stage-inset) 14px var(--note-stage-inset) 0;
-  background: hsl(var(--background));
+  background: transparent;
 }
 
 .sticky-note {
@@ -209,7 +231,11 @@
   overflow: hidden;
   border: 1px solid var(--note-border);
   border-radius: 4px;
-  background: var(--note-surface);
+  background-color: var(--note-surface);
+  background-image:
+    radial-gradient(var(--sticky-note-paper-dot) 0.65px, transparent 0.75px),
+    repeating-linear-gradient(135deg, var(--sticky-note-paper-line) 0 1px, transparent 1px 10px);
+  background-size: 16px 16px, auto;
   box-shadow: 0 16px 38px hsl(var(--shadow-tint) / 0.22), 0 3px 10px hsl(var(--shadow-tint) / 0.14);
   color: #30280e;
 }
