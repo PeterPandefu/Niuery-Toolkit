@@ -290,7 +290,10 @@ fn save_screenshot_settings(app: &AppHandle, settings: &ScreenshotSettings) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(path, serde_json::to_string_pretty(settings).unwrap_or_default());
+    let _ = std::fs::write(
+        path,
+        serde_json::to_string_pretty(settings).unwrap_or_default(),
+    );
 }
 
 /// 获取当前截图工具配置。
@@ -301,10 +304,7 @@ pub fn get_screenshot_settings(app: AppHandle) -> ScreenshotSettings {
 
 /// 更新“截图前最小化主窗口”配置。
 #[tauri::command]
-pub fn set_screenshot_minimize_before_capture(
-    app: AppHandle,
-    minimize_before_capture: bool,
-) {
+pub fn set_screenshot_minimize_before_capture(app: AppHandle, minimize_before_capture: bool) {
     let state = app.state::<ScreenshotState>();
     state.set_minimize_before_capture(minimize_before_capture);
     save_screenshot_settings(&app, &state.settings());
@@ -743,10 +743,7 @@ pub fn save_image_dialog(
 
 /// 隐藏并复位截图窗口，保留 WebView 供下一次快捷键复用。
 #[tauri::command]
-pub fn close_screenshot_window(
-    app: AppHandle,
-    generation: Option<u64>,
-) -> Result<(), String> {
+pub fn close_screenshot_window(app: AppHandle, generation: Option<u64>) -> Result<(), String> {
     close_screenshot_window_inner(&app, generation)
 }
 
@@ -803,7 +800,7 @@ pub fn send_scroll_wheel(app: AppHandle, x: f64, y: f64, notches: i32) -> Result
     #[cfg(windows)]
     {
         use windows::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEINPUT, MOUSEEVENTF_WHEEL,
+            SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_WHEEL, MOUSEINPUT,
         };
         use windows::Win32::UI::WindowsAndMessaging::SetCursorPos;
 
@@ -845,7 +842,12 @@ pub fn send_scroll_wheel(app: AppHandle, x: f64, y: f64, notches: i32) -> Result
 /// 截取主显示器上的指定区域（CSS 像素坐标），返回 base64 PNG
 /// 用于长截图定时连拍
 #[tauri::command]
-pub async fn capture_screen_region(x: f64, y: f64, width: f64, height: f64) -> Result<String, String> {
+pub async fn capture_screen_region(
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<String, String> {
     if width < 1.0 || height < 1.0 {
         return Err("截取区域尺寸无效".to_string());
     }
@@ -869,14 +871,25 @@ pub async fn capture_screen_region(x: f64, y: f64, width: f64, height: f64) -> R
         if cx2 <= cx || cy2 <= cy {
             return Err("截取区域超出屏幕范围".to_string());
         }
-        let cropped = image::imageops::crop_imm(&image, cx as u32, cy as u32, (cx2 - cx) as u32, (cy2 - cy) as u32)
-            .to_image();
+        let cropped = image::imageops::crop_imm(
+            &image,
+            cx as u32,
+            cy as u32,
+            (cx2 - cx) as u32,
+            (cy2 - cy) as u32,
+        )
+        .to_image();
 
         // 缩放回 CSS 像素尺寸，与前端坐标约定保持一致
         let out_w = ((cx2 - cx) as f64 / scale).round().max(1.0) as u32;
         let out_h = ((cy2 - cy) as f64 / scale).round().max(1.0) as u32;
         let resized = if (scale - 1.0).abs() > 0.01 {
-            image::imageops::resize(&cropped, out_w, out_h, image::imageops::FilterType::Lanczos3)
+            image::imageops::resize(
+                &cropped,
+                out_w,
+                out_h,
+                image::imageops::FilterType::Lanczos3,
+            )
         } else {
             cropped
         };

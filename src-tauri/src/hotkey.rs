@@ -17,7 +17,10 @@ pub fn default_bindings() -> HashMap<String, String> {
     m.insert(ACTION_STICKY_NOTE.to_string(), "Ctrl+Alt+N".to_string());
     m.insert(ACTION_SCREENSHOT.to_string(), "Ctrl+Alt+A".to_string());
     m.insert(ACTION_LONGSHOT.to_string(), "Ctrl+Alt+S".to_string());
-    m.insert(ACTION_SCREEN_RECORDER.to_string(), "Ctrl+Shift+R".to_string());
+    m.insert(
+        ACTION_SCREEN_RECORDER.to_string(),
+        "Ctrl+Shift+R".to_string(),
+    );
     m
 }
 
@@ -53,7 +56,10 @@ pub fn save_hotkey_bindings(app: &tauri::AppHandle, bindings: &HashMap<String, S
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&path, serde_json::to_string_pretty(bindings).unwrap_or_default());
+    let _ = std::fs::write(
+        &path,
+        serde_json::to_string_pretty(bindings).unwrap_or_default(),
+    );
 }
 
 fn hotkey_config_path(app: &tauri::AppHandle) -> std::path::PathBuf {

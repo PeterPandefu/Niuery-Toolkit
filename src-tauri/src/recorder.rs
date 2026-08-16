@@ -8,7 +8,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::ipc::Response;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder,
+};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 static NEXT_GIF_EXPORT_ID: AtomicU64 = AtomicU64::new(0);
@@ -299,9 +302,7 @@ pub struct RecordingFrameScheduler {
 
 impl RecordingFrameScheduler {
     pub fn new() -> Self {
-        Self {
-            written_frames: 0,
-        }
+        Self { written_frames: 0 }
     }
 
     pub fn should_write_captured_frame(&self, stop_requested: bool, pause_requested: bool) -> bool {
@@ -827,9 +828,7 @@ pub async fn export_recording(
                 .map_err(|error| format!("导出 MP4 失败: {error}"))?;
             None
         }
-        "gif" => {
-            export_gif(&app, &artifact.path, &destination, &options)?
-        }
+        "gif" => export_gif(&app, &artifact.path, &destination, &options)?,
         _ => return Err("仅支持导出 MP4 或 GIF".to_string()),
     };
     let size_bytes = std::fs::metadata(&destination)
@@ -932,7 +931,9 @@ async fn finish_recording(
             .active
             .lock()
             .map_err(|_| "录屏状态不可用".to_string())?;
-        let recording = active.as_ref().ok_or_else(|| "未找到录制任务".to_string())?;
+        let recording = active
+            .as_ref()
+            .ok_or_else(|| "未找到录制任务".to_string())?;
         if recording.id != session_id {
             return Err("录制会话不匹配".to_string());
         }
@@ -976,11 +977,11 @@ async fn finish_recording(
                     .insert(session_id.clone(), artifact.clone());
                 let _ = app.emit(
                     "recording-status",
-                RecordingStatusEvent {
-                    session_id: session_id.clone(),
-                    status: "stopped".to_string(),
-                    elapsed_ms: artifact.duration_ms,
-                    fps: artifact.fps,
+                    RecordingStatusEvent {
+                        session_id: session_id.clone(),
+                        status: "stopped".to_string(),
+                        elapsed_ms: artifact.duration_ms,
+                        fps: artifact.fps,
                         dropped_frames: 0,
                         error: None,
                         artifact: Some(artifact.clone()),
@@ -1123,22 +1124,44 @@ fn recording_border_rect(target: &CaptureTarget) -> Result<CaptureRect, String> 
     match target.mode.as_str() {
         "monitor" => {
             let monitor = find_monitor(target.monitor_id.as_deref())?;
-            Ok(CaptureRect { x: monitor.x(), y: monitor.y(), width: monitor.width(), height: monitor.height() })
+            Ok(CaptureRect {
+                x: monitor.x(),
+                y: monitor.y(),
+                width: monitor.width(),
+                height: monitor.height(),
+            })
         }
         "region" => {
             let monitor = find_monitor(target.monitor_id.as_deref())?;
-            let rect = target.rect.clone().ok_or_else(|| "区域录制缺少框选坐标".to_string())?;
-            Ok(clamp_capture_rect(rect, monitor.x(), monitor.y(), monitor.width(), monitor.height()))
+            let rect = target
+                .rect
+                .clone()
+                .ok_or_else(|| "区域录制缺少框选坐标".to_string())?;
+            Ok(clamp_capture_rect(
+                rect,
+                monitor.x(),
+                monitor.y(),
+                monitor.width(),
+                monitor.height(),
+            ))
         }
         "window" => {
             let window = find_window(target.window_id)?;
-            Ok(CaptureRect { x: window.x(), y: window.y(), width: window.width(), height: window.height() })
+            Ok(CaptureRect {
+                x: window.x(),
+                y: window.y(),
+                width: window.width(),
+                height: window.height(),
+            })
         }
         _ => Err("未知的录制模式".to_string()),
     }
 }
 
-fn start_recording_border_overlay(app: &AppHandle, target: &CaptureTarget) -> Result<RecordingBorderOverlay, String> {
+fn start_recording_border_overlay(
+    app: &AppHandle,
+    target: &CaptureTarget,
+) -> Result<RecordingBorderOverlay, String> {
     let initial_rect = recording_border_rect(target)?;
     let window = if let Some(window) = app.get_webview_window(RECORDING_BORDER_WINDOW) {
         window
@@ -1162,7 +1185,9 @@ fn start_recording_border_overlay(app: &AppHandle, target: &CaptureTarget) -> Re
         .set_ignore_cursor_events(true)
         .map_err(|error| format!("无法设置录制范围边框穿透: {error}"))?;
     set_recording_border_bounds(&window, &initial_rect);
-    window.show().map_err(|error| format!("无法显示录制范围边框: {error}"))?;
+    window
+        .show()
+        .map_err(|error| format!("无法显示录制范围边框: {error}"))?;
 
     let stop_requested = Arc::new(AtomicBool::new(false));
     let thread_stop = Arc::clone(&stop_requested);
@@ -1178,7 +1203,11 @@ fn start_recording_border_overlay(app: &AppHandle, target: &CaptureTarget) -> Re
         }
         let _ = thread_window.hide();
     });
-    Ok(RecordingBorderOverlay { stop_requested, window, follow_thread: Some(follow_thread) })
+    Ok(RecordingBorderOverlay {
+        stop_requested,
+        window,
+        follow_thread: Some(follow_thread),
+    })
 }
 
 struct CursorHighlightOverlay {
@@ -1393,7 +1422,10 @@ fn start_encoder_segment(
     })
 }
 
-fn finish_encoder_segment(mut segment: EncoderSegment, cancelled: bool) -> Result<Option<PathBuf>, String> {
+fn finish_encoder_segment(
+    mut segment: EncoderSegment,
+    cancelled: bool,
+) -> Result<Option<PathBuf>, String> {
     match &mut segment.input {
         EncoderInput::RawFrames(_) => {}
         EncoderInput::NativeCaptureControl(stdin) => {
@@ -1464,15 +1496,27 @@ fn format_recording_encoder_error(exit_code: Option<i32>, stderr: &[u8], output:
     }
 }
 
-pub fn concat_recording_segments(ffmpeg: &Path, segments: &[PathBuf], output: &Path) -> Result<(), String> {
+pub fn concat_recording_segments(
+    ffmpeg: &Path,
+    segments: &[PathBuf],
+    output: &Path,
+) -> Result<(), String> {
     if segments.len() == 1 {
-        std::fs::rename(&segments[0], output).map_err(|error| format!("整理录制片段失败: {error}"))?;
+        std::fs::rename(&segments[0], output)
+            .map_err(|error| format!("整理录制片段失败: {error}"))?;
         return Ok(());
     }
     let list_path = output.with_extension("concat.txt");
     let list = segments
         .iter()
-        .map(|path| format!("file '{}'", path.to_string_lossy().replace('\\', "/").replace('\'', "'\\\\''")))
+        .map(|path| {
+            format!(
+                "file '{}'",
+                path.to_string_lossy()
+                    .replace('\\', "/")
+                    .replace('\'', "'\\\\''")
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n");
     std::fs::write(&list_path, list).map_err(|error| format!("写入录制片段清单失败: {error}"))?;
@@ -1525,14 +1569,7 @@ pub fn parse_ffmpeg_progress_fps(progress: &str) -> Option<u32> {
 
 fn probe_recording_fps(ffmpeg: &Path, output: &Path) -> Option<u32> {
     let details = Command::new(ffmpeg)
-        .args([
-            "-v",
-            "error",
-            "-progress",
-            "pipe:1",
-            "-nostats",
-            "-i",
-        ])
+        .args(["-v", "error", "-progress", "pipe:1", "-nostats", "-i"])
         .arg(output)
         .args(["-map", "0:v:0", "-f", "null", "-"])
         .output()
@@ -1591,7 +1628,10 @@ fn capture_loop(
                 height,
                 output.with_file_name(format!(
                     "{}-segment-{segment_index}.mp4",
-                    output.file_stem().and_then(|name| name.to_str()).unwrap_or("recording")
+                    output
+                        .file_stem()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("recording")
                 )),
             )
         },
@@ -1607,7 +1647,9 @@ fn capture_loop(
                 overlays.hide();
             }
             if let Some(active_segment) = segment.take() {
-                if let Some(path) = finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire))? {
+                if let Some(path) =
+                    finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire))?
+                {
                     segments.push(path);
                 }
             }
@@ -1622,7 +1664,8 @@ fn capture_loop(
             continue;
         }
         if let Some(paused_at_ms) = paused_since_ms.take() {
-            paused_total_ms = paused_total_ms.saturating_add(wall_elapsed_ms.saturating_sub(paused_at_ms));
+            paused_total_ms =
+                paused_total_ms.saturating_add(wall_elapsed_ms.saturating_sub(paused_at_ms));
             next_frame = Instant::now();
             if let Some(overlays) = visual_overlays.as_ref() {
                 overlays.show();
@@ -1639,7 +1682,10 @@ fn capture_loop(
                 height,
                 output.with_file_name(format!(
                     "{}-segment-{segment_index}.mp4",
-                    output.file_stem().and_then(|name| name.to_str()).unwrap_or("recording")
+                    output
+                        .file_stem()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("recording")
                 )),
             )?);
             if let Some(active_segment) = segment.as_ref() {
@@ -1746,7 +1792,9 @@ fn capture_loop(
     );
     active_elapsed_ms.store(elapsed_ms, Ordering::Release);
     if let Some(active_segment) = segment.take() {
-        if let Some(path) = finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire))? {
+        if let Some(path) =
+            finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire))?
+        {
             segments.push(path);
         }
     }
@@ -1758,7 +1806,8 @@ fn capture_loop(
     let size_bytes = std::fs::metadata(&output)
         .map(|metadata| metadata.len())
         .unwrap_or(0);
-    let actual_fps = probe_recording_fps(ffmpeg, &output).unwrap_or_else(|| scheduler.actual_fps(elapsed_ms));
+    let actual_fps =
+        probe_recording_fps(ffmpeg, &output).unwrap_or_else(|| scheduler.actual_fps(elapsed_ms));
     let artifact = RecordingArtifact {
         path: output.to_string_lossy().to_string(),
         duration_ms: elapsed_ms,
@@ -1965,7 +2014,10 @@ fn select_video_encoder_from_listing(encoders: &str) -> Result<&'static str, Str
     } else if ffmpeg_lists_encoder(encoders, "h264_mf") {
         Ok("h264_mf")
     } else {
-        Err("当前 FFmpeg 不包含可用于预览的 H.264 编码器（需要 libx264、libopenh264 或 h264_mf）".to_string())
+        Err(
+            "当前 FFmpeg 不包含可用于预览的 H.264 编码器（需要 libx264、libopenh264 或 h264_mf）"
+                .to_string(),
+        )
     }
 }
 
@@ -2107,7 +2159,9 @@ fn replace_gif_export_with(
     }
     if !output.is_file() {
         let _ = remove(temporary);
-        return Err("GIF 已生成但目标路径不是文件，未覆盖任何内容；请选择一个 GIF 文件名后重试".to_string());
+        return Err(
+            "GIF 已生成但目标路径不是文件，未覆盖任何内容；请选择一个 GIF 文件名后重试".to_string(),
+        );
     }
 
     let backup = gif_backup_path(output);
@@ -2142,7 +2196,10 @@ fn gif_temporary_path(output: &Path) -> PathBuf {
         .file_stem()
         .and_then(|name| name.to_str())
         .unwrap_or("recording");
-    let extension = output.extension().and_then(|name| name.to_str()).unwrap_or("gif");
+    let extension = output
+        .extension()
+        .and_then(|name| name.to_str())
+        .unwrap_or("gif");
     output.with_file_name(format!(
         ".{stem}.exporting-{}-{}-{:#x}.{extension}",
         std::process::id(),
@@ -2156,7 +2213,10 @@ fn gif_backup_path(output: &Path) -> PathBuf {
         .file_stem()
         .and_then(|name| name.to_str())
         .unwrap_or("recording");
-    let extension = output.extension().and_then(|name| name.to_str()).unwrap_or("gif");
+    let extension = output
+        .extension()
+        .and_then(|name| name.to_str())
+        .unwrap_or("gif");
     output.with_file_name(format!(
         ".{stem}.previous-{}-{}-{:#x}.{extension}",
         std::process::id(),
@@ -2241,8 +2301,9 @@ mod tests {
     use super::{
         cursor_highlight_window_position, cursor_highlight_window_size, export_gif_with_ffmpeg,
         is_recording_esc, recording_border_bounds, replace_gif_export_with, select_video_encoder,
-        select_video_encoder_from_listing, start_encoder_after_highlight, stop_and_join_cursor_follow_thread,
-        take_recording_esc_registration, ActiveRecording, CaptureRect, ExportOptions, FinishAttempt,
+        select_video_encoder_from_listing, start_encoder_after_highlight,
+        stop_and_join_cursor_follow_thread, take_recording_esc_registration, ActiveRecording,
+        CaptureRect, ExportOptions, FinishAttempt,
     };
     use std::path::Path;
     use std::process::Command;
@@ -2280,7 +2341,8 @@ mod tests {
  V.S..D mpeg4                MPEG-4 part 2\n";
 
         assert_eq!(
-            select_video_encoder_from_listing(encoders).expect("应选择可供 WebView2 解码的 H.264 编码器"),
+            select_video_encoder_from_listing(encoders)
+                .expect("应选择可供 WebView2 解码的 H.264 编码器"),
             "libopenh264",
         );
     }
@@ -2335,10 +2397,16 @@ mod tests {
         };
 
         let first_attempt = FinishAttempt::begin(&recording).expect("首次停止应取得会话");
-        assert!(FinishAttempt::begin(&recording).is_err(), "并发停止不得同时收尾");
+        assert!(
+            FinishAttempt::begin(&recording).is_err(),
+            "并发停止不得同时收尾"
+        );
         drop(first_attempt);
 
-        assert!(FinishAttempt::begin(&recording).is_ok(), "超时后应允许再次停止同一会话");
+        assert!(
+            FinishAttempt::begin(&recording).is_ok(),
+            "超时后应允许再次停止同一会话"
+        );
     }
 
     #[test]
@@ -2458,9 +2526,20 @@ mod tests {
 
         let status = Command::new(&ffmpeg)
             .args([
-                "-hide_banner", "-y", "-f", "lavfi", "-i",
-                "testsrc2=size=1280x720:rate=60", "-t", "1", "-c:v", "h264_mf",
-                "-b:v", "16M", "-pix_fmt", "yuv420p",
+                "-hide_banner",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=1280x720:rate=60",
+                "-t",
+                "1",
+                "-c:v",
+                "h264_mf",
+                "-b:v",
+                "16M",
+                "-pix_fmt",
+                "yuv420p",
             ])
             .arg(&input)
             .status()
@@ -2499,16 +2578,24 @@ mod tests {
         std::fs::write(&output, b"old GIF contents").expect("应能写入已有 GIF");
         std::fs::write(&temporary, b"new GIF contents").expect("应能写入临时 GIF");
 
-        let error = replace_gif_export_with(&temporary, &output, |from, to| {
-            if from == temporary && to == output {
-                return Err(std::io::Error::other("模拟最终替换失败"));
-            }
-            std::fs::rename(from, to)
-        }, |path| std::fs::remove_file(path))
+        let error = replace_gif_export_with(
+            &temporary,
+            &output,
+            |from, to| {
+                if from == temporary && to == output {
+                    return Err(std::io::Error::other("模拟最终替换失败"));
+                }
+                std::fs::rename(from, to)
+            },
+            |path| std::fs::remove_file(path),
+        )
         .expect_err("最终替换失败时必须回滚");
 
         assert!(error.contains("已保留原 GIF"));
-        assert_eq!(std::fs::read(&output).expect("旧 GIF 必须已恢复"), b"old GIF contents");
+        assert_eq!(
+            std::fs::read(&output).expect("旧 GIF 必须已恢复"),
+            b"old GIF contents"
+        );
         assert!(!temporary.exists(), "回滚成功后必须清理临时 GIF");
         let remaining = std::fs::read_dir(&directory)
             .expect("应能读取 GIF 回滚测试目录")
@@ -2535,15 +2622,26 @@ mod tests {
             &temporary,
             &output,
             |from, to| std::fs::rename(from, to),
-            |_path| Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "模拟备份占用")),
+            |_path| {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "模拟备份占用",
+                ))
+            },
         )
         .expect("新 GIF 已写入时不能把备份清理失败视为整体导出失败")
         .expect("备份清理失败必须返回告警");
 
         assert!(warning.contains("新 GIF 已导出"));
         assert!(warning.contains(".previous-"));
-        assert!(!warning.contains(directory.to_string_lossy().as_ref()), "告警不得包含完整本地路径");
-        assert_eq!(std::fs::read(&output).expect("新 GIF 必须保留"), b"new GIF contents");
+        assert!(
+            !warning.contains(directory.to_string_lossy().as_ref()),
+            "告警不得包含完整本地路径"
+        );
+        assert_eq!(
+            std::fs::read(&output).expect("新 GIF 必须保留"),
+            b"new GIF contents"
+        );
         assert!(!temporary.exists(), "新 GIF 移动后不应保留临时文件");
         let backup_count = std::fs::read_dir(&directory)
             .expect("应能读取 GIF 备份告警测试目录")
