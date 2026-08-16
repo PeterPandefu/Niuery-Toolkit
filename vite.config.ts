@@ -79,6 +79,10 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        stickyNote: path.resolve(__dirname, 'sticky-note.html'),
+      },
       output: {
         manualChunks: {
           'monaco': ['monaco-editor', '@monaco-editor/react'],

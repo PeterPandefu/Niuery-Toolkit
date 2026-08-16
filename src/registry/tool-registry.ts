@@ -29,6 +29,7 @@ import {
   Shield,
   ShieldCheck,
   Shuffle,
+  StickyNote,
   Square,
   Type,
   Video,
@@ -271,6 +272,16 @@ registerTool({
   component: lazy(() => import('@/tools/formatter/markdown-editor')),
   keywords: ['markdown', 'md', 'editor', 'preview', '编辑', '预览', '渲染', '写作'],
   description: 'Markdown 编辑器：实时预览、工具栏、导出',
+});
+
+registerTool({
+  id: 'sticky-note',
+  name: '悬浮便签',
+  icon: StickyNote,
+  category: 'text',
+  component: lazy(() => import('@/tools/text/sticky-note')),
+  keywords: ['sticky note', 'note', 'memo', '便签', '记事', '悬浮', '桌面'],
+  description: '独立桌面悬浮便签，支持快捷键唤出与自动保存',
 });
 
 // === 生成器 ===
