@@ -130,6 +130,8 @@
     "xml-formatter": "XML 格式化",
     "sql-formatter": "SQL 格式化",
     "markdown-editor": "Markdown 编辑器",
+    "mermaid-editor": "Mermaid 实时编辑器",
+    "plantuml-editor": "PlantUML 实时编辑器",
     "sticky-note": "悬浮便签",
     "uuid-generator": "UUID 与随机 ID",
     "hash-generator": "哈希计算",

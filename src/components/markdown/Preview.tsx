@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { memo, useMemo, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
@@ -101,30 +101,51 @@ async function renderMermaidSvg(source: string, scheme: ColorScheme): Promise<st
 }
 
 /** 将 Markdown 生成的 Mermaid 占位符替换为本地、安全的 SVG。 */
-async function renderMermaidInElement(
+// eslint-disable-next-line react-refresh/only-export-components
+export async function renderMermaidInElement(
   root: ParentNode,
   { scheme = 'light', locale, preserveSourceAttribute = false }: MermaidRenderOptions = {},
   isCancelled: () => boolean = () => false
 ): Promise<void> {
   const labels = getMermaidLabels(locale);
   const diagrams = Array.from(root.querySelectorAll<HTMLElement>('.mermaid-diagram[data-mermaid-source]'));
+  const renderKey = `${scheme}|${locale ?? ''}`;
 
   for (const diagram of diagrams) {
     if (isCancelled()) return;
     const source = diagram.dataset.mermaidSource;
     if (!source) continue;
+    if (
+      diagram.getAttribute('aria-busy') !== 'true' &&
+      diagram.dataset.mermaidRenderedSource === source &&
+      diagram.dataset.mermaidRenderedKey === renderKey
+    ) {
+      continue;
+    }
 
     try {
       const svg = await renderMermaidSvg(source, scheme);
       if (isCancelled()) return;
       diagram.innerHTML = `<div class="mermaid-svg" role="img" aria-label="${labels.diagram}">${svg}</div>${createMermaidSourceDetails(source, labels)}`;
+      diagram.dataset.mermaidRenderedSource = source;
+      diagram.dataset.mermaidRenderedKey = renderKey;
       if (!preserveSourceAttribute) diagram.removeAttribute('data-mermaid-source');
+      if (!preserveSourceAttribute) {
+        diagram.removeAttribute('data-mermaid-rendered-source');
+        diagram.removeAttribute('data-mermaid-rendered-key');
+      }
       diagram.removeAttribute('aria-busy');
     } catch (error) {
       if (isCancelled()) return;
       const message = error instanceof Error ? error.message : String(error);
       diagram.innerHTML = `<div class="mermaid-error" role="alert"><strong>${labels.error}</strong><pre>${escapeHtml(message)}</pre></div>${createMermaidSourceDetails(source, labels)}`;
+      diagram.dataset.mermaidRenderedSource = source;
+      diagram.dataset.mermaidRenderedKey = renderKey;
       if (!preserveSourceAttribute) diagram.removeAttribute('data-mermaid-source');
+      if (!preserveSourceAttribute) {
+        diagram.removeAttribute('data-mermaid-rendered-source');
+        diagram.removeAttribute('data-mermaid-rendered-key');
+      }
       diagram.removeAttribute('aria-busy');
     }
   }
@@ -167,9 +188,22 @@ interface PreviewProps {
   className?: string;
 }
 
+/**
+ * Mermaid mutates the generated markup after it is committed. Keep that DOM
+ * subtree memoized so unrelated parent renders (such as cursor movement in
+ * Monaco) do not overwrite the rendered SVG with the Markdown placeholder.
+ */
+const MarkdownMarkup = memo(
+  forwardRef<HTMLDivElement, { html: string }>(({ html }, ref) => (
+    <div ref={ref} dangerouslySetInnerHTML={{ __html: html }} />
+  ))
+);
+MarkdownMarkup.displayName = 'MarkdownMarkup';
+
 export const Preview = forwardRef<PreviewHandle, PreviewProps>(
   ({ source, onScroll, className }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const markupRef = useRef<HTMLDivElement>(null);
     const isSyncScrolling = useRef(false);
     const scheme = useResolvedTheme();
     const { i18n } = useTranslation();
@@ -213,7 +247,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
     }, []);
 
     useEffect(() => {
-      const el = containerRef.current;
+      const el = markupRef.current;
       if (!el) return;
       let cancelled = false;
       void renderMermaidInElement(
@@ -238,8 +272,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
         ref={containerRef}
         className={`markdown-preview prose prose-sm dark:prose-invert h-full max-w-none overflow-y-auto rounded-md border bg-muted/30 p-4 ${className ?? ''}`}
         onScroll={handleScroll}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      >
+        <MarkdownMarkup ref={markupRef} html={html} />
+      </div>
     );
   }
 );

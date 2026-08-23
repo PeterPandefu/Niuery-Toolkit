@@ -130,6 +130,8 @@
     "xml-formatter": "XML Formatter",
     "sql-formatter": "SQL Formatter",
     "markdown-editor": "Markdown Editor",
+    "mermaid-editor": "Mermaid Live Editor",
+    "plantuml-editor": "PlantUML Live Editor",
     "sticky-note": "Sticky Note",
     "uuid-generator": "UUID & Random IDs",
     "hash-generator": "Hash Calculator",

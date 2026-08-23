@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Upload, Download, Loader2 } from 'lucide-react';
 import { useToolLogger } from '@/hooks/use-tool-logger';
+import { ImageViewer } from '@/components/media/image-viewer';
 
 interface IconSize {
   name: string;
@@ -80,6 +81,7 @@ export default function IconGeneratorTool() {
   const [borderRadius, setBorderRadius] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [generatedIcons, setGeneratedIcons] = useState<{ name: string; size: number; url: string }[]>([]);
+  const [previewSource, setPreviewSource] = useState<{ url: string; title: string } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -231,7 +233,15 @@ export default function IconGeneratorTool() {
             <div className="space-y-2">
               <Label>源图片</Label>
               <div className="relative rounded-lg border overflow-hidden">
-                <img src={sourceUrl} alt="source" className="w-full h-32 object-contain bg-muted/30" />
+                <button
+                  type="button"
+                  className="block w-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => setPreviewSource({ url: sourceUrl, title: '源图片' })}
+                  aria-label="放大查看源图片"
+                  title="放大查看源图片"
+                >
+                  <img src={sourceUrl} alt="source" className="w-full h-32 object-contain bg-muted/30" />
+                </button>
               </div>
               <Button variant="ghost" size="sm" className="w-full" onClick={() => { setSourceImage(null); setSourceUrl(''); setGeneratedIcons([]); }}>
                 更换图片
@@ -308,11 +318,19 @@ export default function IconGeneratorTool() {
                         className="flex items-center justify-center overflow-hidden rounded bg-[repeating-conic-gradient(#80808020_0%_25%,transparent_0%_50%)] bg-[length:12px_12px]"
                         style={{ width: Math.min(icon.size, 80), height: Math.min(icon.size, 80) }}
                       >
-                        <img
-                          src={icon.url}
-                          alt={icon.name}
-                          style={{ width: Math.min(icon.size, 80), height: Math.min(icon.size, 80) }}
-                        />
+                        <button
+                          type="button"
+                          className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => setPreviewSource({ url: icon.url, title: icon.name })}
+                          aria-label={`放大查看 ${icon.name}`}
+                          title="放大查看"
+                        >
+                          <img
+                            src={icon.url}
+                            alt={icon.name}
+                            style={{ width: Math.min(icon.size, 80), height: Math.min(icon.size, 80) }}
+                          />
+                        </button>
                       </div>
                       <span className="text-xs text-muted-foreground">{icon.size}×{icon.size}</span>
                       <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => downloadIcon(icon)}>
@@ -329,6 +347,15 @@ export default function IconGeneratorTool() {
             )}
           </div>
         </div>
+      )}
+      {previewSource && (
+        <ImageViewer
+          source={previewSource.url}
+          alt={previewSource.title}
+          title={previewSource.title}
+          mode="dialog"
+          onClose={() => setPreviewSource(null)}
+        />
       )}
     </div>
   );

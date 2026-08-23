@@ -2,6 +2,7 @@ mod capture_guard;
 mod clipboard;
 mod file_saver;
 mod hotkey;
+mod plantuml;
 pub mod recorder;
 mod screenshot;
 mod sticky_note;
@@ -321,6 +322,7 @@ pub fn run() {
             file_saver::write_recovery_snapshot,
             file_saver::list_recovery_snapshots,
             file_saver::discard_recovery_snapshot,
+            plantuml::render_plantuml,
         ])
         .setup(move |app| {
             // 开发模式下：开机自启动等独立启动场景自动拉起前端 dev 服务
@@ -351,6 +353,13 @@ pub fn run() {
             if let Err(error) = screenshot::ensure_screenshot_window(app.handle()) {
                 eprintln!("预热截图窗口失败，将在首次截图时重试：{error}");
             }
+            // 后台预热 PlantUML JVM，避免用户首次打开编辑器时承担 Java 启动成本。
+            let plantuml_app = app.handle().clone();
+            std::thread::spawn(move || {
+                if let Err(error) = plantuml::warm_up(&plantuml_app) {
+                    eprintln!("预热 PlantUML 渲染器失败，将在首次渲染时重试：{error}");
+                }
+            });
 
             // 加载托盘图标
             let tray_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))

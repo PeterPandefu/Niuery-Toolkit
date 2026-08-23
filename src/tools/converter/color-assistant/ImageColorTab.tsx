@@ -3,11 +3,13 @@ import { ImageIcon, Crop } from 'lucide-react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
 import { extractColorsFromCanvas } from './color-utils';
+import { ImageViewer } from '@/components/media/image-viewer';
 
 export default function ImageColorTab() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [mainColor, setMainColor] = useState<string | null>(null);
   const [palette, setPalette] = useState<string[]>([]);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -69,7 +71,15 @@ export default function ImageColorTab() {
           onClick={() => fileInputRef.current?.click()}
         >
           {imageUrl ? (
-            <img src={imageUrl} alt="uploaded" className="max-h-full max-w-full object-contain p-4" />
+            <button
+              type="button"
+              className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={(event) => { event.stopPropagation(); setPreviewOpen(true); }}
+              aria-label="放大查看上传图片"
+              title="放大查看上传图片"
+            >
+              <img src={imageUrl} alt="uploaded" className="max-h-full max-w-full object-contain p-4" />
+            </button>
           ) : (
             <div className="text-center text-muted-foreground">
               <ImageIcon className="mx-auto h-12 w-12 mb-2 opacity-50" />
@@ -136,6 +146,9 @@ export default function ImageColorTab() {
 
       {/* Hidden canvas for processing */}
       <canvas ref={canvasRef} className="hidden" />
+      {previewOpen && imageUrl && (
+        <ImageViewer source={imageUrl} alt="上传图片" title="上传图片" mode="dialog" onClose={() => setPreviewOpen(false)} />
+      )}
     </div>
   );
 }

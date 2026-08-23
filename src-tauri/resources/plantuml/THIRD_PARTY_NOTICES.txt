@@ -1,0 +1,7 @@
+PlantUML 1.2026.6
+Source: https://github.com/plantuml/plantuml/releases/download/v1.2026.6/plantuml-1.2026.6.jar
+License: GPL-3.0-or-later (or a commercial PlantUML license where applicable). See https://plantuml.com/license
+
+Eclipse Temurin JRE jdk-17.0.20+8
+Source: https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20%2B8/OpenJDK17U-jre_x64_windows_hotspot_17.0.20_8.zip
+License and notices: included under jre/legal.
