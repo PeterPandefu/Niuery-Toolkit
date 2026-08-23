@@ -52,6 +52,7 @@ pnpm-debug.log*
 # Tauri
 src-tauri/target/
 src-tauri/target-recorder-test/
+src-tauri/target-diagram-bundle/
 src-tauri/gen/
 src-tauri/target-http-scope
 
@@ -62,3 +63,6 @@ coverage/
 # Verification screenshots (dev artifacts)
 /*.png
 tmp_review_diff.txt
+
+# temp
+docs/

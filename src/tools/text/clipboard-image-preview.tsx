@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Maximize, Minimize, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ImageViewer } from '@/components/media/image-viewer';
 
 export interface ClipboardImagePreviewEntry {
   id: string;
@@ -23,8 +24,6 @@ function formatRelativeTime(timestamp: number): string {
 export function ClipboardImagePreview({ entries, initialId, onClose }: { entries: ClipboardImagePreviewEntry[]; initialId: string; onClose: () => void }) {
   const [currentEntry, setCurrentEntry] = useState(() => entries.find((entry) => entry.id === initialId));
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [fitToWindow, setFitToWindow] = useState(true);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const index = currentEntry ? entries.findIndex((entry) => entry.id === currentEntry.id) : -1;
   const entry = currentEntry;
@@ -38,8 +37,6 @@ export function ClipboardImagePreview({ entries, initialId, onClose }: { entries
     let cancelled = false;
     setImageUrl(null);
     setDimensions(null);
-    setZoom(1);
-    setFitToWindow(true);
     void import('@tauri-apps/api/core')
       .then(({ invoke }) => invoke<string>('get_clipboard_image', { id: entry.id }))
       .then((base64) => {
@@ -92,34 +89,21 @@ export function ClipboardImagePreview({ entries, initialId, onClose }: { entries
               {dimensions ? `${dimensions.width} × ${dimensions.height}` : '加载图片信息中'} · {formatRelativeTime(entry.timestamp)} · {index >= 0 ? `${index + 1} / ${entries.length}` : '该记录已删除'}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => { setFitToWindow(true); setZoom(1); }} title="适应窗口">
-              <Minimize /> 适应窗口
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => { setFitToWindow(false); setZoom(1); }} title="原始大小">
-              <Maximize /> 原始大小
-            </Button>
-            <Button variant="ghost" size="icon" onClick={onClose} title="关闭预览（Esc）"><X /></Button>
-          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} title="关闭预览（Esc）" aria-label="关闭预览"><X /></Button>
         </header>
-        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto bg-black/90 p-5">
+        <div className="relative flex min-h-0 flex-1">
           {canNavigate && <Button variant="secondary" size="icon" className="absolute left-4 top-1/2 z-10 -translate-y-1/2" onClick={previous} title="上一张（←）"><ChevronLeft /></Button>}
           {imageUrl ? (
-            <img
-              src={imageUrl}
+            <ImageViewer
+              source={imageUrl}
               alt={imageLabel}
-              className={fitToWindow ? 'max-h-full max-w-full select-none object-contain' : 'max-w-none select-none'}
-              style={{ transform: `scale(${zoom})`, transformOrigin: 'center', transition: 'transform 100ms ease-out' }}
+              mode="inline"
+              wheelZoom="always"
               onLoad={(event) => setDimensions({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
-              onWheel={(event) => {
-                event.preventDefault();
-                setZoom((value) => Math.min(4, Math.max(0.25, value + (event.deltaY < 0 ? 0.15 : -0.15))));
-              }}
             />
           ) : <span className="text-sm text-white/70">正在读取原图…</span>}
           {canNavigate && <Button variant="secondary" size="icon" className="absolute right-4 top-1/2 z-10 -translate-y-1/2" onClick={next} title="下一张（→）"><ChevronRight /></Button>}
         </div>
-        <footer className="border-t border-border px-4 py-2 text-center text-xs text-muted-foreground">滚轮缩放 · ← / → 切换 · Esc 关闭</footer>
       </section>
     </div>
   );

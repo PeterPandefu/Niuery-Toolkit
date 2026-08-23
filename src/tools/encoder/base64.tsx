@@ -7,6 +7,7 @@ import { AlertCircle, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { base64Encode, base64Decode } from '@/lib/codec-utils';
 import { useToolLogger } from '@/hooks/use-tool-logger';
+import { ImageViewer } from '@/components/media/image-viewer';
 
 type Mode = 'encode' | 'decode';
 type Variant = 'standard' | 'urlsafe';
@@ -16,6 +17,7 @@ export default function Base64Tool() {
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<Mode>('encode');
   const [variant, setVariant] = useState<Variant>('standard');
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const { output, error } = useMemo(() => {
     if (!input.trim()) return { output: '', error: null };
@@ -166,11 +168,28 @@ export default function Base64Tool() {
             </div>
           ) : isImageBase64 ? (
             <div className="flex h-full items-center justify-center rounded-md border bg-muted/50 p-4">
-              <img
-                src={output.startsWith('data:') ? output : `data:image/png;base64,${input}`}
-                alt="解码图片"
-                className="max-h-full max-w-full object-contain"
-              />
+              <button
+                type="button"
+                className="max-h-full max-w-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setPreviewOpen(true)}
+                title="放大查看解码图片"
+                aria-label="放大查看解码图片"
+              >
+                <img
+                  src={output.startsWith('data:') ? output : `data:image/png;base64,${input}`}
+                  alt="解码图片"
+                  className="max-h-full max-w-full object-contain"
+                />
+              </button>
+              {previewOpen && (
+                <ImageViewer
+                  source={output.startsWith('data:') ? output : `data:image/png;base64,${input}`}
+                  alt="解码图片"
+                  title="解码图片"
+                  mode="dialog"
+                  onClose={() => setPreviewOpen(false)}
+                />
+              )}
             </div>
           ) : (
             <Textarea

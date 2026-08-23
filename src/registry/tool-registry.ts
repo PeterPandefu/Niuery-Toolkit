@@ -275,6 +275,26 @@ registerTool({
 });
 
 registerTool({
+  id: 'mermaid-editor',
+  name: 'Mermaid 实时编辑器',
+  icon: Workflow,
+  category: 'text',
+  component: lazy(() => import('@/tools/diagram/mermaid-editor')),
+  keywords: ['mermaid', 'diagram', 'flowchart', 'sequence', '图表', '流程图', '实时预览'],
+  description: 'Mermaid 图表实时编辑、预览与 PNG/SVG 导出',
+});
+
+registerTool({
+  id: 'plantuml-editor',
+  name: 'PlantUML 实时编辑器',
+  icon: Code2,
+  category: 'text',
+  component: lazy(() => import('@/tools/diagram/plantuml-editor')),
+  keywords: ['plantuml', 'uml', 'diagram', 'sequence', 'class', '图表', '时序图', '实时预览'],
+  description: '本地离线 PlantUML 编辑、预览与 PNG/SVG 导出',
+});
+
+registerTool({
   id: 'sticky-note',
   name: '悬浮便签',
   icon: StickyNote,

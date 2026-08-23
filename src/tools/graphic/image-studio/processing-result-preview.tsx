@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, Maximize, Minimize, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ImageViewer } from '@/components/media/image-viewer';
 import { saveBytes, saveResults, type SaveFile } from '@/lib/file-save';
 import { formatBytes } from '@/lib/utils';
 import { IMAGE_FILTER, type ImageProcessingResult } from './common';
@@ -21,8 +22,6 @@ function useObjectUrls(items: Array<Blob | SaveFile>) {
 function ResultLightbox({ files, initialIndex, onClose }: { files: SaveFile[]; initialIndex: number; onClose: () => void }) {
   const urls = useObjectUrls(files);
   const [index, setIndex] = useState(initialIndex);
-  const [zoom, setZoom] = useState(1);
-  const [fitToWindow, setFitToWindow] = useState(true);
   const canNavigate = files.length > 1;
   const file = files[index];
 
@@ -37,8 +36,6 @@ function ResultLightbox({ files, initialIndex, onClose }: { files: SaveFile[]; i
   }, [canNavigate, files.length, onClose]);
 
   useEffect(() => {
-    setZoom(1);
-    setFitToWindow(true);
   }, [index]);
 
   return (
@@ -50,29 +47,15 @@ function ResultLightbox({ files, initialIndex, onClose }: { files: SaveFile[]; i
             <h3 className="truncate text-sm font-semibold">{file.name}</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">{formatBytes(file.blob.size)} · {index + 1} / {files.length}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => { setFitToWindow(true); setZoom(1); }} title="适应窗口"><Minimize />适应窗口</Button>
-            <Button variant="ghost" size="sm" onClick={() => { setFitToWindow(false); setZoom(1); }} title="原始大小"><Maximize />原始大小</Button>
-            <Button variant="ghost" size="icon" onClick={onClose} title="关闭预览（Esc）"><X /></Button>
-          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} title="关闭预览（Esc）" aria-label="关闭预览"><X /></Button>
         </header>
-        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto bg-black/90 p-5">
+        <div className="relative flex min-h-0 flex-1">
           {canNavigate && <Button variant="secondary" size="icon" className="absolute left-4 top-1/2 z-10 -translate-y-1/2" onClick={() => setIndex((value) => (value - 1 + files.length) % files.length)} title="上一张（←）"><ChevronLeft /></Button>}
           {urls[index] ? (
-            <img
-              src={urls[index]}
-              alt={`${file.name} 处理结果预览`}
-              className={fitToWindow ? 'max-h-full max-w-full select-none object-contain' : 'max-w-none select-none'}
-              style={{ transform: `scale(${zoom})`, transformOrigin: 'center', transition: 'transform 100ms ease-out' }}
-              onWheel={(event) => {
-                event.preventDefault();
-                setZoom((value) => Math.min(4, Math.max(0.25, value + (event.deltaY < 0 ? 0.15 : -0.15))));
-              }}
-            />
+            <ImageViewer source={urls[index]} alt={`${file.name} 处理结果预览`} mode="inline" wheelZoom="always" />
           ) : <span className="text-sm text-white/70">正在加载预览…</span>}
           {canNavigate && <Button variant="secondary" size="icon" className="absolute right-4 top-1/2 z-10 -translate-y-1/2" onClick={() => setIndex((value) => (value + 1) % files.length)} title="下一张（→）"><ChevronRight /></Button>}
         </div>
-        <footer className="border-t border-border px-4 py-2 text-center text-xs text-muted-foreground">滚轮缩放 · ← / → 切换 · Esc 关闭</footer>
       </section>
     </div>
   );

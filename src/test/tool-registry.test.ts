@@ -3,8 +3,8 @@ import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } 
 import { TOOL_CATEGORY_ORDER } from '@/types/tool';
 
 describe('工具注册表', () => {
-  it('完整注册 44 个工具', () => {
-    expect(getAllTools()).toHaveLength(44);
+  it('完整注册 46 个工具', () => {
+    expect(getAllTools()).toHaveLength(46);
   });
 
   it('按任务导向的稳定顺序返回 10 个分类', () => {
@@ -14,7 +14,7 @@ describe('工具注册表', () => {
   it.each([
     ['data', 11],
     ['security', 9],
-    ['text', 7],
+    ['text', 9],
     ['generator', 4],
     ['image', 3],
     ['canvas', 3],
@@ -30,6 +30,8 @@ describe('工具注册表', () => {
     expect(getToolById('json-formatter')?.category).toBe('data');
     expect(getToolById('checksum')?.category).toBe('security');
     expect(getToolById('markdown-editor')?.category).toBe('text');
+    expect(getToolById('mermaid-editor')?.category).toBe('text');
+    expect(getToolById('plantuml-editor')?.category).toBe('text');
     expect(getToolById('sticky-note')?.category).toBe('text');
     expect(getToolById('pdf-toolkit')?.category).toBe('image');
     expect(getToolById('mind-map')?.category).toBe('canvas');

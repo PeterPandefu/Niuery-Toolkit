@@ -1,6 +1,6 @@
 [package]
 name = "niuery-toolkit"
-version = "1.0.4"
+version = "1.0.5"
 description = "Offline-first developer toolkit"
 authors = ["you"]
 edition = "2021"
