@@ -32,6 +32,14 @@ describe('ImageViewer', () => {
     expect(screen.getByRole('img', { name: '可替换图片' })).toHaveAttribute('src', 'data:image/png;base64,second');
   });
 
+  it('keeps its toolbar within the window when an unbounded image is shown', () => {
+    render(<ImageViewer source="data:image/png;base64,very-wide-image" alt="超宽图片" mode="inline" />);
+
+    expect(screen.getByRole('region', { name: '图片预览' })).toHaveClass('min-w-0');
+    expect(screen.getByRole('region', { name: '图片预览区域' })).toHaveClass('min-w-0');
+    expect(screen.getByRole('button', { name: '全屏预览' })).toBeVisible();
+  });
+
   it('closes a dialog with Escape', () => {
     const onClose = () => undefined;
     render(<ImageViewer source="data:image/png;base64,abc" alt="弹窗图片" mode="dialog" onClose={onClose} />);

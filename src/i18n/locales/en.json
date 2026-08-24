@@ -383,7 +383,7 @@
     "damagedDraft": "The recovery draft is damaged",
     "unnamed": "Untitled mind map",
     "unsaved": " (unsaved)",
-    "hint": "Double-click to edit · Drag to pan infinitely · Ctrl+Home returns to the root · Ctrl+S saves",
+    "hint": "With a topic selected: Tab adds a child topic · Enter adds a sibling topic · Del / Backspace deletes the topic · Double-click to edit · Drag to pan infinitely · Ctrl+Home returns to the root · Ctrl+S saves",
     "root": "Root",
     "rootTitle": "Return to root (Ctrl+Home)",
     "layout": "Layout",
