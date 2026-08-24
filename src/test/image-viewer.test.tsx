@@ -40,4 +40,22 @@ describe('ImageViewer', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: '图片预览' })).not.toBeInTheDocument();
   });
+
+  it('opens an immersive preview from the shared full-screen control', () => {
+    render(<ImageViewer source="data:image/png;base64,abc" alt="全屏图片" mode="inline" />);
+
+    fireEvent.click(screen.getByRole('button', { name: '全屏预览' }));
+
+    expect(screen.getByRole('dialog', { name: '图片预览' })).toBeInTheDocument();
+    expect(screen.getAllByRole('img', { name: '全屏图片' })).toHaveLength(2);
+  });
+
+  it('expands an existing preview dialog to the full viewport', () => {
+    render(<ImageViewer source="data:image/png;base64,abc" alt="弹窗全屏图片" mode="dialog" />);
+
+    fireEvent.click(screen.getByRole('button', { name: '全屏预览' }));
+
+    expect(screen.getByRole('dialog', { name: '图片预览' })).toHaveClass('p-0');
+    expect(screen.getByRole('button', { name: '退出全屏预览' })).toBeInTheDocument();
+  });
 });

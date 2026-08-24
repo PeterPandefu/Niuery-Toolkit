@@ -246,9 +246,6 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
         </section>
 
         <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-muted/20 lg:w-1/2">
-          <div className="flex shrink-0 items-center justify-between border-b px-2 py-1.5">
-            <span className="text-xs text-muted-foreground">{isRendering ? '正在渲染…' : error ? '预览未更新' : '实时预览'}</span>
-          </div>
           {error && (
             <div role="alert" className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               当前内容未成功渲染，预览保留上一成功版本：{error}
@@ -257,9 +254,9 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
           <ImageViewer
             source={previewSource ?? undefined}
             alt={`${labels.title} 预览`}
-            title="实时预览"
+            title={isRendering ? '正在渲染…' : error ? '预览未更新' : '实时预览'}
             mode="inline"
-            wheelZoom="ctrl"
+            wheelZoom="always"
             className={followTheme ? 'bg-muted/20' : 'bg-white'}
           />
         </section>
