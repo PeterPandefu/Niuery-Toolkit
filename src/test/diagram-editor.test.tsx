@@ -37,7 +37,17 @@ describe('DiagramEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: '放大预览' }));
     expect(screen.getByText('125%')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: '导出 SVG' })).toBeEnabled());
+    expect(screen.getAllByText('实时预览')).toHaveLength(1);
     expect(screen.getByRole('button', { name: '导出 PNG' })).toBeEnabled();
+  });
+
+  it.each(['mermaid', 'plantuml'] as const)('zooms the %s preview with a plain mouse wheel', async (kind) => {
+    render(<DiagramEditor kind={kind} renderer={renderer} />);
+    await waitFor(() => expect(screen.getByRole('img', { name: kind === 'mermaid' ? 'Mermaid 实时编辑器 预览' : 'PlantUML 实时编辑器 预览' })).toBeInTheDocument());
+
+    fireEvent.wheel(screen.getByRole('region', { name: '图片预览区域' }), { deltaY: -100 });
+
+    expect(screen.getByText('125%')).toBeInTheDocument();
   });
 
   it('restores the valid starter diagram when the user creates a new document', async () => {

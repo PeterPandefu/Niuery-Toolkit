@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from 'react';
-import { Maximize, Minimize, Minus, Plus, X } from 'lucide-react';
+import { Expand, Maximize, Minimize, Minus, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   clampImageViewerZoom,
@@ -12,6 +12,7 @@ export interface ImageViewerProps {
   title?: string;
   mode?: 'inline' | 'dialog';
   wheelZoom?: 'always' | 'ctrl';
+  fullscreen?: boolean;
   className?: string;
   onClose?: () => void;
   onLoad?: (event: SyntheticEvent<HTMLImageElement>) => void;
@@ -47,11 +48,15 @@ function ViewerControls({
   onZoomChange,
   onFit,
   onOriginal,
+  onFullscreen,
+  fullscreen,
 }: {
   zoom: number;
   onZoomChange: (delta: number) => void;
   onFit: () => void;
   onOriginal: () => void;
+  onFullscreen?: () => void;
+  fullscreen?: boolean;
 }) {
   return (
     <div className="flex items-center gap-1">
@@ -70,6 +75,18 @@ function ViewerControls({
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onOriginal} aria-label="原始大小" title="原始大小">
         <Maximize />
       </Button>
+      {onFullscreen && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onFullscreen}
+          aria-label={fullscreen ? '退出全屏预览' : '全屏预览'}
+          title={fullscreen ? '退出全屏预览' : '全屏预览'}
+        >
+          <Expand />
+        </Button>
+      )}
     </div>
   );
 }
@@ -80,6 +97,7 @@ export function ImageViewer({
   title,
   mode = 'inline',
   wheelZoom = mode === 'dialog' ? 'always' : 'ctrl',
+  fullscreen = false,
   className,
   onClose,
   onLoad,
@@ -89,6 +107,8 @@ export function ImageViewer({
   const [fitToWindow, setFitToWindow] = useState(true);
   const [offset, setOffset] = useState<Offset>({ x: 0, y: 0 });
   const [open, setOpen] = useState(true);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(fullscreen);
   const [dragging, setDragging] = useState(false);
   const dragRef = useRef<{ pointerId: number; x: number; y: number; offset: Offset } | null>(null);
 
@@ -109,18 +129,24 @@ export function ImageViewer({
     setOffset({ x: 0, y: 0 });
     setDragging(false);
     setOpen(true);
+    setFullscreenOpen(false);
   }, [source]);
+
+  useEffect(() => {
+    setIsFullscreen(fullscreen);
+  }, [fullscreen]);
 
   useEffect(() => {
     if (mode !== 'dialog') return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.stopPropagation();
         setOpen(false);
         onClose?.();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [mode, onClose]);
 
   const close = () => {
@@ -185,13 +211,20 @@ export function ImageViewer({
 
   if (mode === 'dialog') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="图片预览">
+      <div className={`fixed inset-0 z-50 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-4'}`} role="dialog" aria-modal="true" aria-label="图片预览">
         <button className="absolute inset-0 bg-black/75 backdrop-blur-sm" aria-label="关闭预览" onClick={close} />
-        <section className="relative flex h-full max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-tinted-lg">
+        <section className={`relative flex h-full w-full flex-col overflow-hidden bg-popover ${isFullscreen ? 'max-h-none max-w-none rounded-none border-0' : 'max-h-[90vh] max-w-6xl rounded-xl border border-border shadow-tinted-lg'}`}>
           <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <h3 className="min-w-0 truncate text-sm font-semibold">{title ?? alt}</h3>
             <div className="flex shrink-0 items-center gap-1">
-              <ViewerControls zoom={zoom} onZoomChange={changeZoom} onFit={() => resetViewport(true)} onOriginal={() => resetViewport(false)} />
+              <ViewerControls
+                zoom={zoom}
+                onZoomChange={changeZoom}
+                onFit={() => resetViewport(true)}
+                onOriginal={() => resetViewport(false)}
+                onFullscreen={() => setIsFullscreen((value) => !value)}
+                fullscreen={isFullscreen}
+              />
               <Button variant="ghost" size="icon" onClick={close} title="关闭预览（Esc）" aria-label="关闭预览"><X /></Button>
             </div>
           </header>
@@ -203,12 +236,31 @@ export function ImageViewer({
   }
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col" aria-label="图片预览">
-      <div className="flex shrink-0 items-center justify-between border-b px-2 py-1.5">
-        <span className="text-xs text-muted-foreground">{title ?? '图片预览'}</span>
-        <ViewerControls zoom={zoom} onZoomChange={changeZoom} onFit={() => resetViewport(true)} onOriginal={() => resetViewport(false)} />
-      </div>
-      {viewport}
-    </section>
+    <>
+      <section className="flex min-h-0 flex-1 flex-col" aria-label="图片预览">
+        <div className="flex shrink-0 items-center justify-between border-b px-2 py-1.5">
+          <span className="text-xs text-muted-foreground">{title ?? '图片预览'}</span>
+          <ViewerControls
+            zoom={zoom}
+            onZoomChange={changeZoom}
+            onFit={() => resetViewport(true)}
+            onOriginal={() => resetViewport(false)}
+            onFullscreen={() => setFullscreenOpen(true)}
+          />
+        </div>
+        {viewport}
+      </section>
+      {fullscreenOpen && (
+        <ImageViewer
+          source={source}
+          alt={alt}
+          title={title}
+          mode="dialog"
+          wheelZoom="always"
+          fullscreen
+          onClose={() => setFullscreenOpen(false)}
+        />
+      )}
+    </>
   );
 }
