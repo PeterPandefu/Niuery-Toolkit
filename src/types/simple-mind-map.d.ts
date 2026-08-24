@@ -17,6 +17,7 @@ declare module 'simple-mind-map' {
     getData(withConfig?: boolean): MindMapData;
     setFullData(data: MindMapData): void;
     execCommand(command: string, ...args: unknown[]): void;
+    resize(): void;
     export(type: string, isDownload?: boolean, name?: string, ...args: unknown[]): Promise<string | null>;
     view: { fit: () => void };
     search?: MindMapSearch;

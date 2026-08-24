@@ -66,6 +66,16 @@ export const MindMapSurface = forwardRef<MindMapSurfaceHandle, MindMapSurfacePro
       isDisableDrag: false,
       maxZoomRatio: -1,
       readonly: readOnly,
+      // 工具页的 <main> 会在切换页面后保留焦点。允许它作为导图库快捷键的事件来源，
+      // 仍由库的“鼠标在 SVG 内”检查限制触发范围，避免 Tab 落入浏览器默认焦点导航。
+      customCheckEnableShortcut: (event: KeyboardEvent) => {
+        const target = event.target;
+        if (target === window.document.body || target === elementRef.current || target === elementRef.current?.closest('main')) {
+          return true;
+        }
+        const editNodeClassList = (instanceRef.current as (MindMapInstance & { editNodeClassList?: string[] }) | null)?.editNodeClassList ?? [];
+        return target instanceof Element && editNodeClassList.some((className) => target.classList.contains(className));
+      },
     }) as unknown as MindMapInstance;
     const handleDataChange = () => {
       if (loadingDocumentRef.current || ignoreNextDataChangeRef.current) {
@@ -84,8 +94,11 @@ export const MindMapSurface = forwardRef<MindMapSurfaceHandle, MindMapSurfacePro
     };
     instance.on('search_info_change', handleSearchInfoChange);
     instanceRef.current = instance;
+    const resizeObserver = new ResizeObserver(() => instance.resize());
+    resizeObserver.observe(elementRef.current);
 
     return () => {
+      resizeObserver.disconnect();
       instance.off('data_change', handleDataChange);
       instance.off('search_info_change', handleSearchInfoChange);
       instance.destroy();

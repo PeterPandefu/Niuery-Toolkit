@@ -383,7 +383,7 @@
     "damagedDraft": "恢复草稿已损坏",
     "unnamed": "未命名思维导图",
     "unsaved": "（未保存）",
-    "hint": "双击编辑 · 拖动画布可无限平移 · Ctrl+Home 回到根节点 · Ctrl+S 保存",
+    "hint": "选中主题后：Tab 新建子主题 · Enter 新建同级主题 · Del / Backspace 删除主题 · 双击编辑 · 拖动画布可无限平移 · Ctrl+Home 回到根节点 · Ctrl+S 保存",
     "root": "根节点",
     "rootTitle": "回到根节点 (Ctrl+Home)",
     "layout": "布局",
