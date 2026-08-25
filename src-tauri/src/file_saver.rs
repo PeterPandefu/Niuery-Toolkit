@@ -79,6 +79,16 @@ pub fn open_text_file_dialog(
     }
 }
 
+fn selected_path(path: Option<PathBuf>) -> Option<String> {
+    path.map(|path| path.to_string_lossy().into_owned())
+}
+
+/// 选择一个现有文件路径，不读取或修改其内容。
+#[tauri::command]
+pub fn pick_existing_file() -> Result<Option<String>, String> {
+    Ok(selected_path(rfd::FileDialog::new().pick_file()))
+}
+
 /// 写入应用私有目录中的临时恢复快照，不覆盖用户原始文档。
 #[tauri::command]
 pub fn write_recovery_snapshot(
@@ -172,5 +182,19 @@ pub fn save_file_dialog(
             Ok(Some(path.to_string_lossy().into_owned()))
         }
         None => Ok(None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn returns_the_selected_file_path_without_reading_its_contents() {
+        assert_eq!(
+            selected_path(Some(PathBuf::from(r"C:\\work\\locked.dll"))),
+            Some(r"C:\\work\\locked.dll".to_string())
+        );
+        assert_eq!(selected_path(None), None);
     }
 }
