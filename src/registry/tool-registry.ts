@@ -35,6 +35,8 @@ import {
   Video,
   Wind,
   Activity,
+  FileLock2,
+  Network,
   Workflow,
   PenTool,
 } from 'lucide-react';
@@ -505,6 +507,26 @@ registerTool({
   component: lazy(() => import('@/tools/system/system-monitor')),
   keywords: ['system', 'monitor', 'cpu', 'memory', 'ram', 'network', '系统', '监控', '内存', '网络'],
   description: '实时查看 CPU、内存和网络资源使用情况',
+});
+
+registerTool({
+  id: 'port-process-killer',
+  name: '端口进程终止',
+  icon: Network,
+  category: 'system',
+  component: lazy(() => import('@/tools/system/port-process-killer')),
+  keywords: ['port', 'process', 'kill', 'tcp', 'udp', '端口', '进程', '结束', '占用'],
+  description: '查找并结束占用指定本地端口的进程',
+});
+
+registerTool({
+  id: 'file-unlocker',
+  name: '文件占用解除',
+  icon: FileLock2,
+  category: 'system',
+  component: lazy(() => import('@/tools/system/file-unlocker')),
+  keywords: ['file', 'unlock', 'lock', 'process', '文件', '占用', '解锁', '进程'],
+  description: '查找并关闭占用指定文件的进程',
 });
 
 // === 网络工具 ===
