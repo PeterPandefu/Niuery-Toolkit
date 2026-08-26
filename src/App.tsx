@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
 import { useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
@@ -7,17 +7,16 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { ToolPanel } from '@/components/layout/ToolPanel';
 import { SearchDialog } from '@/components/layout/SearchDialog';
 import { SettingsDialog } from '@/components/layout/SettingsDialog';
-import { getToolById } from '@/registry/tool-registry';
 import { listen } from '@tauri-apps/api/event';
 import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
 import { openTranslatorWithText } from '@/lib/translation-navigation';
+import { openTool } from '@/lib/tool-navigation';
 
 export default function App() {
   // 初始化主题
   useApplyTheme();
 
-  const { activeToolId, setActiveTool, setActiveCategory } = useAppStore();
-  const startTool = useToolLifecycleStore((s) => s.startTool);
+  const activeToolId = useAppStore((s) => s.activeToolId);
   const initAlwaysOnTools = useToolLifecycleStore((s) => s.initAlwaysOnTools);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -26,18 +25,7 @@ export default function App() {
     initAlwaysOnTools();
   }, [initAlwaysOnTools]);
 
-  const handleSelectTool = useCallback(
-    (toolId: string) => {
-      startTool(toolId);
-      setActiveTool(toolId);
-      // 自动展开工具所属分类面板
-      const tool = getToolById(toolId);
-      if (tool) {
-        setActiveCategory(tool.category);
-      }
-    },
-    [startTool, setActiveTool, setActiveCategory]
-  );
+  const handleSelectTool = openTool;
 
   useEffect(() => {
     if (!(typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window)) return;
