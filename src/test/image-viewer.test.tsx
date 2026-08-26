@@ -13,6 +13,25 @@ describe('ImageViewer', () => {
     expect(screen.getByText('100%')).toBeInTheDocument();
   });
 
+  it('keeps a Mermaid SVG fitted to the viewport while it is enlarged', () => {
+    render(
+      <ImageViewer
+        source="data:image/svg+xml,%3Csvg%20viewBox%3D%270%200%203000%20500%27%3E%3C%2Fsvg%3E"
+        alt="大型 Mermaid 图表"
+        mode="inline"
+      />,
+    );
+
+    const image = screen.getByRole('img', { name: '大型 Mermaid 图表' });
+    for (let index = 0; index < 12; index += 1) {
+      fireEvent.click(screen.getByRole('button', { name: '放大预览' }));
+    }
+
+    expect(screen.getByText('400%')).toBeInTheDocument();
+    expect(image).toHaveClass('h-full', 'w-full', 'object-contain');
+    expect(image).toHaveStyle({ transform: 'translate(0px, 0px) scale(4)' });
+  });
+
   it('moves the image while the pointer is dragged', () => {
     render(<ImageViewer source="data:image/png;base64,abc" alt="可拖动图片" mode="inline" />);
 
