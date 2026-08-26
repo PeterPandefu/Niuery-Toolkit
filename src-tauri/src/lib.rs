@@ -3,6 +3,7 @@ mod clipboard;
 mod file_saver;
 mod hotkey;
 mod plantuml;
+pub mod process_tools;
 pub mod recorder;
 mod screenshot;
 mod sticky_note;
@@ -317,8 +318,12 @@ pub fn run() {
             sticky_note::set_sticky_note_always_on_top,
             sticky_note::show_sticky_note_window,
             system_monitor::get_system_stats,
+            process_tools::find_port_owners,
+            process_tools::find_file_lock_owners,
+            process_tools::terminate_processes,
             file_saver::save_file_dialog,
             file_saver::open_text_file_dialog,
+            file_saver::pick_existing_file,
             file_saver::write_recovery_snapshot,
             file_saver::list_recovery_snapshots,
             file_saver::discard_recovery_snapshot,

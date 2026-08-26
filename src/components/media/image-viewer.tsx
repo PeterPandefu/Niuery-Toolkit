@@ -13,10 +13,18 @@ export interface ImageViewerProps {
   mode?: 'inline' | 'dialog';
   wheelZoom?: 'always' | 'ctrl';
   fullscreen?: boolean;
+  initialBackground?: ImageViewerBackground;
+  initialCustomBackgroundColor?: string;
+  background?: ImageViewerBackground;
+  customBackgroundColor?: string;
+  onBackgroundChange?: (background: ImageViewerBackground) => void;
+  onCustomBackgroundColorChange?: (color: string) => void;
   className?: string;
   onClose?: () => void;
   onLoad?: (event: SyntheticEvent<HTMLImageElement>) => void;
 }
+
+export type ImageViewerBackground = 'transparent' | 'white' | 'dark' | 'custom';
 
 interface Offset {
   x: number;
@@ -48,6 +56,10 @@ function ViewerControls({
   onZoomChange,
   onFit,
   onOriginal,
+  background,
+  customBackgroundColor,
+  onBackgroundChange,
+  onCustomBackgroundColorChange,
   onFullscreen,
   fullscreen,
 }: {
@@ -55,6 +67,10 @@ function ViewerControls({
   onZoomChange: (delta: number) => void;
   onFit: () => void;
   onOriginal: () => void;
+  background: ImageViewerBackground;
+  customBackgroundColor: string;
+  onBackgroundChange: (background: ImageViewerBackground) => void;
+  onCustomBackgroundColorChange: (color: string) => void;
   onFullscreen?: () => void;
   fullscreen?: boolean;
 }) {
@@ -75,6 +91,29 @@ function ViewerControls({
       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onOriginal} aria-label="原始大小" title="原始大小">
         <Maximize />
       </Button>
+      <label className="flex h-7 items-center gap-1 rounded px-1 text-xs hover:bg-accent">
+        <span className="sr-only">预览背景</span>
+        <select
+          aria-label="预览背景"
+          className="h-6 max-w-20 bg-transparent text-xs outline-none"
+          value={background}
+          onChange={(event) => onBackgroundChange(event.target.value as ImageViewerBackground)}
+        >
+          <option value="transparent">透明</option>
+          <option value="white">白色</option>
+          <option value="dark">深色</option>
+          <option value="custom">自定义</option>
+        </select>
+      </label>
+      {background === 'custom' && (
+        <input
+          type="color"
+          aria-label="自定义预览背景色"
+          className="h-7 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
+          value={customBackgroundColor}
+          onChange={(event) => onCustomBackgroundColorChange(event.target.value)}
+        />
+      )}
       {onFullscreen && (
         <Button
           variant="ghost"
@@ -98,6 +137,12 @@ export function ImageViewer({
   mode = 'inline',
   wheelZoom = mode === 'dialog' ? 'always' : 'ctrl',
   fullscreen = false,
+  initialBackground = 'transparent',
+  initialCustomBackgroundColor = '#ffffff',
+  background: controlledBackground,
+  customBackgroundColor: controlledCustomBackgroundColor,
+  onBackgroundChange,
+  onCustomBackgroundColorChange,
   className,
   onClose,
   onLoad,
@@ -105,6 +150,8 @@ export function ImageViewer({
   const url = useImageSource(source);
   const [zoom, setZoom] = useState(1);
   const [fitToWindow, setFitToWindow] = useState(true);
+  const [selectedBackground, setSelectedBackground] = useState<ImageViewerBackground>(initialBackground);
+  const [selectedCustomBackgroundColor, setSelectedCustomBackgroundColor] = useState(initialCustomBackgroundColor);
   const [offset, setOffset] = useState<Offset>({ x: 0, y: 0 });
   const [open, setOpen] = useState(true);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
@@ -119,7 +166,6 @@ export function ImageViewer({
   }, []);
 
   const changeZoom = useCallback((delta: number) => {
-    setFitToWindow(false);
     setZoom((value) => clampImageViewerZoom(value + delta));
   }, []);
 
@@ -180,19 +226,37 @@ export function ImageViewer({
     changeZoom(event.deltaY < 0 ? IMAGE_VIEWER_ZOOM_STEP : -IMAGE_VIEWER_ZOOM_STEP);
   };
 
+  const background = controlledBackground ?? selectedBackground;
+  const customBackgroundColor = controlledCustomBackgroundColor ?? selectedCustomBackgroundColor;
+  const setBackground = (nextBackground: ImageViewerBackground) => {
+    if (controlledBackground === undefined) setSelectedBackground(nextBackground);
+    onBackgroundChange?.(nextBackground);
+  };
+  const setCustomBackgroundColor = (nextColor: string) => {
+    if (controlledCustomBackgroundColor === undefined) setSelectedCustomBackgroundColor(nextColor);
+    onCustomBackgroundColorChange?.(nextColor);
+  };
+  const backgroundColor = background === 'transparent'
+    ? 'transparent'
+    : background === 'white'
+      ? '#ffffff'
+      : background === 'dark'
+        ? '#111827'
+        : customBackgroundColor;
+
   if (mode === 'dialog' && !open) return null;
 
   const viewport = (
     <div
       role="region"
       aria-label="图片预览区域"
-      className={`relative min-h-0 min-w-0 flex-1 overflow-hidden bg-black/90 p-4 ${className ?? ''}`}
+      className={`relative min-h-0 min-w-0 flex-1 overflow-hidden p-4 ${className ?? ''}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onWheel={handleWheel}
-      style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+      style={{ backgroundColor, cursor: dragging ? 'grabbing' : 'grab' }}
     >
       {url ? (
         <div className="flex h-full w-full items-center justify-center">
@@ -201,11 +265,11 @@ export function ImageViewer({
             alt={alt}
             draggable={false}
             onLoad={onLoad}
-            className={fitToWindow ? 'max-h-full max-w-full select-none object-contain' : 'max-w-none select-none'}
+            className={fitToWindow ? 'h-full w-full select-none object-contain' : 'max-w-none select-none'}
             style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`, transformOrigin: 'center', transition: dragRef.current ? 'none' : 'transform 100ms ease-out' }}
           />
         </div>
-      ) : <span className="flex h-full items-center justify-center text-sm text-white/70">正在加载预览…</span>}
+      ) : <span className="flex h-full items-center justify-center text-sm text-muted-foreground">正在加载预览…</span>}
     </div>
   );
 
@@ -222,6 +286,10 @@ export function ImageViewer({
                 onZoomChange={changeZoom}
                 onFit={() => resetViewport(true)}
                 onOriginal={() => resetViewport(false)}
+                background={background}
+                customBackgroundColor={customBackgroundColor}
+                onBackgroundChange={setBackground}
+                onCustomBackgroundColorChange={setCustomBackgroundColor}
                 onFullscreen={() => setIsFullscreen((value) => !value)}
                 fullscreen={isFullscreen}
               />
@@ -246,6 +314,10 @@ export function ImageViewer({
             onZoomChange={changeZoom}
             onFit={() => resetViewport(true)}
             onOriginal={() => resetViewport(false)}
+            background={background}
+            customBackgroundColor={customBackgroundColor}
+            onBackgroundChange={setBackground}
+            onCustomBackgroundColorChange={setCustomBackgroundColor}
             onFullscreen={() => setFullscreenOpen(true)}
           />
         </div>
@@ -259,6 +331,10 @@ export function ImageViewer({
           mode="dialog"
           wheelZoom="always"
           fullscreen
+          background={background}
+          customBackgroundColor={customBackgroundColor}
+          onBackgroundChange={setBackground}
+          onCustomBackgroundColorChange={setCustomBackgroundColor}
           onClose={() => setFullscreenOpen(false)}
         />
       )}
