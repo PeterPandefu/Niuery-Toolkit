@@ -119,7 +119,6 @@ export function ImageViewer({
   }, []);
 
   const changeZoom = useCallback((delta: number) => {
-    setFitToWindow(false);
     setZoom((value) => clampImageViewerZoom(value + delta));
   }, []);
 
@@ -201,7 +200,7 @@ export function ImageViewer({
             alt={alt}
             draggable={false}
             onLoad={onLoad}
-            className={fitToWindow ? 'max-h-full max-w-full select-none object-contain' : 'max-w-none select-none'}
+            className={fitToWindow ? 'h-full w-full select-none object-contain' : 'max-w-none select-none'}
             style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`, transformOrigin: 'center', transition: dragRef.current ? 'none' : 'transform 100ms ease-out' }}
           />
         </div>
