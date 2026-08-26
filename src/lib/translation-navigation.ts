@@ -1,8 +1,6 @@
-import { getToolById } from '@/registry/tool-registry';
-import { useAppStore } from '@/store/app-store';
 import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
-import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { openTool } from '@/lib/tool-navigation';
 
 function restoreMainWindowForTranslation() {
   if (!(typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window)) return;
@@ -24,18 +22,10 @@ export function openTranslatorWithText(text: string) {
   if (!normalizedText) return;
 
   useScreenshotOcrStore.getState().setPendingTranslation(normalizedText);
-  useToolLifecycleStore.getState().startTool('translator');
+  openTool('translator');
   restoreMainWindowForTranslation();
-  const appStore = useAppStore.getState();
-  appStore.setActiveTool('translator');
-  const tool = getToolById('translator');
-  if (tool) appStore.setActiveCategory(tool.category);
 }
 
 export function openScreenshotEditor() {
-  useToolLifecycleStore.getState().startTool('screenshot-editor');
-  const appStore = useAppStore.getState();
-  appStore.setActiveTool('screenshot-editor');
-  const tool = getToolById('screenshot-editor');
-  if (tool) appStore.setActiveCategory(tool.category);
+  openTool('screenshot-editor');
 }

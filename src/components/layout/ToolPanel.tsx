@@ -2,12 +2,13 @@ import { Suspense, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } from '@/registry/tool-registry';
-import { useAppStore } from '@/store/app-store';
+import { getRecentToolIds, useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useTheme } from '@/hooks/use-theme';
 import { Button } from '@/components/ui/button';
 import { LogPanel } from '@/components/layout/LogPanel';
 import { useLogStore } from '@/store/log-store';
+import { openTool } from '@/lib/tool-navigation';
 import { Activity, ArrowUpRight, Command, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, ShieldCheck, Sun } from 'lucide-react';
 
 interface ToolPanelProps {
@@ -31,13 +32,14 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const setActiveCategory = useAppStore((s) => s.setActiveCategory);
   const pinnedTools = useAppStore((s) => s.pinnedTools);
+  const recentToolUsage = useAppStore((s) => s.recentToolUsage);
   const allTools = useMemo(() => getAllTools(), []);
   const categories = useMemo(() => getAvailableCategories(), []);
 
-  const quickTools = useMemo(() => {
-    const defaults = ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'text-diff', 'qrcode'];
-    return defaults.map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean);
-  }, [allTools]);
+  const recentTools = useMemo(
+    () => getRecentToolIds(recentToolUsage, 6).map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean),
+    [allTools, recentToolUsage]
+  );
 
   const pinnedToolDefs = useMemo(
     () => pinnedTools.map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean),
@@ -98,25 +100,29 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
 
           <section className="pt-8">
             <div className="mb-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('app.quickTools')}</p>
-              <h2 className="mt-1 font-heading text-xl font-semibold tracking-tight">常用工具</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('app.recentTools')}</p>
+              <h2 className="mt-1 font-heading text-xl font-semibold tracking-tight">{t('app.recentTools')}</h2>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {quickTools.map((tool) => {
-                if (!tool) return null;
-                const Icon = tool.icon;
-                return (
-                  <button key={tool.id} onClick={() => onSelectTool(tool.id)} className="tool-card group text-left">
-                    <span className="tool-card-icon"><Icon className="h-4 w-4" /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[14px] font-semibold leading-snug text-foreground">{t(`tools.${tool.id}`, tool.name)}</span>
-                      <span className="mt-1 block truncate text-xs text-muted-foreground">{tool.description}</span>
-                    </span>
-                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
-                  </button>
-                );
-              })}
-            </div>
+            {recentTools.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">{t('app.recentToolsEmpty')}</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {recentTools.map((tool) => {
+                  if (!tool) return null;
+                  const Icon = tool.icon;
+                  return (
+                    <button key={tool.id} onClick={() => onSelectTool(tool.id)} className="tool-card group text-left">
+                      <span className="tool-card-icon"><Icon className="h-4 w-4" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[14px] font-semibold leading-snug text-foreground">{t(`tools.${tool.id}`, tool.name)}</span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">{tool.description}</span>
+                      </span>
+                      <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </section>
         </div>
 
@@ -143,7 +149,6 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
 
 function ToolStoppedScreen({ toolId }: { toolId: string }) {
   const { t } = useTranslation();
-  const startTool = useToolLifecycleStore((s) => s.startTool);
   const toolDef = getToolById(toolId);
   if (!toolDef) return null;
   const Icon = toolDef.icon;
@@ -154,7 +159,7 @@ function ToolStoppedScreen({ toolId }: { toolId: string }) {
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span>
         <h2 className="mt-5 font-heading text-xl font-semibold">{t(`tools.${toolDef.id}`, toolDef.name)}</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('app.toolStoppedDesc')}</p>
-        <Button className="mt-6" onClick={() => startTool(toolId)}><Power className="h-4 w-4" />{t('app.startTool')}</Button>
+        <Button className="mt-6" onClick={() => openTool(toolId)}><Power className="h-4 w-4" />{t('app.startTool')}</Button>
       </div>
     </div>
   );
@@ -171,11 +176,13 @@ function ToolPowerSwitch({ toolId }: { toolId: string }) {
 
   const handleToggle = () => {
     if (isAlwaysOn) return;
-    toggleTool(toolId);
-    if (isActive) {
-      const remaining = useToolLifecycleStore.getState().activeTools;
-      setActiveTool(remaining.length > 0 ? remaining[remaining.length - 1] : null);
+    if (!isActive) {
+      openTool(toolId);
+      return;
     }
+    toggleTool(toolId);
+    const remaining = useToolLifecycleStore.getState().activeTools;
+    setActiveTool(remaining.length > 0 ? remaining[remaining.length - 1] : null);
   };
 
   const label = isAlwaysOn ? t('app.toolAlwaysOn') : isActive ? t('app.stopTool') : t('app.startTool');
@@ -196,16 +203,13 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
-  const setActiveTool = useAppStore((s) => s.setActiveTool);
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
-  const startTool = useToolLifecycleStore((s) => s.startTool);
   const tool = toolId ? getToolById(toolId) : null;
   const isChinese = (i18n.resolvedLanguage ?? i18n.language).startsWith('zh');
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
 
   const handleSelectTool = (id: string) => {
-    startTool(id);
-    setActiveTool(id);
+    openTool(id);
   };
 
   const cycleTheme = () => {
