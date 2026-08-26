@@ -9,6 +9,8 @@ describe('useAppStore', () => {
       activeCategory: null,
       activeToolId: null,
       searchOpen: false,
+      recentToolUsage: {},
+      usageSequence: 0,
     });
   });
 
@@ -86,6 +88,44 @@ describe('useAppStore', () => {
       useAppStore.getState().setActiveCategory('data');
       useAppStore.getState().setActiveCategory(null);
       expect(useAppStore.getState().activeCategory).toBeNull();
+    });
+  });
+
+  describe('recent tool usage', () => {
+    it('starts empty and records each selection for the current session', () => {
+      expect(useAppStore.getState().getRecentToolIds()).toEqual([]);
+
+      useAppStore.getState().recordToolUsage('json-formatter');
+      useAppStore.getState().recordToolUsage('base64');
+      useAppStore.getState().recordToolUsage('json-formatter');
+
+      expect(useAppStore.getState().recentToolUsage).toEqual({
+        'json-formatter': { count: 2, lastUsedOrder: 3 },
+        base64: { count: 1, lastUsedOrder: 2 },
+      });
+      expect(useAppStore.getState().getRecentToolIds()).toEqual(['json-formatter', 'base64']);
+    });
+
+    it('sorts equal usage counts by the most recent selection', () => {
+      useAppStore.getState().recordToolUsage('timestamp');
+      useAppStore.getState().recordToolUsage('uuid-generator');
+      useAppStore.getState().recordToolUsage('base64');
+      useAppStore.getState().recordToolUsage('uuid-generator');
+      useAppStore.getState().recordToolUsage('base64');
+
+      expect(useAppStore.getState().getRecentToolIds()).toEqual([
+        'base64',
+        'uuid-generator',
+        'timestamp',
+      ]);
+    });
+
+    it('does not persist usage between application launches', () => {
+      useAppStore.getState().recordToolUsage('qrcode');
+
+      const persisted = useAppStore.persist.getOptions().partialize?.(useAppStore.getState());
+      expect(persisted).not.toHaveProperty('recentToolUsage');
+      expect(persisted).not.toHaveProperty('usageSequence');
     });
   });
 });

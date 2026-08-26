@@ -3,8 +3,8 @@ import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } 
 import { TOOL_CATEGORY_ORDER } from '@/types/tool';
 
 describe('工具注册表', () => {
-  it('完整注册 46 个工具', () => {
-    expect(getAllTools()).toHaveLength(46);
+  it('完整注册 48 个工具', () => {
+    expect(getAllTools()).toHaveLength(48);
   });
 
   it('按任务导向的稳定顺序返回 10 个分类', () => {
@@ -20,7 +20,7 @@ describe('工具注册表', () => {
     ['canvas', 3],
     ['capture', 2],
     ['network', 2],
-    ['system', 2],
+    ['system', 4],
     ['language', 1],
   ] as const)('分类 %s 包含 %i 个工具', (category, count) => {
     expect(getToolsByCategory(category)).toHaveLength(count);
@@ -37,6 +37,8 @@ describe('工具注册表', () => {
     expect(getToolById('mind-map')?.category).toBe('canvas');
     expect(getToolById('screenshot-editor')?.category).toBe('capture');
     expect(getToolById('clipboard-history')?.category).toBe('system');
+    expect(getToolById('port-process-killer')?.category).toBe('system');
+    expect(getToolById('file-unlocker')?.category).toBe('system');
   });
 
   it('保留稳定的工具标识符与必填字段', () => {

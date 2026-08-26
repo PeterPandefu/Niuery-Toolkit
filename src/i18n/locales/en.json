@@ -13,6 +13,8 @@
     "logs": "Logs",
     "noResults": "No matching tools found",
     "quickTools": "Quick tools",
+    "recentTools": "Recently used",
+    "recentToolsEmpty": "Tools you open will appear here.",
     "allCategories": "All categories",
     "searchHint": "Search {{count}} tools",
     "home": "Home",
