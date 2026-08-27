@@ -27,7 +27,7 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$CACHE/**", "$APPDATA/**", "$APPCACHE/**", "$VIDEO/**"]
+        "scope": ["$CACHE/**", "$APPDATA/**", "$APPCACHE/**", "$VIDEO/**", "$HOME/**"]
       }
     }
   },

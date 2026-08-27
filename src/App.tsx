@@ -11,6 +11,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
 import { openTranslatorWithText } from '@/lib/translation-navigation';
 import { openTool } from '@/lib/tool-navigation';
+import { NativeFileDropBridge } from '@/components/shared/NativeFileDropBridge';
 
 export default function App() {
   // 初始化主题
@@ -69,6 +70,7 @@ export default function App() {
       <SearchDialog onSelectTool={handleSelectTool} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Toaster position="bottom-right" richColors closeButton />
+      <NativeFileDropBridge />
     </div>
   );
 }
