@@ -1,8 +1,10 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { PDFDocument } from 'pdf-lib';
+import { isTauri } from '@/lib/api-client';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// 保证 fake worker 的动态 import 与模块 chunk 的相对路径无关（尤其是 Tauri 的 asset:// 页面）。
+pdfjsLib.GlobalWorkerOptions.workerSrc = typeof window === 'undefined' ? workerUrl : new URL(workerUrl, window.location.href).href;
 
 export interface PageImage {
   name: string;
@@ -10,6 +12,52 @@ export interface PageImage {
 }
 
 export type ProgressFn = (done: number, total: number) => void;
+
+/** PDF.js 在桌面 WebView 中偶发无法完成图像解码或 worker 销毁。 */
+const PDF_OPERATION_TIMEOUT_MS = 30_000;
+const PDF_TASK_DESTROY_TIMEOUT_MS = 2_000;
+
+function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = PDF_OPERATION_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}超时，请检查 PDF 文件是否损坏`)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+async function destroyPdfTask(task: { destroy: () => Promise<void> }) {
+  try {
+    // 清理失败不应阻塞已经生成的结果或让界面永久保持 busy。
+    await withTimeout(task.destroy(), 'PDF 资源清理', PDF_TASK_DESTROY_TIMEOUT_MS);
+  } catch {
+    // PDF.js worker 在 WebView 关闭时可能已经失去响应，忽略清理错误即可。
+  }
+}
+
+function createPdfLoadingTask(buffer: ArrayBuffer) {
+  const params = {
+    data: new Uint8Array(buffer.slice(0)),
+    // WebView2 的 ImageDecoder/OffscreenCanvas 在部分 PDF 上会一直 pending。
+    // 关闭这两条优化路径后由 PDF.js 使用稳定的 Canvas 解码流程。
+    isImageDecoderSupported: !isTauri,
+    isOffscreenCanvasSupported: !isTauri,
+  };
+
+  if (!isTauri) return pdfjsLib.getDocument(params);
+
+  // PDF.js 的模块 Worker 若在 WebView2 中无法启动，不会自行超时或回退，加载任务会永久 pending。
+  // 仅在创建任务的同步阶段屏蔽 Worker，迫使 PDF.js 使用其内建的主线程 fake worker。
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'Worker');
+  try {
+    Object.defineProperty(globalThis, 'Worker', { configurable: true, writable: true, value: undefined });
+    return pdfjsLib.getDocument(params);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'Worker', descriptor);
+    else Reflect.deleteProperty(globalThis, 'Worker');
+  }
+}
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -26,8 +74,8 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 
 async function loadPdf(buffer: ArrayBuffer) {
-  const task = pdfjsLib.getDocument({ data: new Uint8Array(buffer.slice(0)) });
-  const doc = await task.promise;
+  const task = createPdfLoadingTask(buffer);
+  const doc = await withTimeout(task.promise, 'PDF 加载');
   return { doc, task };
 }
 
@@ -43,7 +91,7 @@ export async function renderPdfPages(
 
   try {
     for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
+      const page = await withTimeout(doc.getPage(i), `第 ${i} 页加载`);
       const viewport = page.getViewport({ scale });
       const canvas = document.createElement('canvas');
       canvas.width = Math.floor(viewport.width);
@@ -53,14 +101,14 @@ export async function renderPdfPages(
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
-      await page.render({ canvas, viewport }).promise;
+      await withTimeout(page.render({ canvas: null, canvasContext: ctx, viewport }).promise, `第 ${i} 页渲染`);
       const type = opts.format === 'png' ? 'image/png' : 'image/jpeg';
-      const blob = await canvasToBlob(canvas, type, opts.quality);
+      const blob = await withTimeout(canvasToBlob(canvas, type, opts.quality), `第 ${i} 页导出`);
       results.push({ name: `第${i}页.${opts.format === 'png' ? 'png' : 'jpg'}`, blob });
       onProgress?.(i, doc.numPages);
     }
   } finally {
-    await task.destroy();
+    await destroyPdfTask(task);
   }
   return results;
 }
@@ -115,9 +163,21 @@ export async function extractEmbeddedImages(buffer: ArrayBuffer, onProgress?: Pr
 
   try {
     for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
-      const page = await doc.getPage(pageNum);
-      const ops = await page.getOperatorList();
+      const page = await withTimeout(doc.getPage(pageNum), `第 ${pageNum} 页加载`);
+      const ops = await withTimeout(page.getOperatorList(), `第 ${pageNum} 页扫描`);
       let index = 0;
+      let rendered = false;
+      const ensureImagesDecoded = async () => {
+        if (rendered) return;
+        const viewport = page.getViewport({ scale: 1 });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.floor(viewport.width));
+        canvas.height = Math.max(1, Math.floor(viewport.height));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('无法创建画布上下文');
+        await withTimeout(page.render({ canvas: null, canvasContext: ctx, viewport }).promise, `第 ${pageNum} 页图片解码`);
+        rendered = true;
+      };
 
       for (let i = 0; i < ops.fnArray.length; i++) {
         const fn = ops.fnArray[i];
@@ -125,9 +185,16 @@ export async function extractEmbeddedImages(buffer: ArrayBuffer, onProgress?: Pr
 
         if (fn === pdfjsLib.OPS.paintImageXObject) {
           const name = ops.argsArray[i][0] as string;
-          img = await new Promise<PdfImageObject>((resolve) => {
-            page.objs.get(name, resolve as (value: unknown) => void);
-          });
+          // getOperatorList 只列出 XObject 名称；部分 WebView 不会在此阶段解析 page.objs。
+          // 先渲染一次页面触发解析，再读取对象，避免 promise 永久 pending。
+          if (!page.objs.has(name)) await ensureImagesDecoded();
+          if (!page.objs.has(name)) continue;
+          img = await withTimeout(
+            new Promise<PdfImageObject>((resolve) => {
+              page.objs.get(name, resolve as (value: unknown) => void);
+            }),
+            `第 ${pageNum} 页图片解码`
+          );
         } else if (fn === pdfjsLib.OPS.paintInlineImageXObject) {
           img = ops.argsArray[i][0] as PdfImageObject;
         }
@@ -143,7 +210,7 @@ export async function extractEmbeddedImages(buffer: ArrayBuffer, onProgress?: Pr
       onProgress?.(pageNum, doc.numPages);
     }
   } finally {
-    await task.destroy();
+    await destroyPdfTask(task);
   }
   return results;
 }
@@ -160,7 +227,7 @@ export async function rasterCompressPdf(
 
   try {
     for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
+      const page = await withTimeout(doc.getPage(i), `第 ${i} 页加载`);
       const baseViewport = page.getViewport({ scale: 1 });
       const viewport = page.getViewport({ scale });
 
@@ -170,9 +237,9 @@ export async function rasterCompressPdf(
       const ctx = canvas.getContext('2d')!;
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvas, viewport }).promise;
+      await withTimeout(page.render({ canvas: null, canvasContext: ctx, viewport }).promise, `第 ${i} 页渲染`);
 
-      const jpeg = await canvasToBlob(canvas, 'image/jpeg', opts.quality);
+      const jpeg = await withTimeout(canvasToBlob(canvas, 'image/jpeg', opts.quality), `第 ${i} 页导出`);
       const embedded = await out.embedJpg(await jpeg.arrayBuffer());
       const pdfPage = out.addPage([baseViewport.width, baseViewport.height]);
       pdfPage.drawImage(embedded, {
@@ -184,7 +251,7 @@ export async function rasterCompressPdf(
       onProgress?.(i, doc.numPages);
     }
   } finally {
-    await task.destroy();
+    await destroyPdfTask(task);
   }
 
   return out.save();
