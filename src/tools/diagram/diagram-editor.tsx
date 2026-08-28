@@ -2,6 +2,7 @@ import Editor from '@monaco-editor/react';
 import { openTextDocument } from '@/lib/local-documents';
 import { saveBytes } from '@/lib/file-save';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { useTheme } from '@/hooks/use-theme';
 import {
   Download,
@@ -216,10 +217,10 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
           </label>
           <Button variant="ghost" size="sm" onClick={() => resetSource()} aria-label="新建图表"><FilePlus2 />新建</Button>
           <Button variant="ghost" size="sm" onClick={() => resetSource(true)} aria-label="清空图表"><Trash2 />清空</Button>
-          <Button variant="ghost" size="sm" onClick={() => void handleImport()} aria-label="导入源文件"><Upload />导入</Button>
-          <Button variant="ghost" size="sm" onClick={() => void exportSource()} aria-label="导出源文件"><FileText />导出源</Button>
-          <Button variant="ghost" size="sm" onClick={() => void exportSvg()} disabled={!preview} aria-label="导出 SVG"><Download />SVG</Button>
-          <Button variant="ghost" size="sm" onClick={() => void exportPng()} disabled={!preview} aria-label="导出 PNG"><FileImage />PNG</Button>
+          <LoadingButton variant="ghost" size="sm" onClick={handleImport} aria-label="导入源文件"><Upload />导入</LoadingButton>
+          <LoadingButton variant="ghost" size="sm" onClick={exportSource} aria-label="导出源文件"><FileText />导出</LoadingButton>
+          <LoadingButton variant="ghost" size="sm" onClick={exportSvg} disabled={!preview} aria-label="导出 SVG"><Download />SVG</LoadingButton>
+          <LoadingButton variant="ghost" size="sm" onClick={exportPng} disabled={!preview} aria-label="导出 PNG"><FileImage />PNG</LoadingButton>
           <Button
             variant="ghost"
             size="icon"

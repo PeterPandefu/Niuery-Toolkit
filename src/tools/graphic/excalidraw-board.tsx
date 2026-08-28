@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Download, FilePlus2, FolderOpen, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { saveBytes } from '@/lib/file-save';
 import {
   discardRecoverySnapshot,
@@ -174,11 +175,11 @@ export default function ExcalidrawBoard() {
     <section className="flex h-full min-h-0 flex-col bg-background">
       <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border/80 bg-card/40 px-3 py-2">
         <Button variant="ghost" size="sm" onClick={startNew} title={t('whiteboard.newTitle')}><FilePlus2 className="mr-1.5 h-4 w-4" />{t('whiteboard.new')}</Button>
-        <Button variant="ghost" size="sm" onClick={() => void open()} title={t('whiteboard.openTitle')}><FolderOpen className="mr-1.5 h-4 w-4" />{t('whiteboard.open')}</Button>
-        <Button variant="ghost" size="sm" onClick={() => void save()} title={t('whiteboard.saveTitle')}><Save className="mr-1.5 h-4 w-4" />{t('whiteboard.save')}{dirty ? ' •' : ''}</Button>
+        <LoadingButton variant="ghost" size="sm" onClick={open} title={t('whiteboard.openTitle')}><FolderOpen className="mr-1.5 h-4 w-4" />{t('whiteboard.open')}</LoadingButton>
+        <LoadingButton variant="ghost" size="sm" onClick={save} title={t('whiteboard.saveTitle')}><Save className="mr-1.5 h-4 w-4" />{t('whiteboard.save')}{dirty ? ' •' : ''}</LoadingButton>
         <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={() => void exportScene('png')}><Download className="mr-1.5 h-4 w-4" />PNG</Button>
-          <Button variant="ghost" size="sm" onClick={() => void exportScene('svg')}><Download className="mr-1.5 h-4 w-4" />SVG</Button>
+          <LoadingButton variant="ghost" size="sm" onClick={() => exportScene('png')}><Download className="mr-1.5 h-4 w-4" />PNG</LoadingButton>
+          <LoadingButton variant="ghost" size="sm" onClick={() => exportScene('svg')}><Download className="mr-1.5 h-4 w-4" />SVG</LoadingButton>
         </div>
       </div>
       {recoverySnapshots.length > 0 && (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading-button';
 import { ImageViewer } from '@/components/media/image-viewer';
 import { saveBytes, saveResults, type SaveFile } from '@/lib/file-save';
 import { formatBytes } from '@/lib/utils';
@@ -99,7 +100,7 @@ export function ProcessingResultPreview({ sourceFiles, result }: { sourceFiles: 
           <h3 className="text-sm font-semibold">{resultLabel}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">结果仅保存在当前界面，确认后再选择保存位置</p>
         </div>
-        <Button size="sm" onClick={() => void saveAll()}><Download />{result.files.length === 1 ? '保存结果' : '保存全部'}</Button>
+        <LoadingButton size="sm" onClick={saveAll}><Download />{result.files.length === 1 ? '保存结果' : '保存全部'}</LoadingButton>
       </div>
 
       {isSingleComparison ? (
@@ -125,7 +126,7 @@ export function ProcessingResultPreview({ sourceFiles, result }: { sourceFiles: 
               <figcaption className="mt-1 truncate text-[11px] text-muted-foreground" title={file.name}>{file.name}</figcaption>
               <div className="mt-2 flex items-center justify-between gap-1">
                 <span className="text-[11px] text-muted-foreground">{formatBytes(file.blob.size)}</span>
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void saveOne(file)}><Download />保存</Button>
+                <LoadingButton variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => saveOne(file)}><Download />保存</LoadingButton>
               </div>
             </figure>
           ))}
