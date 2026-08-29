@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import {
   Excalidraw,
+  MainMenu,
   exportToBlob,
   exportToSvg,
   loadFromBlob,
@@ -27,6 +28,23 @@ const TOOL_ID = 'excalidraw-board';
 type ExcalidrawProps = ComponentProps<typeof Excalidraw>;
 type SceneChange = Parameters<NonNullable<ExcalidrawProps['onChange']>>;
 type ExcalidrawApi = Parameters<NonNullable<ExcalidrawProps['excalidrawAPI']>>[0];
+
+function ExcalidrawMainMenu() {
+  const { DefaultItems } = MainMenu;
+
+  return (
+    <MainMenu>
+      <DefaultItems.LoadScene />
+      <DefaultItems.SaveToActiveFile />
+      <DefaultItems.Export />
+      <DefaultItems.SaveAsImage />
+      <DefaultItems.ClearCanvas />
+      <MainMenu.Separator />
+      <DefaultItems.ToggleTheme />
+      <DefaultItems.ChangeCanvasBackground />
+    </MainMenu>
+  );
+}
 
 function createRecoveryId() {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -200,6 +218,8 @@ export default function ExcalidrawBoard() {
       )}
       <div className="min-h-0 flex-1">
         <Excalidraw
+          // 使用宿主菜单，移除不适用于本地工具的搜索、帮助和社区链接。
+          children={<ExcalidrawMainMenu />}
           excalidrawAPI={(api) => { apiRef.current = api; }}
           onChange={onChange}
           langCode={i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en'}

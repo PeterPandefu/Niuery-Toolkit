@@ -466,6 +466,16 @@ pub struct StickyNoteItem {
     pub color: String,
     /// 便签呈现方式：plain 普通便签，timeline 时间轴便签。
     pub mode: String,
+    pub timeline_entries: Vec<TimelineEntry>,
+}
+
+/// 时间轴中的单条记录。
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TimelineEntry {
+    pub id: String,
+    pub timestamp: String,
+    pub content: String,
 }
 
 /// 悬浮窗口内的便签集合。
@@ -495,6 +505,17 @@ impl Default for StickyNoteItem {
             content: String::new(),
             color: "yellow".to_string(),
             mode: "plain".to_string(),
+            timeline_entries: Vec::new(),
+        }
+    }
+}
+
+impl Default for TimelineEntry {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            timestamp: String::new(),
+            content: String::new(),
         }
     }
 }
@@ -554,6 +575,22 @@ fn normalize_document(mut document: StickyNotesDocument) -> StickyNotesDocument 
         if !matches!(note.mode.as_str(), "plain" | "timeline") {
             note.mode = "plain".to_string();
         }
+        if note.mode == "timeline" {
+            // 旧版时间轴内容是多行纯文本，本版本不迁移，直接清空。
+            note.content.clear();
+        }
+        note.timeline_entries
+            .retain(|entry| !entry.content.trim().is_empty());
+        for (entry_index, entry) in note.timeline_entries.iter_mut().enumerate() {
+            if entry.id.trim().is_empty() {
+                entry.id = format!("{}-timeline-{}", note.id, entry_index + 1);
+            }
+            if entry.content.len() > MAX_NOTE_LENGTH {
+                entry.content = entry.content.chars().take(MAX_NOTE_LENGTH).collect();
+            }
+        }
+        note.timeline_entries
+            .sort_by(|left, right| right.timestamp.cmp(&left.timestamp));
     }
 
     if !document
