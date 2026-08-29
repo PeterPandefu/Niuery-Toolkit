@@ -13,6 +13,8 @@ import {
   getDocStats,
   extractOutline,
   generateExportHtml,
+  findRemoteResources,
+  getMarkdownExportTitle,
   escapeHtml,
   MARKDOWN_TEMPLATES,
 } from '@/lib/markdown-utils';
@@ -260,11 +262,30 @@ describe('generateExportHtml', () => {
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('<h1>Hello</h1>');
     expect(html).toContain('charset="UTF-8"');
+    expect(html).toContain('@page { size: A4 portrait; margin: 18mm; }');
   });
 
   it('应转义标题中的特殊字符', () => {
     const html = generateExportHtml('', 'A <B> & "C"');
     expect(html).toContain('A &lt;B&gt; &amp; &quot;C&quot;');
+  });
+});
+
+describe('PDF 导出辅助函数', () => {
+  it('应识别会联网加载的远程资源并去重', () => {
+    const resources = findRemoteResources(
+      '<img src="https://example.com/a.png"><img src="https://example.com/a.png"><div style="background:url(https://cdn.example.com/bg.png)"></div>'
+    );
+    expect(resources).toEqual(['https://example.com/a.png', 'https://cdn.example.com/bg.png']);
+  });
+
+  it('应允许本地和 data 资源', () => {
+    expect(findRemoteResources('<img src="./a.png"><img src="data:image/png;base64,abc">')).toEqual([]);
+  });
+
+  it('应从首个一级标题推导打印标题', () => {
+    expect(getMarkdownExportTitle('## 子标题\n# 我的文档 #')).toBe('我的文档');
+    expect(getMarkdownExportTitle('没有标题')).toBe('Markdown Export');
   });
 });
 
