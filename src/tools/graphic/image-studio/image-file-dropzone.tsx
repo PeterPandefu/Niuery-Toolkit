@@ -8,6 +8,7 @@ import {
   formatClipboardRelativeTime,
   loadClipboardImageFile,
   loadClipboardImageHistory,
+  loadClipboardImageThumbnails,
   type ClipboardImageEntry,
 } from './clipboard-image-history';
 
@@ -63,8 +64,10 @@ export function ImageFileDropzone({ files, onChange, multiple = false, accept = 
     if (!isTauri) return;
     setBusy(true);
     try {
-      setHistory((await loadClipboardImageHistory()).slice(0, 20));
+      const recent = (await loadClipboardImageHistory()).slice(0, 20);
+      setHistory(recent);
       setHistoryOpen(true);
+      void loadClipboardImageThumbnails(recent).then(setHistory);
     } catch (error) {
       toast.error(`加载图片历史失败：${error instanceof Error ? error.message : String(error)}`);
     } finally {

@@ -299,6 +299,7 @@ pub fn run() {
             recorder::prepare_gif_editor,
             clipboard::init_clipboard_history,
             clipboard::get_clipboard_history,
+            clipboard::get_clipboard_thumbnail,
             clipboard::get_clipboard_image,
             clipboard::copy_text_to_clipboard,
             clipboard::copy_image_from_history,
