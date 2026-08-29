@@ -51,7 +51,7 @@ describe('StickyNoteApp', () => {
 
     expect(invokeMock).toHaveBeenCalledWith('update_sticky_notes', {
       document: {
-        notes: [{ id: 'note-1', title: '便签 1', content: '更新后的内容', color: 'lime' }],
+        notes: [{ id: 'note-1', title: '便签 1', content: '更新后的内容', color: 'lime', timelineEntries: [] }],
         activeId: 'note-1',
         alwaysOnTop: true,
       },
@@ -266,7 +266,7 @@ describe('StickyNoteApp', () => {
     expect(renameButton).toHaveFocus();
   });
 
-  it('可切换时间轴模式，并通过顶部加号新增时间轴记录', async () => {
+  it('可通过顶部空白区域双击新增时间轴记录，并双击记录编辑', async () => {
     render(<StickyNoteApp />);
     await act(async () => {
       await Promise.resolve();
@@ -275,7 +275,40 @@ describe('StickyNoteApp', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'stickyNote.toggleMode' }));
     expect(screen.getByLabelText('stickyNote.timeline')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.addTimelineEntry' }));
-    expect(screen.getByRole('textbox', { name: 'stickyNote.editorLabel' })).toHaveValue('先完成便签\n');
+    expect(screen.queryByRole('textbox', { name: 'stickyNote.editorLabel' })).not.toBeInTheDocument();
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'stickyNote.timelinePlaceholder' }));
+    expect(screen.getByRole('dialog', { name: 'stickyNote.newTimelineEntry' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'stickyNote.timelineContent' }), { target: { value: '新的记录' } });
+    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.confirm' }));
+    expect(screen.getByText('新的记录')).toBeInTheDocument();
+    fireEvent.doubleClick(screen.getByText('新的记录'));
+    expect(screen.getByRole('dialog', { name: 'stickyNote.editTimelineEntry' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'stickyNote.timelineContent' })).toHaveValue('新的记录');
+  });
+
+  it('加载时间轴记录时按时间从晚到早显示', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'get_sticky_notes') {
+        return Promise.resolve({
+          notes: [{
+            id: 'note-1', title: '时间轴', content: '旧版内容', color: 'lime', mode: 'timeline',
+            timelineEntries: [
+              { id: 'late', timestamp: '2026-08-29T12:00:00.000Z', content: '较晚' },
+              { id: 'early', timestamp: '2026-08-29T08:00:00.000Z', content: '较早' },
+            ],
+          }],
+          activeId: 'note-1', alwaysOnTop: true,
+        });
+      }
+      return Promise.resolve();
+    });
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const entries = Array.from(document.querySelectorAll('.sticky-note-timeline-entry p')).map((node) => node.textContent);
+    expect(entries).toEqual(['较晚', '较早']);
+    expect(screen.queryByText('旧版内容')).not.toBeInTheDocument();
   });
 });

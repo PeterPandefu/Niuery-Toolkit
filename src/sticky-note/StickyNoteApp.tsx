@@ -16,6 +16,20 @@ interface StickyNoteItem {
   content: string;
   color: NoteColor;
   mode?: NoteMode;
+  timelineEntries?: TimelineEntry[];
+}
+
+interface TimelineEntry {
+  id: string;
+  timestamp: string;
+  content: string;
+}
+
+interface TimelineEditorDraft {
+  entryId: string | null;
+  date: string;
+  time: string;
+  content: string;
 }
 
 interface StickyNotesDocument {
@@ -39,7 +53,7 @@ const NOTE_COLORS: { id: NoteColor; label: string; surface: string; border: stri
 ];
 
 const EMPTY_DOCUMENT: StickyNotesDocument = {
-  notes: [{ id: 'note-1', title: '便签 1', content: '', color: 'yellow' }],
+  notes: [{ id: 'note-1', title: '便签 1', content: '', color: 'yellow', timelineEntries: [] }],
   activeId: 'note-1',
   alwaysOnTop: true,
 };
@@ -53,7 +67,35 @@ function getNoteColor(color: NoteColor) {
 
 function createNote(index: number): StickyNoteItem {
   const color = NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)].id;
-  return { id: `note-${Date.now()}-${index}`, title: `便签 ${index}`, content: '', color, mode: 'plain' };
+  return { id: `note-${Date.now()}-${index}`, title: `便签 ${index}`, content: '', color, mode: 'plain', timelineEntries: [] };
+}
+
+function getLocalDateTimeParts(timestamp = new Date().toISOString()) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return getLocalDateTimeParts();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
+}
+
+function formatTimelineTimestamp(timestamp: string) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return timestamp;
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(date);
+}
+
+function sortTimelineEntries(entries: TimelineEntry[]) {
+  return [...entries].sort((left, right) => {
+    const leftTime = Date.parse(left.timestamp);
+    const rightTime = Date.parse(right.timestamp);
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) return rightTime - leftTime;
+    return right.timestamp.localeCompare(left.timestamp);
+  });
 }
 
 export default function StickyNoteApp() {
@@ -67,6 +109,8 @@ export default function StickyNoteApp() {
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const [dropAnchor, setDropAnchor] = useState<{ targetId: string; placeAfter: boolean } | null>(null);
+  const [timelineEditor, setTimelineEditor] = useState<TimelineEditorDraft | null>(null);
+  const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<NoteContextMenu | null>(null);
   const contextMenuRenameRef = useRef<HTMLButtonElement>(null);
   const contextMenuDeleteRef = useRef<HTMLButtonElement>(null);
@@ -81,7 +125,6 @@ export default function StickyNoteApp() {
   const previousRowRectsRef = useRef<Map<string, DOMRect> | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const addedNoteIdRef = useRef<string | null>(null);
-  const [timelineTimestamp] = useState(() => new Date().toLocaleString());
   const [editingTitle, setEditingTitle] = useState(false);
 
   useEffect(() => {
@@ -97,7 +140,13 @@ export default function StickyNoteApp() {
           setDocument({
             ...EMPTY_DOCUMENT,
             ...savedDocument,
-            notes: savedDocument.notes?.length ? savedDocument.notes : EMPTY_DOCUMENT.notes,
+            notes: savedDocument.notes?.length
+              ? savedDocument.notes.map((note) => ({
+                ...note,
+                content: note.mode === 'timeline' ? '' : note.content,
+                timelineEntries: sortTimelineEntries(note.timelineEntries ?? []),
+              }))
+              : EMPTY_DOCUMENT.notes,
           });
         }
       })
@@ -181,6 +230,10 @@ export default function StickyNoteApp() {
   const activeNote = document.notes.find((note) => note.id === document.activeId) ?? document.notes[0];
   const selectedColor = getNoteColor(activeNote.color);
   const isTimeline = activeNote.mode === 'timeline';
+  const timelineEntries = activeNote.timelineEntries ?? [];
+  const activeContentLength = isTimeline
+    ? timelineEntries.reduce((total, entry) => total + entry.content.length, 0)
+    : activeNote.content.length;
   const visibleNotes = document.notes.filter((note) => {
     const query = searchQuery.trim().toLocaleLowerCase();
     return !query || `${note.title} ${note.content}`.toLocaleLowerCase().includes(query);
@@ -218,12 +271,52 @@ export default function StickyNoteApp() {
     });
   }, []);
 
-  const addTimelineEntry = useCallback(() => {
-    updateActiveNote({ content: activeNote.content ? `${activeNote.content}\n` : '' });
-  }, [activeNote.content, updateActiveNote]);
+  const openTimelineEditor = useCallback((entry?: TimelineEntry) => {
+    const parts = getLocalDateTimeParts(entry?.timestamp);
+    setTimelineEditor({
+      entryId: entry?.id ?? null,
+      date: parts.date,
+      time: parts.time,
+      content: entry?.content ?? '',
+    });
+  }, []);
+
+  const closeTimelineEditor = useCallback(() => setTimelineEditor(null), []);
+
+  useEffect(() => {
+    if (!timelineEditor) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeTimelineEditor();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [timelineEditor, closeTimelineEditor]);
+
+  const saveTimelineEditor = useCallback(() => {
+    if (!timelineEditor || !timelineEditor.content.trim()) return;
+    const timestamp = new Date(`${timelineEditor.date}T${timelineEditor.time}`).toISOString();
+    const entry: TimelineEntry = {
+      id: timelineEditor.entryId ?? `timeline-${Date.now()}`,
+      timestamp,
+      content: timelineEditor.content.trim(),
+    };
+    setDocument((current) => ({
+      ...current,
+      notes: current.notes.map((note) => {
+        if (note.id !== current.activeId) return note;
+        const entries = note.timelineEntries ?? [];
+        const nextEntries = timelineEditor.entryId
+          ? entries.map((item) => (item.id === entry.id ? entry : item))
+          : [...entries, entry];
+        return { ...note, content: '', timelineEntries: sortTimelineEntries(nextEntries) };
+      }),
+    }));
+    setSelectedTimelineEntryId(entry.id);
+    setTimelineEditor(null);
+  }, [timelineEditor]);
 
   const toggleMode = useCallback(() => {
-    updateActiveNote({ mode: isTimeline ? 'plain' : 'timeline' });
+    updateActiveNote({ mode: isTimeline ? 'plain' : 'timeline', content: '' });
   }, [isTimeline, updateActiveNote]);
 
   const handleDragStart = useCallback((event: React.MouseEvent<HTMLElement>) => {
@@ -577,7 +670,7 @@ export default function StickyNoteApp() {
           )}
           {searchOpen && <input className="sticky-note-search-input" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={t('stickyNote.searchPlaceholder')} aria-label={t('stickyNote.search')} autoFocus />}
           <div className="sticky-note-actions" data-note-control>
-            <button type="button" data-note-control className="sticky-note-icon-button" aria-label={isTimeline ? t('stickyNote.addTimelineEntry') : t('stickyNote.add')} title={isTimeline ? t('stickyNote.addTimelineEntry') : t('stickyNote.add')} onClick={isTimeline ? addTimelineEntry : addNote}>
+            <button type="button" data-note-control className="sticky-note-icon-button" aria-label={isTimeline ? t('stickyNote.addTimelineEntry') : t('stickyNote.add')} title={isTimeline ? t('stickyNote.addTimelineEntry') : t('stickyNote.add')} onClick={isTimeline ? () => openTimelineEditor() : addNote}>
               <Plus aria-hidden="true" />
             </button>
             <button type="button" data-note-control className="sticky-note-icon-button" aria-label={t('stickyNote.toggleMode')} title={t('stickyNote.toggleMode')} aria-pressed={isTimeline} onClick={toggleMode}>
@@ -605,27 +698,64 @@ export default function StickyNoteApp() {
 
           {isTimeline && (
             <div className="sticky-note-timeline" aria-label={t('stickyNote.timeline')}>
-              {activeNote.content.split('\n').filter(Boolean).map((entry, index) => (
-                <article className="sticky-note-timeline-entry" key={`${activeNote.id}-${index}`}>
+              <button type="button" className="sticky-note-timeline-add-zone" onDoubleClick={() => openTimelineEditor()}>
+                <Plus aria-hidden="true" />
+                <span>{t('stickyNote.timelinePlaceholder')}</span>
+              </button>
+              {timelineEntries.map((entry) => (
+                <article
+                  className={`sticky-note-timeline-entry${selectedTimelineEntryId === entry.id ? ' is-selected' : ''}`}
+                  key={entry.id}
+                  tabIndex={0}
+                  onClick={() => setSelectedTimelineEntryId(entry.id)}
+                  onDoubleClick={() => openTimelineEditor(entry)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openTimelineEditor(entry);
+                    }
+                  }}
+                >
                   <span className="sticky-note-timeline-dot" aria-hidden="true" />
-                  <time>{timelineTimestamp}</time>
-                  <p>{entry}</p>
+                  <time dateTime={entry.timestamp}>{formatTimelineTimestamp(entry.timestamp)}</time>
+                  <p>{entry.content}</p>
                 </article>
               ))}
-              {!activeNote.content.trim() && <p className="sticky-note-timeline-empty">{t('stickyNote.timelinePlaceholder')}</p>}
+              {!timelineEntries.length && <p className="sticky-note-timeline-empty">{t('stickyNote.timelinePlaceholder')}</p>}
             </div>
           )}
-          <textarea className={isTimeline ? 'sticky-note-editor sticky-note-editor-timeline' : 'sticky-note-editor'} value={activeNote.content} onChange={(event) => updateActiveNote({ content: event.target.value })} placeholder={t('stickyNote.placeholder')} aria-label={t('stickyNote.editorLabel')} spellCheck autoFocus />
+          {!isTimeline && <textarea className="sticky-note-editor" value={activeNote.content} onChange={(event) => updateActiveNote({ content: event.target.value })} placeholder={t('stickyNote.placeholder')} aria-label={t('stickyNote.editorLabel')} spellCheck autoFocus />}
 
           <footer className="sticky-note-footer">
             <span className={saveError ? 'sticky-note-status is-error' : 'sticky-note-status'} role={saveError ? 'alert' : 'status'}>
               {saveError ? <CircleOff aria-hidden="true" /> : <Check aria-hidden="true" />}
               {saveError ? t('stickyNote.saveFailed') : t('stickyNote.autoSaved')}
             </span>
-            <span>{activeNote.content.length} {t('stickyNote.characters')}</span>
+            <span>{activeContentLength} {t('stickyNote.characters')}</span>
           </footer>
         </section>
       </div>
+
+      {timelineEditor && (
+        <div className="sticky-note-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeTimelineEditor(); }}>
+          <section className="sticky-note-modal" role="dialog" aria-modal="true" aria-labelledby="sticky-note-timeline-editor-title">
+            <div className="sticky-note-modal-header">
+              <h2 id="sticky-note-timeline-editor-title">{timelineEditor.entryId ? t('stickyNote.editTimelineEntry') : t('stickyNote.newTimelineEntry')}</h2>
+              <button type="button" className="sticky-note-icon-button" aria-label={t('stickyNote.cancel')} onClick={closeTimelineEditor}><X aria-hidden="true" /></button>
+            </div>
+            <div className="sticky-note-modal-fields">
+              <label><span>{t('stickyNote.timelineDate')}</span><input type="date" value={timelineEditor.date} onChange={(event) => setTimelineEditor((current) => current ? { ...current, date: event.target.value } : current)} /></label>
+              <label><span>{t('stickyNote.timelineTime')}</span><input type="time" value={timelineEditor.time} onChange={(event) => setTimelineEditor((current) => current ? { ...current, time: event.target.value } : current)} /></label>
+            </div>
+            <button type="button" className="sticky-note-modal-now" onClick={() => { const parts = getLocalDateTimeParts(); setTimelineEditor((current) => current ? { ...current, ...parts } : current); }}>{t('stickyNote.useCurrentTime')}</button>
+            <label className="sticky-note-modal-content"><span>{t('stickyNote.timelineContent')}</span><textarea autoFocus value={timelineEditor.content} onChange={(event) => setTimelineEditor((current) => current ? { ...current, content: event.target.value } : current)} /></label>
+            <div className="sticky-note-modal-actions">
+              <button type="button" className="sticky-note-modal-button is-secondary" onClick={closeTimelineEditor}>{t('stickyNote.cancel')}</button>
+              <button type="button" className="sticky-note-modal-button is-primary" disabled={!timelineEditor.content.trim() || !timelineEditor.date || !timelineEditor.time} onClick={saveTimelineEditor}>{t('stickyNote.confirm')}</button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
