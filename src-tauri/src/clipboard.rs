@@ -335,22 +335,31 @@ fn generate_thumbnail(config_dir: &PathBuf, filename: &str) -> Option<String> {
     Some(base64::engine::general_purpose::STANDARD.encode(&buf))
 }
 
-/// 将 entry 转换为前端展示视图
-fn entry_to_view(entry: &ClipboardEntry, config_dir: &PathBuf) -> ClipboardEntryView {
-    let image_thumbnail = entry
-        .image_filename
-        .as_ref()
-        .and_then(|f| generate_thumbnail(config_dir, f));
-
+/// 将 entry 转换为前端展示视图。
+///
+/// 历史列表首次打开只需要元数据，缩略图通过独立命令按需加载，避免在
+/// Tauri 命令线程中同步读取并解码所有历史图片。
+fn entry_to_view(entry: &ClipboardEntry) -> ClipboardEntryView {
     ClipboardEntryView {
         id: entry.id.clone(),
         content_type: entry.content_type.clone(),
         text: entry.text.clone(),
         file_paths: entry.file_paths.clone(),
-        image_thumbnail,
+        image_thumbnail: None,
         preview: entry.preview.clone(),
         timestamp: entry.timestamp,
     }
+}
+
+/// 将新条目转换为事件视图。新产生的条目只有一张图片，生成缩略图不会
+/// 阻塞历史列表的首次加载；保留它可以让已打开的列表立即显示新图片。
+fn entry_to_event_view(entry: &ClipboardEntry, config_dir: &PathBuf) -> ClipboardEntryView {
+    let mut view = entry_to_view(entry);
+    view.image_thumbnail = entry
+        .image_filename
+        .as_ref()
+        .and_then(|filename| generate_thumbnail(config_dir, filename));
+    view
 }
 
 /// 启动后台剪贴板监控线程
@@ -559,7 +568,7 @@ fn add_entry(app: &AppHandle, config_dir: &PathBuf, entry: ClipboardEntry) {
     save_history(config_dir, &entries);
 
     // 发送事件到前端
-    let view = entry_to_view(&entry, config_dir);
+    let view = entry_to_event_view(&entry, config_dir);
     let _ = app.emit("clipboard-new-entry", view);
 }
 
@@ -596,14 +605,30 @@ pub fn init_clipboard_history(app: AppHandle) -> Result<(), String> {
 pub fn get_clipboard_history(app: AppHandle) -> Result<Vec<ClipboardEntryView>, String> {
     let state = app.state::<ClipboardHistoryState>();
     let entries = state.entries.lock().unwrap();
-    let config_dir = state.config_dir.lock().unwrap();
 
-    let views = entries
-        .iter()
-        .map(|e| entry_to_view(e, &config_dir))
-        .collect();
+    let views = entries.iter().map(entry_to_view).collect();
 
     Ok(views)
+}
+
+/// 获取指定历史图片的缩略图。该命令只在图片进入可视区域时调用，避免
+/// 首次打开历史列表时批量解码所有图片。
+#[tauri::command]
+pub fn get_clipboard_thumbnail(app: AppHandle, id: String) -> Result<Option<String>, String> {
+    let state = app.state::<ClipboardHistoryState>();
+
+    let (config_dir, filename) = {
+        let entries = state.entries.lock().unwrap();
+        let config_dir = state.config_dir.lock().unwrap();
+        let entry = entries
+            .iter()
+            .find(|entry| entry.id == id)
+            .ok_or_else(|| "未找到记录".to_string())?;
+
+        (config_dir.clone(), entry.image_filename.clone())
+    };
+
+    Ok(filename.and_then(|filename| generate_thumbnail(&config_dir, &filename)))
 }
 
 /// 获取指定图片的完整 base64 数据
@@ -740,4 +765,36 @@ pub fn clear_clipboard_history(app: AppHandle) -> Result<(), String> {
     save_history(&config_dir, &entries);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_view_does_not_decode_image_thumbnail() {
+        let config_dir =
+            std::env::temp_dir().join(format!("niuery-clipboard-test-{}", nanoid::nanoid!(8)));
+        let image_dir = images_dir(&config_dir);
+        std::fs::create_dir_all(&image_dir).expect("创建测试图片目录失败");
+        let image_path = image_dir.join("image.png");
+        image::RgbaImage::from_pixel(32, 32, image::Rgba([0, 128, 255, 255]))
+            .save(&image_path)
+            .expect("写入测试图片失败");
+
+        let entry = ClipboardEntry {
+            id: "test-image".to_string(),
+            content_type: ClipboardContentType::Image,
+            text: None,
+            file_paths: None,
+            image_filename: Some("image.png".to_string()),
+            preview: "图片 32x32".to_string(),
+            timestamp: 0,
+        };
+
+        let view = entry_to_view(&entry);
+        assert!(view.image_thumbnail.is_none());
+
+        let _ = std::fs::remove_dir_all(config_dir);
+    }
 }
