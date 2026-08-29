@@ -1,12 +1,44 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Keyboard, StickyNote as StickyNoteIcon } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from '@/lib/api-client';
+import { DEFAULT_STICKY_NOTE_HOTKEY, getStickyNoteHotkey, HOTKEYS_CHANGED_EVENT, type HotkeyBindings } from '@/lib/hotkeys';
+
+function formatShortcutDisplay(shortcut: string) {
+  return shortcut.split('+').map((part) => part.trim()).filter(Boolean).join(' + ');
+}
 
 export default function StickyNoteTool() {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
+  const [stickyNoteHotkey, setStickyNoteHotkey] = useState(DEFAULT_STICKY_NOTE_HOTKEY);
+  const hasReceivedHotkeyUpdate = useRef(false);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    let cancelled = false;
+    const handleHotkeysChanged = (event: Event) => {
+      const { stickyNote } = (event as CustomEvent<HotkeyBindings>).detail;
+      if (!stickyNote) return;
+      hasReceivedHotkeyUpdate.current = true;
+      setStickyNoteHotkey(stickyNote);
+    };
+
+    window.addEventListener(HOTKEYS_CHANGED_EVENT, handleHotkeysChanged);
+    void invoke<HotkeyBindings>('get_hotkeys')
+      .then((hotkeys) => {
+        if (!cancelled && !hasReceivedHotkeyUpdate.current) {
+          setStickyNoteHotkey(getStickyNoteHotkey(hotkeys));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(HOTKEYS_CHANGED_EVENT, handleHotkeysChanged);
+    };
+  }, []);
 
   const openStickyNote = () => {
     if (!isTauri) return;
@@ -41,7 +73,7 @@ export default function StickyNoteTool() {
           </button>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2.5 py-2 font-mono text-xs text-muted-foreground">
             <Keyboard className="h-3.5 w-3.5" aria-hidden="true" />
-            Ctrl + Alt + N
+            {formatShortcutDisplay(stickyNoteHotkey)}
           </span>
         </div>
 
