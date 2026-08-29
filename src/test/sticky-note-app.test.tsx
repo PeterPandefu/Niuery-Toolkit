@@ -192,6 +192,48 @@ describe('StickyNoteApp', () => {
     expect(screen.getByRole('button', { name: '便签 3' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('按住标签拖动时会让邻近标签实时让位', async () => {
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const addButton = screen.getAllByRole('button', { name: 'stickyNote.add' })[0];
+    fireEvent.click(addButton);
+    fireEvent.click(addButton);
+    const note1 = screen.getByRole('button', { name: '便签 1' });
+    const note3 = screen.getByRole('button', { name: '便签 3' });
+    const note3Row = note3.closest('.sticky-note-tab-row')!;
+    vi.spyOn(note3Row, 'getBoundingClientRect').mockReturnValue({ top: 30, height: 30, bottom: 60 } as DOMRect);
+    Object.defineProperty(document, 'elementsFromPoint', { configurable: true, value: vi.fn(() => [note3, note3Row]) });
+    fireEvent.pointerDown(note1, { button: 0, pointerId: 1, clientX: 10, clientY: 0 });
+    expect(document.querySelector('.sticky-note-floating-tab')).toBeNull();
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 10, clientY: 50 });
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    expect(document.querySelector('.sticky-note-floating-tab')).toBeInTheDocument();
+    expect(document.querySelector('.sticky-note-drop-gap')).toBeInTheDocument();
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 10, clientY: 50 });
+
+    expect(Array.from(document.querySelectorAll('.sticky-note-tab')).map((tab) => tab.textContent)).toEqual(['便签 2', '便签 3', '便签 1']);
+    expect(document.querySelector('.sticky-note-tab-row.is-dragging')).toBeNull();
+  });
+
+  it('单击标签切换时不会立即进入拖动动画状态', async () => {
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const noteTab = screen.getByRole('button', { name: '便签 1' });
+    fireEvent.pointerDown(noteTab, { button: 0, pointerId: 2, clientX: 10, clientY: 10 });
+    expect(document.querySelector('.sticky-note-floating-tab')).toBeNull();
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 10, clientY: 10 });
+  });
+
   it('可从右键菜单重命名便签', async () => {
     render(<StickyNoteApp />);
     await act(async () => {
