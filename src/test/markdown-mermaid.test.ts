@@ -23,8 +23,8 @@ describe('Mermaid Markdown 渲染', () => {
 
     const html = await renderMarkdown('```mermaid\nflowchart TD\n  A --> B\n```', { scheme: 'dark', locale: 'zh-CN' });
 
-    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ securityLevel: 'strict', startOnLoad: false, theme: 'dark' }));
-    expect(render).toHaveBeenCalledWith(expect.stringMatching(/^niuery-mermaid-\d+$/), 'flowchart TD\n  A --> B\n');
+    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ securityLevel: 'strict', startOnLoad: false, suppressErrorRendering: true, theme: 'dark' }));
+    expect(render).toHaveBeenCalledWith(expect.stringMatching(/^niuery-mermaid-\d+$/), 'flowchart TD\n  A --> B\n', expect.any(HTMLElement));
     expect(html).toContain('<svg data-mermaid="flowchart"></svg>');
     expect(html).toContain('Mermaid 图表');
     expect(html).toContain('显示 Mermaid 源码');
@@ -40,6 +40,31 @@ describe('Mermaid Markdown 渲染', () => {
     expect(html).toContain('Mermaid diagram syntax error');
     expect(html).toContain('Parse error on line 2');
     expect(html).toContain('not valid');
+  });
+
+  it('合法 Mermaid 图表会成功渲染', async () => {
+    render.mockImplementation((_id: string, _source: string, container?: HTMLElement) => {
+      if (!container?.isConnected) return Promise.reject(new Error("Cannot read properties of null (reading 'getAttribute')"));
+      return Promise.resolve({ svg: '<svg data-mermaid="flowchart"></svg>' });
+    });
+
+    const html = await renderMarkdown('```mermaid\nflowchart TD\n  A --> B\n```');
+
+    expect(html).toContain('<svg data-mermaid="flowchart"></svg>');
+    expect(html).not.toContain('Mermaid diagram syntax error');
+  });
+
+  it('Mermaid 解析失败时不会把全局错误图表注入页面', async () => {
+    render.mockImplementation((_id: string, _source: string, container?: HTMLElement) => {
+      const target = container ?? document.body;
+      target.insertAdjacentHTML('beforeend', '<svg class="mermaid-global-error"><text>Syntax error in text</text></svg>');
+      return Promise.reject(new Error('Parse error on line 2'));
+    });
+
+    const html = await renderMarkdown('```mermaid\nnot valid\n```\n\n```mermaid\nalso not valid\n```', { locale: 'en' });
+
+    expect(document.body.querySelectorAll('.mermaid-global-error')).toHaveLength(0);
+    expect((html.match(/class="mermaid-error"/g) ?? [])).toHaveLength(2);
   });
 
   it('预览副作用重复执行时不会重新渲染已经完成的图表', async () => {

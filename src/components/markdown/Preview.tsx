@@ -91,13 +91,23 @@ async function renderMermaidSvg(source: string, scheme: ColorScheme): Promise<st
   const mermaid = await getMermaid();
   mermaid.initialize({
     startOnLoad: false,
+    // 错误由调用方渲染为可控的错误卡片，避免 Mermaid 将错误 SVG 注入 document.body。
+    suppressErrorRendering: true,
     securityLevel: 'strict',
     theme: scheme === 'dark' ? 'dark' : 'default',
     fontFamily: 'IBM Plex Sans, Noto Sans SC, sans-serif',
   });
   const id = `niuery-mermaid-${++diagramSequence}`;
-  const { svg } = await mermaid.render(id, source);
-  return svg;
+  const container = document.createElement('div');
+  container.setAttribute('aria-hidden', 'true');
+  container.style.display = 'none';
+  document.body.appendChild(container);
+  try {
+    const { svg } = await mermaid.render(id, source, container);
+    return svg;
+  } finally {
+    container.remove();
+  }
 }
 
 /** 将 Markdown 生成的 Mermaid 占位符替换为本地、安全的 SVG。 */
