@@ -459,12 +459,54 @@ export function generateExportHtml(renderedBody: string, title = 'Markdown Expor
   .mermaid-source pre { margin: 0.5rem 0 0; white-space: pre-wrap; }
   .mermaid-error { margin: 0.75rem; border: 1px solid #ef4444; border-radius: 6px; background: #fef2f2; color: #b91c1c; padding: 0.75rem; }
   @media (prefers-color-scheme: dark) { .mermaid-error { background: #450a0a; color: #fecaca; } }
+  @page { size: A4 portrait; margin: 18mm; }
+  @media print {
+    :root { --bg: #ffffff; --fg: #111827; --muted: #4b5563; --border: #d1d5db; --code-bg: #f3f4f6; --quote-bg: #f9fafb; }
+    body { max-width: none; padding: 0; background: #ffffff; color: #111827; font-size: 11pt; }
+    a { color: inherit; text-decoration: underline; }
+    pre, blockquote, table, img, .mermaid-diagram { break-inside: avoid; page-break-inside: avoid; }
+    h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; }
+    .mermaid-diagram { overflow: visible; border-color: #d1d5db; }
+    .mermaid-svg { width: 100%; min-width: 0; }
+    .mermaid-svg svg { max-width: 100%; height: auto; }
+  }
 </style>
 </head>
 <body>
 ${renderedBody}
 </body>
 </html>`;
+}
+
+/** 查找导出 HTML 中会触发联网加载的远程资源。 */
+export function findRemoteResources(html: string): string[] {
+  if (typeof DOMParser === 'undefined') return [];
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  const resources = new Set<string>();
+  const selectors = [
+    '[src]',
+    '[href]',
+    '[data]',
+    '[style]',
+  ];
+  const urlPattern = /(?:https?:)?\/\/[^\s"'<>)]*/gi;
+  document.querySelectorAll<HTMLElement>(selectors.join(',')).forEach((element) => {
+    for (const attribute of ['src', 'href', 'data', 'style']) {
+      const value = element.getAttribute(attribute);
+      if (!value) continue;
+      for (const match of value.matchAll(urlPattern)) {
+        const url = match[0].replace(/[),.;]+$/, '');
+        if (/^https?:\/\//i.test(url)) resources.add(url);
+      }
+    }
+  });
+  return [...resources];
+}
+
+/** 从 Markdown 首个一级标题推导打印标题，找不到时使用默认标题。 */
+export function getMarkdownExportTitle(source: string, fallback = 'Markdown Export'): string {
+  const heading = source.match(/^\s*#\s+(.+?)\s*#*\s*$/m)?.[1]?.trim();
+  return heading || fallback;
 }
 
 /**
