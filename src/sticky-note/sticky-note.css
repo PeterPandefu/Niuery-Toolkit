@@ -108,6 +108,53 @@
   width: 68px;
   min-width: 68px;
   flex: 0 0 auto;
+  transition: transform 180ms ease, opacity 150ms ease;
+}
+
+.sticky-note-tab-row.is-dragging {
+  opacity: 0.42;
+}
+
+.sticky-note-drop-gap {
+  box-sizing: border-box;
+  width: 68px;
+  height: 30px;
+  margin: 0;
+  border: 1px dashed hsl(var(--primary) / 0.58);
+  border-radius: 0 4px 4px 0;
+  background: hsl(var(--primary) / 0.1);
+  opacity: 0.9;
+  transition: height 180ms ease, opacity 150ms ease, margin 180ms ease;
+}
+
+.sticky-note-floating-tab {
+  display: inline-flex;
+  position: fixed;
+  z-index: 30;
+  width: 68px;
+  min-width: 68px;
+  min-height: 30px;
+  box-sizing: border-box;
+  cursor: grabbing;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0;
+  border: 1px solid;
+  border-radius: 0 4px 4px 0;
+  padding: 0 7px 0 8px;
+  box-shadow: 0 8px 18px hsl(var(--shadow-tint) / 0.24), 0 2px 5px hsl(var(--shadow-tint) / 0.18);
+  color: #30280e;
+  font-size: 11px;
+  font-weight: 650;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.sticky-note-floating-tab span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 活动标签通过同色连接点标识当前右侧便签内容。 */
@@ -135,13 +182,22 @@
   justify-content: flex-start;
   border: 1px solid;
   border-radius: 0 4px 4px 0;
-  padding: 0 8px 0 11px;
+  padding: 0 7px 0 8px;
   color: #30280e;
   font-size: 11px;
   font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  touch-action: none;
+}
+
+.sticky-note-tab-grip {
+  width: 11px;
+  height: 14px;
+  flex: 0 0 11px;
+  margin-right: 3px;
+  opacity: 0.42;
 }
 
 .sticky-note-tab span {
@@ -158,6 +214,14 @@
 .sticky-note-tab:hover,
 .sticky-note-tab:focus-visible {
   transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky-note-tab-row,
+  .sticky-note-drop-gap,
+  .sticky-note-floating-tab {
+    transition-duration: 0.01ms;
+  }
 }
 
 .sticky-note-context-menu {
