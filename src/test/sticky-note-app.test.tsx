@@ -51,7 +51,7 @@ describe('StickyNoteApp', () => {
 
     expect(invokeMock).toHaveBeenCalledWith('update_sticky_notes', {
       document: {
-        notes: [{ id: 'note-1', title: '便签 1', content: '更新后的内容', color: 'lime' }],
+        notes: [{ id: 'note-1', title: '便签 1', content: '更新后的内容', color: 'lime', timelineEntries: [] }],
         activeId: 'note-1',
         alwaysOnTop: true,
       },
@@ -192,6 +192,48 @@ describe('StickyNoteApp', () => {
     expect(screen.getByRole('button', { name: '便签 3' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('按住标签拖动时会让邻近标签实时让位', async () => {
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const addButton = screen.getAllByRole('button', { name: 'stickyNote.add' })[0];
+    fireEvent.click(addButton);
+    fireEvent.click(addButton);
+    const note1 = screen.getByRole('button', { name: '便签 1' });
+    const note3 = screen.getByRole('button', { name: '便签 3' });
+    const note3Row = note3.closest('.sticky-note-tab-row')!;
+    vi.spyOn(note3Row, 'getBoundingClientRect').mockReturnValue({ top: 30, height: 30, bottom: 60 } as DOMRect);
+    Object.defineProperty(document, 'elementsFromPoint', { configurable: true, value: vi.fn(() => [note3, note3Row]) });
+    fireEvent.pointerDown(note1, { button: 0, pointerId: 1, clientX: 10, clientY: 0 });
+    expect(document.querySelector('.sticky-note-floating-tab')).toBeNull();
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 10, clientY: 50 });
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    expect(document.querySelector('.sticky-note-floating-tab')).toBeInTheDocument();
+    expect(document.querySelector('.sticky-note-drop-gap')).toBeInTheDocument();
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 10, clientY: 50 });
+
+    expect(Array.from(document.querySelectorAll('.sticky-note-tab')).map((tab) => tab.textContent)).toEqual(['便签 2', '便签 3', '便签 1']);
+    expect(document.querySelector('.sticky-note-tab-row.is-dragging')).toBeNull();
+  });
+
+  it('单击标签切换时不会立即进入拖动动画状态', async () => {
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const noteTab = screen.getByRole('button', { name: '便签 1' });
+    fireEvent.pointerDown(noteTab, { button: 0, pointerId: 2, clientX: 10, clientY: 10 });
+    expect(document.querySelector('.sticky-note-floating-tab')).toBeNull();
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 10, clientY: 10 });
+  });
+
   it('可从右键菜单重命名便签', async () => {
     render(<StickyNoteApp />);
     await act(async () => {
@@ -224,7 +266,7 @@ describe('StickyNoteApp', () => {
     expect(renameButton).toHaveFocus();
   });
 
-  it('可切换时间轴模式，并通过顶部加号新增时间轴记录', async () => {
+  it('可通过顶部空白区域双击新增时间轴记录，并双击记录编辑', async () => {
     render(<StickyNoteApp />);
     await act(async () => {
       await Promise.resolve();
@@ -233,7 +275,40 @@ describe('StickyNoteApp', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'stickyNote.toggleMode' }));
     expect(screen.getByLabelText('stickyNote.timeline')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.addTimelineEntry' }));
-    expect(screen.getByRole('textbox', { name: 'stickyNote.editorLabel' })).toHaveValue('先完成便签\n');
+    expect(screen.queryByRole('textbox', { name: 'stickyNote.editorLabel' })).not.toBeInTheDocument();
+    fireEvent.doubleClick(screen.getByRole('button', { name: 'stickyNote.timelinePlaceholder' }));
+    expect(screen.getByRole('dialog', { name: 'stickyNote.newTimelineEntry' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'stickyNote.timelineContent' }), { target: { value: '新的记录' } });
+    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.confirm' }));
+    expect(screen.getByText('新的记录')).toBeInTheDocument();
+    fireEvent.doubleClick(screen.getByText('新的记录'));
+    expect(screen.getByRole('dialog', { name: 'stickyNote.editTimelineEntry' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'stickyNote.timelineContent' })).toHaveValue('新的记录');
+  });
+
+  it('加载时间轴记录时按时间从晚到早显示', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'get_sticky_notes') {
+        return Promise.resolve({
+          notes: [{
+            id: 'note-1', title: '时间轴', content: '旧版内容', color: 'lime', mode: 'timeline',
+            timelineEntries: [
+              { id: 'late', timestamp: '2026-08-29T12:00:00.000Z', content: '较晚' },
+              { id: 'early', timestamp: '2026-08-29T08:00:00.000Z', content: '较早' },
+            ],
+          }],
+          activeId: 'note-1', alwaysOnTop: true,
+        });
+      }
+      return Promise.resolve();
+    });
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const entries = Array.from(document.querySelectorAll('.sticky-note-timeline-entry p')).map((node) => node.textContent);
+    expect(entries).toEqual(['较晚', '较早']);
+    expect(screen.queryByText('旧版内容')).not.toBeInTheDocument();
   });
 });
