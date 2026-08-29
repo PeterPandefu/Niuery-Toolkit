@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, CircleOff, Folder, GripVertical, ListTodo, Palette, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react';
+import { Check, CircleOff, Folder, ListTodo, Palette, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from '@/lib/api-client';
@@ -518,7 +518,7 @@ export default function StickyNoteApp() {
         <button type="button" className="sticky-note-add-button" aria-label={t('stickyNote.add')} title={t('stickyNote.add')} onClick={addNote}>
           <Plus aria-hidden="true" />
         </button>
-        <div className="sticky-note-tabs">
+        <div className="sticky-note-tabs" role="list">
           {visibleNotes.filter((note) => note.id !== draggedNoteId).map((note) => {
             const color = getNoteColor(note.color);
             const showGapBefore = dropAnchor?.targetId === note.id && !dropAnchor.placeAfter;
@@ -528,6 +528,7 @@ export default function StickyNoteApp() {
                 {showGapBefore && <div className="sticky-note-drop-gap" aria-hidden="true" />}
                 <div
                   className={`sticky-note-tab-row${note.id === document.activeId ? ' is-active' : ''}`}
+                  role="listitem"
                   style={{ '--tab-surface': color.surface, '--tab-border': color.border } as React.CSSProperties}
                   data-note-id={note.id}
                   ref={(element) => {
@@ -540,6 +541,8 @@ export default function StickyNoteApp() {
                   className="sticky-note-tab"
                   aria-label={note.title}
                   aria-pressed={note.id === document.activeId}
+                  aria-current={note.id === document.activeId ? 'true' : undefined}
+                  aria-keyshortcuts="ArrowUp ArrowDown ContextMenu"
                   title={note.title}
                   style={{ backgroundColor: color.surface, borderColor: color.border }}
                   ref={(element) => {
@@ -589,7 +592,6 @@ export default function StickyNoteApp() {
                     finishPointerDrag();
                   }}
                   >
-                    <GripVertical className="sticky-note-tab-grip" aria-hidden="true" />
                     <span>{note.mode === 'timeline' ? t('stickyNote.timeline') : note.title}</span>
                   </button>
                 </div>
@@ -610,7 +612,6 @@ export default function StickyNoteApp() {
             aria-hidden="true"
             style={{ left: 0, top: 0, transform: `translate3d(${dragPosition.x}px, ${dragPosition.y}px, 0) translate(-50%, -50%) rotate(1deg)`, backgroundColor: color.surface, borderColor: color.border }}
           >
-            <GripVertical className="sticky-note-tab-grip" />
             <span>{draggedNote.mode === 'timeline' ? t('stickyNote.timeline') : draggedNote.title}</span>
           </div>
         );
