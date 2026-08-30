@@ -6,11 +6,19 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
 import { useToolLogger } from '@/hooks/use-tool-logger';
-import { Copy, Upload } from 'lucide-react';
+import { Copy, FileIcon, Upload } from 'lucide-react';
+import { md5 } from 'js-md5';
 
-type HashAlgorithm = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
+type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
 
-const ALGORITHMS: HashAlgorithm[] = ['SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
+const ALGORITHMS: HashAlgorithm[] = ['MD5', 'SHA-1', 'SHA-256', 'SHA-384', 'SHA-512'];
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 async function computeHash(
   data: string | ArrayBuffer,
@@ -18,6 +26,9 @@ async function computeHash(
 ): Promise<string> {
   const encoder = new TextEncoder();
   const buffer = typeof data === 'string' ? encoder.encode(data) : data;
+  if (algorithm === 'MD5') {
+    return md5(buffer);
+  }
   const hashBuffer = await crypto.subtle.digest(algorithm, buffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -28,6 +39,9 @@ async function computeHmac(
   key: string,
   algorithm: HashAlgorithm
 ): Promise<string> {
+  if (algorithm === 'MD5') {
+    return md5.hmac(key, data);
+  }
   const encoder = new TextEncoder();
   const keyData = encoder.encode(key);
   const cryptoKey = await crypto.subtle.importKey(
@@ -45,6 +59,7 @@ async function computeHmac(
 export default function HashGenerator() {
   const [input, setInput] = useState('');
   const [hmacKey, setHmacKey] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [hashes, setHashes] = useState<Record<string, string>>({});
   const [computing, setComputing] = useState(false);
   const log = useToolLogger('hash-generator');
@@ -90,6 +105,8 @@ export default function HashGenerator() {
     }
 
     log.info('选择文件', { name: file.name, size: file.size });
+    setInput('');
+    setSelectedFile(file);
     setComputing(true);
     try {
       const buffer = await file.arrayBuffer();
@@ -135,6 +152,8 @@ export default function HashGenerator() {
                   const file = e.target.files?.[0];
                   if (!file) return;
                   log.info('选择文件', { name: file.name, size: file.size });
+                  setInput('');
+                  setSelectedFile(file);
                   const buffer = await file.arrayBuffer();
                   setComputing(true);
                   const results: Record<string, string> = {};
@@ -153,10 +172,24 @@ export default function HashGenerator() {
           </div>
           <Textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              if (e.target.value) setSelectedFile(null);
+            }}
             placeholder="输入要计算哈希的文本..."
             className="min-h-[120px] resize-none font-mono text-sm"
           />
+          {selectedFile && (
+            <div className="flex min-w-0 items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2" aria-live="polite">
+              <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate text-sm" title={selectedFile.name}>
+                {selectedFile.name}
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {formatFileSize(selectedFile.size)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* HMAC Key */}
