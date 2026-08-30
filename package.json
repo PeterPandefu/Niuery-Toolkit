@@ -16,7 +16,8 @@
     "prepare": "husky",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "prepare:chromium": "powershell -ExecutionPolicy Bypass -File scripts/prepare-chromium.ps1"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [

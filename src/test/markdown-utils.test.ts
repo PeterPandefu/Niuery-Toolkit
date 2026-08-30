@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   wrapSelection,
   toggleLinePrefix,
@@ -15,6 +15,8 @@ import {
   generateExportHtml,
   findRemoteResources,
   getMarkdownExportTitle,
+  generateExportSvg,
+  printHtmlInCurrentWindow,
   escapeHtml,
   MARKDOWN_TEMPLATES,
 } from '@/lib/markdown-utils';
@@ -286,6 +288,26 @@ describe('PDF 导出辅助函数', () => {
   it('应从首个一级标题推导打印标题', () => {
     expect(getMarkdownExportTitle('## 子标题\n# 我的文档 #')).toBe('我的文档');
     expect(getMarkdownExportTitle('没有标题')).toBe('Markdown Export');
+    expect(getMarkdownExportTitle('没有标题', '未命名')).toBe('未命名');
+  });
+
+  it('应生成包含正文的独立 SVG 快照', () => {
+    const svg = generateExportSvg('<h1>文档</h1>', '标题');
+    expect(svg).toContain('<foreignObject');
+    expect(svg).toContain('<h1>文档</h1>');
+    expect(svg).toContain('aria-label="标题"');
+  });
+
+  it('应在当前窗口打印正文并在清理后恢复页面', () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    const cleanup = printHtmlInCurrentWindow('<h1>打印正文</h1>');
+    expect(print).toHaveBeenCalledOnce();
+    expect(document.querySelector('#markdown-pdf-print-root')?.textContent).toContain('打印正文');
+    expect(document.body.dataset.markdownPdfPrinting).toBe('true');
+    cleanup();
+    expect(document.querySelector('#markdown-pdf-print-root')).toBeNull();
+    expect(document.body.dataset.markdownPdfPrinting).toBeUndefined();
+    print.mockRestore();
   });
 });
 
