@@ -277,6 +277,26 @@ registerTool({
 });
 
 registerTool({
+  id: 'html-renderer',
+  name: 'HTML 离线渲染器',
+  icon: Globe,
+  category: 'text',
+  component: lazy(() => import('@/tools/formatter/html-renderer')),
+  keywords: ['html', 'preview', 'pdf', 'png', 'screenshot', '离线', '预览', '渲染'],
+  description: 'HTML 本地预览与 Chromium 高质量 PDF/PNG 导出',
+});
+
+registerTool({
+  id: 'report-generator',
+  name: '数据报告生成器',
+  icon: FileText,
+  category: 'data',
+  component: lazy(() => import('@/tools/formatter/report-generator')),
+  keywords: ['json', 'report', 'table', 'pdf', 'png', '报告', '表格', '导出'],
+  description: 'JSON 数据表格的离线预览与 PDF/PNG 导出',
+});
+
+registerTool({
   id: 'mermaid-editor',
   name: 'Mermaid 实时编辑器',
   icon: Workflow,

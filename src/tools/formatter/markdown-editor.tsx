@@ -11,17 +11,22 @@ import { Button } from '@/components/ui/button';
 import { useTheme } from '@/hooks/use-theme';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 import { toast } from 'sonner';
+import { invoke } from '@tauri-apps/api/core';
+import { saveBytes } from '@/lib/file-save';
+import { isTauri } from '@/lib/api-client';
 import {
   Columns2,
   Eye,
   PenLine,
   Download,
   FileCode2,
+  FileImage,
   Copy,
   Upload,
   FileText,
   ListTree,
   PanelLeftClose,
+  Printer,
 } from 'lucide-react';
 import {
   wrapSelection,
@@ -35,7 +40,10 @@ import {
   indentLines,
   outdentLines,
   generateExportHtml,
-  downloadFile,
+  findRemoteResources,
+  getMarkdownExportTitle,
+  generateExportSvg,
+  printHtmlInCurrentWindow,
   MARKDOWN_TEMPLATES,
 } from '@/lib/markdown-utils';
 import { copyToClipboard } from '@/lib/utils';
@@ -76,6 +84,7 @@ export default function MarkdownEditor() {
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
   const [showOutline, setShowOutline] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const previewRef = useRef<PreviewHandle>(null);
@@ -289,20 +298,141 @@ export default function MarkdownEditor() {
   }, [t, log]);
 
   // 导出 Markdown
-  const handleExportMd = useCallback(() => {
-    downloadFile(content, 'document.md', 'text/markdown');
+  const handleExportMd = useCallback(async () => {
+    const path = await saveBytes(
+      'document.md',
+      new TextEncoder().encode(content),
+      'Markdown 文件',
+      ['md', 'markdown'],
+    );
+    if (!path) {
+      toast.info(t('markdownEditor.exportCancelled'));
+      return;
+    }
     log.info('导出 Markdown 文件', { length: content.length });
-    toast.success(t('markdownEditor.exportedMd'));
+    toast.success(t('markdownEditor.exportedMd', {
+      path: isTauri ? path : t('markdownEditor.browserDownloadLocation'),
+    }));
   }, [content, t, log]);
 
   // 导出 HTML
   const handleExportHtml = useCallback(async () => {
     const rendered = await renderMarkdown(content, { scheme, locale: i18n.resolvedLanguage ?? i18n.language });
     const html = generateExportHtml(rendered);
-    downloadFile(html, 'document.html', 'text/html');
+    const path = await saveBytes(
+      'document.html',
+      new TextEncoder().encode(html),
+      'HTML 文件',
+      ['html', 'htm'],
+    );
+    if (!path) {
+      toast.info(t('markdownEditor.exportCancelled'));
+      return;
+    }
     log.info('导出 HTML 文件', { length: html.length });
-    toast.success(t('markdownEditor.exportedHtml'));
+    toast.success(t('markdownEditor.exportedHtml', {
+      path: isTauri ? path : t('markdownEditor.browserDownloadLocation'),
+    }));
   }, [content, i18n.language, i18n.resolvedLanguage, log, scheme, t]);
+
+  // 通过系统打印对话框导出 PDF
+  const handleExportPdf = useCallback(async () => {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+    try {
+      const rendered = await renderMarkdown(content, {
+        scheme,
+        locale: i18n.resolvedLanguage ?? i18n.language,
+      });
+      const remoteResources = findRemoteResources(rendered);
+      if (remoteResources.length > 0) {
+        toast.error(t('markdownEditor.pdfExportBlocked', { resources: remoteResources.join('\n') }));
+        return;
+      }
+
+      const title = getMarkdownExportTitle(content, t('markdownEditor.untitled'));
+      const html = generateExportHtml(rendered, title);
+      if (!isTauri) {
+        printHtmlInCurrentWindow(html);
+        toast.info(t('markdownEditor.pdfPrintOpened'));
+        log.info('打开浏览器 PDF 打印对话框', { length: html.length });
+        return;
+      }
+
+      const bytes = await invoke<number[]>('render_html_to_pdf', { html });
+      const filename = `${title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || t('markdownEditor.untitled')}.pdf`;
+      const path = await saveBytes(filename, new Uint8Array(bytes), 'PDF 文件', ['pdf']);
+      if (!path) {
+        toast.info(t('markdownEditor.exportCancelled'));
+        return;
+      }
+      toast.success(t('markdownEditor.exportedPdf', { path }));
+      log.info('导出 PDF 文件', { length: bytes.length, path });
+    } catch (error) {
+      const details = error instanceof Error ? error.message : String(error);
+      toast.error(t('markdownEditor.pdfExportFailed', { details }));
+      log.error('生成 PDF 打印内容失败', { error: details });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }, [content, i18n.language, i18n.resolvedLanguage, isExportingPdf, log, scheme, t]);
+
+  const handleExportPng = useCallback(async () => {
+    if (isExportingPdf) return;
+    if (!isTauri) {
+      toast.error(t('markdownEditor.pngExportRequiresDesktop'));
+      return;
+    }
+    setIsExportingPdf(true);
+    try {
+      const rendered = await renderMarkdown(content, {
+        scheme,
+        locale: i18n.resolvedLanguage ?? i18n.language,
+      });
+      const remoteResources = findRemoteResources(rendered);
+      if (remoteResources.length > 0) {
+        toast.error(t('markdownEditor.pdfExportBlocked', { resources: remoteResources.join('\n') }));
+        return;
+      }
+      const title = getMarkdownExportTitle(content, t('markdownEditor.untitled'));
+      const html = generateExportHtml(rendered, title);
+      const bytes = await invoke<number[]>('render_html_to_png', { html, width: 1440, height: 10000 });
+      const filename = `${title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || t('markdownEditor.untitled')}.png`;
+      const path = await saveBytes(filename, new Uint8Array(bytes), 'PNG 图像', ['png']);
+      if (!path) {
+        toast.info(t('markdownEditor.exportCancelled'));
+        return;
+      }
+      toast.success(t('markdownEditor.exportedPng', { path }));
+      log.info('导出 Markdown PNG 文件', { length: bytes.length, path });
+    } catch (error) {
+      const details = error instanceof Error ? error.message : String(error);
+      toast.error(t('markdownEditor.pngExportFailed', { details }));
+      log.error('生成 Markdown PNG 失败', { error: details });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }, [content, i18n.language, i18n.resolvedLanguage, isExportingPdf, log, scheme, t]);
+
+  const handleExportSvg = useCallback(async () => {
+    try {
+      const rendered = await renderMarkdown(content, {
+        scheme,
+        locale: i18n.resolvedLanguage ?? i18n.language,
+      });
+      const remoteResources = findRemoteResources(rendered);
+      if (remoteResources.length > 0) {
+        toast.error(t('markdownEditor.pdfExportBlocked', { resources: remoteResources.join('\n') }));
+        return;
+      }
+      const title = getMarkdownExportTitle(content, t('markdownEditor.untitled'));
+      const svg = generateExportSvg(rendered, title);
+      const path = await saveBytes(`${title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || t('markdownEditor.untitled')}.svg`, new TextEncoder().encode(svg), 'SVG 图像', ['svg']);
+      if (path) toast.success(t('markdownEditor.exportedSvg', { path: isTauri ? path : t('markdownEditor.browserDownloadLocation') }));
+    } catch (error) {
+      toast.error(t('markdownEditor.svgExportFailed', { details: error instanceof Error ? error.message : String(error) }));
+    }
+  }, [content, i18n.language, i18n.resolvedLanguage, scheme, t]);
 
   // 复制 HTML
   const handleCopyHtml = useCallback(async () => {
@@ -414,6 +544,31 @@ export default function MarkdownEditor() {
             <Download className="h-3.5 w-3.5" />
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleExportHtml} title={t('markdownEditor.exportHtml')}>
+            <FileCode2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleExportPdf}
+            disabled={isExportingPdf}
+            title={t('markdownEditor.exportPdf')}
+            aria-label={t('markdownEditor.exportPdf')}
+          >
+            <Printer className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleExportPng}
+            disabled={isExportingPdf}
+            title={t('markdownEditor.exportPng')}
+            aria-label={t('markdownEditor.exportPng')}
+          >
+            <FileImage className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleExportSvg} title={t('markdownEditor.exportSvg')} aria-label={t('markdownEditor.exportSvg')}>
             <FileCode2 className="h-3.5 w-3.5" />
           </Button>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopyHtml} title={t('markdownEditor.copyHtml')}>

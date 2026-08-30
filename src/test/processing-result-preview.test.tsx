@@ -2,19 +2,22 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProcessingResultPreview } from '@/tools/graphic/image-studio/processing-result-preview';
 
-const { invokeMock, toastSuccess, toastMessage } = vi.hoisted(() => ({
+const { invokeMock, toastSuccess, toastMessage, toastInfo } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   toastSuccess: vi.fn(),
   toastMessage: vi.fn(),
+  toastInfo: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('@/lib/api-client', () => ({ isTauri: true }));
-vi.mock('sonner', () => ({ toast: { success: toastSuccess, message: toastMessage, error: vi.fn() } }));
+vi.mock('sonner', () => ({ toast: { success: toastSuccess, message: toastMessage, info: toastInfo, error: vi.fn() } }));
 
 describe('ProcessingResultPreview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} });
+    invokeMock.mockResolvedValue('C:\\Users\\Peter\\Pictures\\result.png');
     vi.stubGlobal('URL', { createObjectURL: vi.fn((_: Blob) => 'blob:preview'), revokeObjectURL: vi.fn() });
   });
 

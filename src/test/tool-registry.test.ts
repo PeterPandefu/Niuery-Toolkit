@@ -3,8 +3,8 @@ import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } 
 import { TOOL_CATEGORY_ORDER } from '@/types/tool';
 
 describe('工具注册表', () => {
-  it('完整注册 48 个工具', () => {
-    expect(getAllTools()).toHaveLength(48);
+  it('完整注册 50 个工具', () => {
+    expect(getAllTools()).toHaveLength(50);
   });
 
   it('按任务导向的稳定顺序返回 10 个分类', () => {
@@ -12,9 +12,9 @@ describe('工具注册表', () => {
   });
 
   it.each([
-    ['data', 11],
+    ['data', 12],
     ['security', 9],
-    ['text', 9],
+    ['text', 10],
     ['generator', 4],
     ['image', 3],
     ['canvas', 3],

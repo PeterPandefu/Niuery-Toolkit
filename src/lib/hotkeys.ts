@@ -2,6 +2,7 @@ export type HotkeyBindings = Record<string, string>;
 
 export const DEFAULT_SCREENSHOT_HOTKEY = 'Ctrl+Alt+A';
 export const DEFAULT_LONGSHOT_HOTKEY = 'Ctrl+Alt+S';
+export const DEFAULT_STICKY_NOTE_HOTKEY = 'Ctrl+Alt+N';
 export const HOTKEYS_CHANGED_EVENT = 'niuery:hotkeys-changed';
 
 export function getScreenshotHotkey(hotkeys: HotkeyBindings): string {
@@ -10,6 +11,10 @@ export function getScreenshotHotkey(hotkeys: HotkeyBindings): string {
 
 export function getLongshotHotkey(hotkeys: HotkeyBindings): string {
   return hotkeys.longshot || DEFAULT_LONGSHOT_HOTKEY;
+}
+
+export function getStickyNoteHotkey(hotkeys: HotkeyBindings): string {
+  return hotkeys.stickyNote || DEFAULT_STICKY_NOTE_HOTKEY;
 }
 
 export function emitHotkeysChanged(hotkeys: HotkeyBindings) {

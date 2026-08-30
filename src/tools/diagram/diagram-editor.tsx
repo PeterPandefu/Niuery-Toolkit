@@ -1,6 +1,9 @@
 import Editor from '@monaco-editor/react';
 import { openTextDocument } from '@/lib/local-documents';
-import { saveBytes } from '@/lib/file-save';
+import { saveBytesWithFeedback } from '@/lib/file-save';
+import { isTauri } from '@/lib/api-client';
+import { generateExportHtml } from '@/lib/markdown-utils';
+import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { useTheme } from '@/hooks/use-theme';
@@ -9,6 +12,7 @@ import {
   FileImage,
   FilePlus2,
   FileText,
+  Printer,
   RefreshCw,
   Trash2,
   Upload,
@@ -16,6 +20,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  ensureDiagramBackground,
   ensureWhiteDiagramBackground,
   getDiagramDefaultSource,
   getDiagramExportName,
@@ -23,6 +28,7 @@ import {
   type DiagramKind,
 } from './diagram-editor-utils';
 import { ImageViewer } from '@/components/media/image-viewer';
+import { getThemeTokens } from '@/lib/theme';
 
 type DiagramScheme = 'light' | 'dark';
 
@@ -97,7 +103,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
   const labels = useMemo(() => kind === 'mermaid'
     ? { title: 'Mermaid 实时编辑器', source: 'Mermaid 源码', extension: 'mmd' }
     : { title: 'PlantUML 实时编辑器', source: 'PlantUML 源码', extension: 'puml' }, [kind]);
-  const { monacoTheme, scheme } = useTheme();
+  const { monacoTheme, scheme, skin = 'forge' } = useTheme();
   const [source, setSource] = useState(() => readLocalStorage(draftStorageKey(kind), getDiagramDefaultSource(kind)));
   const [debouncedSource, setDebouncedSource] = useState(source);
   const [followTheme, setFollowTheme] = useState(() => readFollowTheme(kind));
@@ -107,8 +113,12 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
   const [refreshRevision, setRefreshRevision] = useState(0);
   const [pendingImport, setPendingImport] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const renderRequestRef = useRef(0);
 
   const effectiveScheme: DiagramScheme = followTheme ? scheme : 'light';
+  const themeBackground = followTheme
+    ? `hsl(${getThemeTokens(skin, effectiveScheme).background})`
+    : '#ffffff';
   const previewSource = useMemo(
     () => preview ? new Blob([preview.svg], { type: 'image/svg+xml;charset=utf-8' }) : null,
     [preview],
@@ -129,6 +139,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
   }, [followTheme, kind]);
 
   const render = useCallback(async () => {
+    const requestId = ++renderRequestRef.current;
     if (!debouncedSource.trim()) {
       setError('请输入图表源码后再预览。');
       return;
@@ -136,14 +147,19 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
     setIsRendering(true);
     try {
       const result = await renderer.render(debouncedSource, { scheme: effectiveScheme });
-      setPreview(followTheme ? result : { ...result, svg: ensureWhiteDiagramBackground(result.svg) });
+      if (requestId !== renderRequestRef.current) return;
+      setPreview({
+        ...result,
+        svg: followTheme ? ensureDiagramBackground(result.svg, themeBackground) : ensureWhiteDiagramBackground(result.svg),
+      });
       setError(null);
     } catch (renderError) {
+      if (requestId !== renderRequestRef.current) return;
       setError(renderError instanceof Error ? renderError.message : String(renderError));
     } finally {
-      setIsRendering(false);
+      if (requestId === renderRequestRef.current) setIsRendering(false);
     }
-  }, [debouncedSource, effectiveScheme, followTheme, renderer]);
+  }, [debouncedSource, effectiveScheme, followTheme, renderer, themeBackground]);
 
   useEffect(() => {
     void render();
@@ -171,7 +187,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
   }, []);
 
   const exportSource = useCallback(async () => {
-    await saveBytes(
+    await saveBytesWithFeedback(
       getDiagramExportName(kind, 'source'),
       new Blob([source], { type: getDiagramSourceMimeType(kind) }),
       `${labels.title} 源文件`,
@@ -181,19 +197,38 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
 
   const exportSvg = useCallback(async () => {
     if (!preview) return;
-    await saveBytes(getDiagramExportName(kind, 'svg'), new Blob([preview.svg], { type: 'image/svg+xml;charset=utf-8' }), 'SVG 图像', ['svg']);
+    await saveBytesWithFeedback(getDiagramExportName(kind, 'svg'), new Blob([preview.svg], { type: 'image/svg+xml;charset=utf-8' }), 'SVG 图像', ['svg']);
   }, [kind, preview]);
 
   const exportPng = useCallback(async () => {
     if (!preview) return;
-    const png = preview.png ?? await renderer.renderPng?.(debouncedSource, { scheme: effectiveScheme });
-    await saveBytes(
+    // PlantUML 暗色 PNG 默认是透明的；跟随主题时从已注入背景的 SVG 栅格化，
+    // 避免透明区域在 WebView 或图片查看器中再次显示为黑色。
+    const png = followTheme
+      ? await rasterizeSvg(preview.svg)
+      : preview.png ?? await renderer.renderPng?.(debouncedSource, { scheme: effectiveScheme });
+    await saveBytesWithFeedback(
       getDiagramExportName(kind, 'png'),
       png ?? await rasterizeSvg(preview.svg),
       'PNG 图像',
       ['png'],
     );
-  }, [debouncedSource, effectiveScheme, kind, preview, renderer]);
+  }, [debouncedSource, effectiveScheme, followTheme, kind, preview, renderer]);
+
+  const exportPdf = useCallback(async () => {
+    if (!preview) return;
+    if (!isTauri) {
+      toast.error('PDF 导出仅支持 Tauri 桌面应用');
+      return;
+    }
+    try {
+      const html = generateExportHtml(`<main class="diagram-pdf">${preview.svg}</main>`, labels.title);
+      const bytes = await invoke<number[]>('render_html_to_pdf', { html });
+      await saveBytesWithFeedback(getDiagramExportName(kind, 'pdf'), new Uint8Array(bytes), 'PDF 文件', ['pdf']);
+    } catch (error) {
+      toast.error(`PDF 导出失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [kind, labels.title, preview]);
 
   const resetSource = useCallback((clear = false) => {
     setSource(clear ? '' : getDiagramDefaultSource(kind));
@@ -221,6 +256,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
           <LoadingButton variant="ghost" size="sm" onClick={exportSource} aria-label="导出源文件"><FileText />导出</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportSvg} disabled={!preview} aria-label="导出 SVG"><Download />SVG</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportPng} disabled={!preview} aria-label="导出 PNG"><FileImage />PNG</LoadingButton>
+          <LoadingButton variant="ghost" size="sm" onClick={exportPdf} disabled={!preview} aria-label="导出 PDF"><Printer />PDF</LoadingButton>
           <Button
             variant="ghost"
             size="icon"

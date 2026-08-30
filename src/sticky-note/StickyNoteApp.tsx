@@ -518,7 +518,7 @@ export default function StickyNoteApp() {
         <button type="button" className="sticky-note-add-button" aria-label={t('stickyNote.add')} title={t('stickyNote.add')} onClick={addNote}>
           <Plus aria-hidden="true" />
         </button>
-        <div className="sticky-note-tabs">
+        <div className="sticky-note-tabs" role="list">
           {visibleNotes.filter((note) => note.id !== draggedNoteId).map((note) => {
             const color = getNoteColor(note.color);
             const showGapBefore = dropAnchor?.targetId === note.id && !dropAnchor.placeAfter;
@@ -528,6 +528,7 @@ export default function StickyNoteApp() {
                 {showGapBefore && <div className="sticky-note-drop-gap" aria-hidden="true" />}
                 <div
                   className={`sticky-note-tab-row${note.id === document.activeId ? ' is-active' : ''}`}
+                  role="listitem"
                   style={{ '--tab-surface': color.surface, '--tab-border': color.border } as React.CSSProperties}
                   data-note-id={note.id}
                   ref={(element) => {
@@ -540,6 +541,8 @@ export default function StickyNoteApp() {
                   className="sticky-note-tab"
                   aria-label={note.title}
                   aria-pressed={note.id === document.activeId}
+                  aria-current={note.id === document.activeId ? 'true' : undefined}
+                  aria-keyshortcuts="ArrowUp ArrowDown ContextMenu"
                   title={note.title}
                   style={{ backgroundColor: color.surface, borderColor: color.border }}
                   ref={(element) => {

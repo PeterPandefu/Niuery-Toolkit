@@ -451,20 +451,109 @@ export function generateExportHtml(renderedBody: string, title = 'Markdown Expor
   li { margin: 0.25em 0; }
   input[type="checkbox"] { margin-right: 0.5em; }
   del { color: var(--muted); }
-  .mermaid-diagram { margin: 1em 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg); }
-  .mermaid-svg { display: flex; width: max-content; min-width: 100%; justify-content: center; padding: 1rem; }
-  .mermaid-svg svg { max-width: none; height: auto; }
-  .mermaid-source { border-top: 1px solid var(--border); padding: 0.5rem 0.75rem; color: var(--muted); font-size: 0.75rem; }
-  .mermaid-source summary { cursor: pointer; }
-  .mermaid-source pre { margin: 0.5rem 0 0; white-space: pre-wrap; }
+  pre.mermaid-block { margin: 1em 0; padding: 0; overflow: visible; border: 0; background: transparent; }
+  pre.mermaid-block > code { display: block; padding: 0; background: transparent; color: inherit; font: inherit; white-space: normal; }
+  .mermaid-diagram { overflow-x: auto; background: var(--bg); }
+  .mermaid-svg { display: flex; width: max-content; min-width: 100%; justify-content: center; }
+  .mermaid-svg svg { max-width: none; height: auto; background: var(--bg) !important; }
+  .mermaid-svg svg rect.background, .mermaid-svg svg rect[class*="background"] { fill: var(--bg) !important; }
   .mermaid-error { margin: 0.75rem; border: 1px solid #ef4444; border-radius: 6px; background: #fef2f2; color: #b91c1c; padding: 0.75rem; }
   @media (prefers-color-scheme: dark) { .mermaid-error { background: #450a0a; color: #fecaca; } }
+  @page { size: A4 portrait; margin: 18mm; }
+  @media print {
+    :root { --bg: #ffffff; --fg: #111827; --muted: #4b5563; --border: #d1d5db; --code-bg: #f3f4f6; --quote-bg: #f9fafb; }
+    body { max-width: none; padding: 0; background: #ffffff; color: #111827; font-size: 11pt; }
+    a { color: inherit; text-decoration: underline; }
+    pre, blockquote, table, img, .mermaid-diagram { break-inside: avoid; page-break-inside: avoid; }
+    h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; }
+    .mermaid-diagram { overflow: visible; }
+    .mermaid-svg { width: 100%; min-width: 0; }
+    .mermaid-svg svg { max-width: 100%; height: auto; }
+  }
 </style>
 </head>
 <body>
 ${renderedBody}
 </body>
 </html>`;
+}
+
+/** 查找导出 HTML 中会触发联网加载的远程资源。 */
+export function findRemoteResources(html: string): string[] {
+  if (typeof DOMParser === 'undefined') return [];
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  const resources = new Set<string>();
+  const selectors = [
+    '[src]',
+    '[href]',
+    '[data]',
+    '[style]',
+  ];
+  const urlPattern = /(?:https?:)?\/\/[^\s"'<>)]*/gi;
+  document.querySelectorAll<HTMLElement>(selectors.join(',')).forEach((element) => {
+    for (const attribute of ['src', 'href', 'data', 'style']) {
+      const value = element.getAttribute(attribute);
+      if (!value) continue;
+      for (const match of value.matchAll(urlPattern)) {
+        const url = match[0].replace(/[),.;]+$/, '');
+        if (/^https?:\/\//i.test(url)) resources.add(url);
+      }
+    }
+  });
+  return [...resources];
+}
+
+/** 从 Markdown 首个一级标题推导打印标题，找不到时使用默认标题。 */
+export function getMarkdownExportTitle(source: string, fallback = 'Markdown Export'): string {
+  const heading = source.match(/^\s*#\s+(.+?)\s*#*\s*$/m)?.[1]?.trim();
+  return heading || fallback;
+}
+
+/** 生成可独立打开的 Markdown SVG 快照（使用 foreignObject 保留文本与样式）。 */
+export function generateExportSvg(renderedBody: string, title = 'Markdown Export'): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xhtml="http://www.w3.org/1999/xhtml" width="1200" height="2000" viewBox="0 0 1200 2000" role="img" aria-label="${escapeHtml(title)}">
+  <rect width="1200" height="2000" fill="#ffffff" />
+  <foreignObject x="48" y="48" width="1104" height="1904">
+    <xhtml:div xmlns="http://www.w3.org/1999/xhtml" style="font-family: system-ui, sans-serif; color: #111827; line-height: 1.75; font-size: 16px;">${renderedBody}</xhtml:div>
+  </foreignObject>
+</svg>`;
+}
+
+/** 在当前窗口创建专用打印根节点，避免隐藏 iframe 在 WebView 中打印空白。 */
+export function printHtmlInCurrentWindow(html: string): () => void {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const root = document.createElement('div');
+  root.id = 'markdown-pdf-print-root';
+  root.innerHTML = parsed.body.innerHTML;
+
+  const style = document.createElement('style');
+  style.dataset.markdownPdfPrint = 'true';
+  style.textContent = `
+    @media print {
+      body[data-markdown-pdf-printing="true"] > *:not(#markdown-pdf-print-root) { display: none !important; }
+      body[data-markdown-pdf-printing="true"] { background: #fff !important; }
+      #markdown-pdf-print-root { display: block !important; color: #111827; background: #fff; }
+    }
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(root);
+  document.body.dataset.markdownPdfPrinting = 'true';
+
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    root.remove();
+    style.remove();
+    delete document.body.dataset.markdownPdfPrinting;
+  };
+
+  window.addEventListener('afterprint', cleanup, { once: true });
+  window.focus();
+  window.print();
+  window.setTimeout(cleanup, 10000);
+  return cleanup;
 }
 
 /**
@@ -479,18 +568,11 @@ export function escapeHtml(text: string): string {
 }
 
 /**
- * 下载文件
+ * 保存文本文件
  */
-export function downloadFile(content: string, filename: string, mimeType = 'text/plain'): void {
-  const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+export async function downloadFile(content: string, filename: string, mimeType = 'text/plain'): Promise<string | null> {
+  const { saveBytesWithFeedback } = await import('@/lib/file-save');
+  return saveBytesWithFeedback(filename, new Blob([content], { type: `${mimeType};charset=utf-8` }), '文本文件', [filename.split('.').pop() || 'txt']);
 }
 
 // ==================== 模板 ====================

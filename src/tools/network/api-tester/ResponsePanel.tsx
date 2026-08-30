@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
 import { formatSize, tryFormatJson } from '@/lib/api-client';
 import type { ApiResponse, ScriptLog } from '@/store/api-tester-store';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 interface ResponsePanelProps {
   response: ApiResponse | null;
@@ -48,15 +49,9 @@ export function ResponsePanel({ response, loading, scriptLogs }: ResponsePanelPr
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!response) return;
-    const blob = new Blob([response.body], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `response-${response.status}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await saveBytesWithFeedback(`response-${response.status}.txt`, new Blob([response.body], { type: 'text/plain' }), '文本文件', ['txt']);
   };
 
   if (loading) {

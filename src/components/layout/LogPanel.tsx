@@ -4,6 +4,7 @@ import { useLogStore, exportLogsAsText } from '@/store/log-store';
 import { LogLevel } from '@/lib/logger';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 import { X, Trash2, Download, Copy, ArrowDown, ChevronRight } from 'lucide-react';
 
 const LEVEL_STYLES: Record<LogLevel, string> = {
@@ -81,14 +82,8 @@ export function LogPanel() {
       return;
     }
     const text = exportLogsAsText(entries);
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `niuery-toolkit-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('日志已导出');
+    const filename = `niuery-toolkit-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    await saveBytesWithFeedback(filename, new Blob([text], { type: 'text/plain;charset=utf-8' }), '文本文件', ['txt']);
   };
 
   const handleCopy = async () => {
