@@ -5,6 +5,7 @@ import {
   type FoldableCodeEditorHandle,
 } from '@/components/shared/FoldableCodeEditor';
 import { hasFoldableStructure } from '@/lib/structured-editor-folding';
+import { syncFormatterValuePreservingFormat } from '@/lib/formatter-sync';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useToolLogger } from '@/hooks/use-tool-logger';
@@ -33,12 +34,14 @@ export default function JsonFormatter() {
   const [indent, setIndent] = useState('2');
   const [sortMode, setSortMode] = useState<SortMode>('none');
   const [mode, setMode] = useState<'format' | 'minify'>('format');
+  const [output, setOutput] = useState('');
   const log = useToolLogger('json-formatter');
   const inputEditorRef = useRef<FoldableCodeEditorHandle>(null);
   const outputEditorRef = useRef<FoldableCodeEditorHandle>(null);
+  const skipOutputSync = useRef(false);
 
-  const { output, error, isValid } = useMemo(() => {
-    if (!input.trim()) return { output: '', error: null, isValid: null };
+  const { formattedOutput, error, isValid } = useMemo(() => {
+    if (!input.trim()) return { formattedOutput: '', error: null, isValid: null };
 
     try {
       const parsed = JSON.parse(input);
@@ -52,12 +55,20 @@ export default function JsonFormatter() {
         inputLength: input.length,
         outputLength: result.length,
       });
-      return { output: result, error: null, isValid: true };
+      return { formattedOutput: result, error: null, isValid: true };
     } catch (e) {
       log.warn('JSON 解析错误', { message: (e as Error).message });
-      return { output: '', error: (e as Error).message, isValid: false };
+      return { formattedOutput: '', error: (e as Error).message, isValid: false };
     }
   }, [input, indent, sortMode, mode, log]);
+
+  useEffect(() => {
+    if (skipOutputSync.current) {
+      skipOutputSync.current = false;
+      return;
+    }
+    setOutput(formattedOutput);
+  }, [formattedOutput, input]);
 
   const sampleJson = `{"name":"Niuery Toolkit","version":"1.0.0","features":["offline","secure","fast"],"nested":{"key":"value","array":[1,2,3]}}`;
   const hasFoldableContent = hasFoldableStructure(input, 'json') || hasFoldableStructure(output, 'json');
@@ -74,10 +85,11 @@ export default function JsonFormatter() {
   return (
     <ToolLayout
       inputTitle="JSON 输入"
-      outputTitle={mode === 'format' ? '格式化结果' : '压缩结果'}
+      outputTitle={mode === 'format' ? '格式化结果（可编辑）' : '压缩结果（可编辑）'}
       outputValue={output}
       onClear={() => {
         setInput('');
+        setOutput('');
         log.info('清空输入');
       }}
       inputActions={
@@ -198,23 +210,26 @@ export default function JsonFormatter() {
       }
       output={
         <div className="relative h-full">
-          {error ? (
-            <div className="flex h-full items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4">
-              <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
-              <div>
-                <p className="font-medium text-destructive">JSON 解析错误</p>
-                <p className="mt-1 font-mono text-sm text-muted-foreground">{error}</p>
+          <FoldableCodeEditor
+            ref={outputEditorRef}
+            language="json"
+            value={output}
+            onChange={(nextValue) => {
+              skipOutputSync.current = true;
+              setOutput(nextValue);
+              setInput(syncFormatterValuePreservingFormat(input, output, nextValue));
+            }}
+            tabSize={parseInt(indent) === 8 ? 4 : parseInt(indent)}
+            placeholder="结果（可编辑，修改后同步左侧）..."
+          />
+          {error && (
+            <div className="pointer-events-none absolute left-3 right-3 top-3 z-10 flex items-start gap-2 rounded-md border border-destructive/50 bg-background/95 p-2 shadow-sm">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-destructive">JSON 解析错误</p>
+                <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{error}</p>
               </div>
             </div>
-          ) : (
-            <FoldableCodeEditor
-                ref={outputEditorRef}
-                language="json"
-                value={output}
-                readOnly
-                tabSize={parseInt(indent) === 8 ? 4 : parseInt(indent)}
-                placeholder="结果..."
-              />
           )}
         </div>
       }
