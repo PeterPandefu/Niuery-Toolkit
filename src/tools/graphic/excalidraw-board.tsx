@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Download, FilePlus2, FolderOpen, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { saveBytes } from '@/lib/file-save';
+import { saveBytes, saveBytesWithFeedback } from '@/lib/file-save';
 import {
   discardRecoverySnapshot,
   listRecoverySnapshots,
@@ -183,7 +183,7 @@ export default function ExcalidrawBoard() {
       const blob = format === 'png'
         ? await exportToBlob({ elements, appState, files, mimeType: 'image/png', exportBackground: true })
         : new Blob([(await exportToSvg({ elements, appState, files, exportBackground: true })).outerHTML], { type: 'image/svg+xml' });
-      await saveBytes(`${t('whiteboard.unnamed')}.${format}`, blob, format.toUpperCase(), [format]);
+      await saveBytesWithFeedback(`${t('whiteboard.unnamed')}.${format}`, blob, format.toUpperCase(), [format]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('whiteboard.exportFailed'));
     }

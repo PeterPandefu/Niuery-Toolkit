@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useToolLogger } from '@/hooks/use-tool-logger';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 export default function QrCodeTool() {
   const log = useToolLogger('qrcode');
@@ -49,7 +50,7 @@ export default function QrCodeTool() {
   }, [text, size, errorLevel, log]);
 
   const handleDownload = useCallback(
-    (format: 'png' | 'svg') => {
+    async (format: 'png' | 'svg') => {
       if (!text) {
         toast.error('请先输入内容');
         log.warn('下载二维码失败：内容为空');
@@ -57,25 +58,13 @@ export default function QrCodeTool() {
       }
 
       if (format === 'png' && canvasRef.current) {
-        const link = document.createElement('a');
-        link.download = 'qrcode.png';
-        link.href = canvasRef.current.toDataURL('image/png');
-        link.click();
-        toast.success('PNG 已下载');
+        const blob = await new Promise<Blob>((resolve, reject) => canvasRef.current!.toBlob((value) => value ? resolve(value) : reject(new Error('PNG 生成失败')), 'image/png'));
+        await saveBytesWithFeedback('qrcode.png', blob, 'PNG 图像', ['png']);
         log.info('下载二维码', { format: 'png', textLength: text.length });
       } else if (format === 'svg') {
-        QRCode.toString(text, { type: 'svg', errorCorrectionLevel: errorLevel }).then(
-          (svg) => {
-            const blob = new Blob([svg], { type: 'image/svg+xml' });
-            const link = document.createElement('a');
-            link.download = 'qrcode.svg';
-            link.href = URL.createObjectURL(blob);
-            link.click();
-            URL.revokeObjectURL(link.href);
-            toast.success('SVG 已下载');
-            log.info('下载二维码', { format: 'svg', textLength: text.length });
-          }
-        );
+        const svg = await QRCode.toString(text, { type: 'svg', errorCorrectionLevel: errorLevel });
+        await saveBytesWithFeedback('qrcode.svg', new Blob([svg], { type: 'image/svg+xml' }), 'SVG 图像', ['svg']);
+        log.info('下载二维码', { format: 'svg', textLength: text.length });
       }
     },
     [text, errorLevel, log]

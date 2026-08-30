@@ -5,6 +5,7 @@ import { Select } from '@/components/ui/select';
 import { Upload, Download, Loader2 } from 'lucide-react';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 import { ImageViewer } from '@/components/media/image-viewer';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 interface IconSize {
   name: string;
@@ -187,18 +188,16 @@ export default function IconGeneratorTool() {
     log.info('图标生成完成', { preset, count: icons.length });
   }, [sourceImage, preset, bgColor, borderRadius, log]);
 
-  const downloadIcon = useCallback((icon: { name: string; size: number; url: string }) => {
-    const a = document.createElement('a');
-    a.href = icon.url;
-    a.download = `${icon.name}-${icon.size}x${icon.size}.png`;
-    a.click();
+  const downloadIcon = useCallback(async (icon: { name: string; size: number; url: string }) => {
+    const blob = await (await fetch(icon.url)).blob();
+    await saveBytesWithFeedback(`${icon.name}-${icon.size}x${icon.size}.png`, blob, 'PNG 图像', ['png']);
     log.info('图标下载', { name: icon.name, size: icon.size });
   }, [log]);
 
   const downloadAll = useCallback(() => {
     log.info('批量下载图标', { count: generatedIcons.length });
     generatedIcons.forEach((icon, i) => {
-      setTimeout(() => downloadIcon(icon), i * 200);
+      setTimeout(() => void downloadIcon(icon), i * 200);
     });
   }, [generatedIcons, downloadIcon, log]);
 

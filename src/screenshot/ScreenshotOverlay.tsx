@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { AnnotationLayer } from './AnnotationLayer';
 import { EditToolbar } from './EditToolbar';
 import { ScreenshotOcrPanel } from '@/components/ocr/ScreenshotOcrPanel';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 import {
   type ScreenshotPhase,
   type SelectionMode,
@@ -174,9 +175,9 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
     const b64 = exportBase64();
     if (b64) {
       try {
-        const savedPath = await invoke<string | null>('save_image_dialog', { base64Data: b64, format: 'png' });
-        if (savedPath) toast.success(`已保存到：${savedPath}`);
-        else toast.info('已取消保存');
+        const binary = atob(b64);
+        const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        await saveBytesWithFeedback(`screenshot-${Date.now()}.png`, bytes, 'PNG 图像', ['png']);
       }
       catch (e) { console.error('保存失败', e); }
     }

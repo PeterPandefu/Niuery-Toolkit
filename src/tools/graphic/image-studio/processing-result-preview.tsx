@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { ImageViewer } from '@/components/media/image-viewer';
-import { saveBytes, saveResults, type SaveFile } from '@/lib/file-save';
+import { saveBytesWithFeedback, saveResultsWithFeedback, type SaveFile } from '@/lib/file-save';
 import { formatBytes } from '@/lib/utils';
 import { IMAGE_FILTER, type ImageProcessingResult } from './common';
 
@@ -72,9 +72,7 @@ export function ProcessingResultPreview({ sourceFiles, result }: { sourceFiles: 
   const saveAll = async () => {
     if (!result) return;
     try {
-      const path = await saveResults(result.zipName, result.files, filter);
-      if (path) toast.success(result.files.length === 1 ? '已保存处理结果' : `已保存全部 ${result.files.length} 个结果`);
-      else toast.message('已取消保存，结果仍可继续预览');
+      await saveResultsWithFeedback(result.zipName, result.files, filter);
     } catch (error) {
       toast.error(`保存失败：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -82,9 +80,7 @@ export function ProcessingResultPreview({ sourceFiles, result }: { sourceFiles: 
 
   const saveOne = async (file: SaveFile) => {
     try {
-      const path = await saveBytes(file.name, file.blob, filter.name, filter.extensions);
-      if (path) toast.success(`已保存 ${file.name}`);
-      else toast.message('已取消保存，结果仍可继续预览');
+      await saveBytesWithFeedback(file.name, file.blob, filter.name, filter.extensions);
     } catch (error) {
       toast.error(`保存失败：${error instanceof Error ? error.message : String(error)}`);
     }

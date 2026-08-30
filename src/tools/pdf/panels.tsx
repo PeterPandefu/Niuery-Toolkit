@@ -12,7 +12,7 @@ import {
   applyImageWatermark,
 } from '@/lib/pdf-utils';
 import { rasterCompressPdf, renderPdfPages, renderWatermarkPng, extractEmbeddedImages } from '@/lib/pdf-render';
-import { saveBytes, saveResults } from '@/lib/file-save';
+import { saveBytesWithFeedback, saveResultsWithFeedback } from '@/lib/file-save';
 import { formatBytes } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -125,8 +125,7 @@ export function MergePanel() {
       const buffers: ArrayBuffer[] = [];
       for (const file of files) buffers.push(await file.arrayBuffer());
       const bytes = await mergePdfs(buffers);
-      const path = await saveBytes('合并.pdf', bytes, PDF_FILTER.name, PDF_FILTER.extensions);
-      if (path) toast.success('合并完成并已保存');
+      const path = await saveBytesWithFeedback('合并.pdf', bytes, PDF_FILTER.name, PDF_FILTER.extensions);
       log.info('合并成功', { count: files.length, sizeBytes: bytes.byteLength, path });
     });
 
@@ -155,7 +154,7 @@ export function SplitPanel() {
         mode === 'every'
           ? await splitEveryPage(buffer)
           : await splitBySegments(buffer, segments, pageCount);
-      const path = await saveResults(
+      const path = await saveResultsWithFeedback(
         '拆分结果.zip',
         outputs.map((o) => ({ name: o.name, blob: new Blob([o.bytes]) })),
         PDF_FILTER
@@ -217,8 +216,7 @@ export function WatermarkPanel() {
       log.info('水印开始', { sizeBytes: buffer.byteLength, tiled });
       const png = renderWatermarkPng(text.trim(), { fontSize, opacity: opacity / 100, color: '#808080' });
       const bytes = await applyImageWatermark(buffer, png, { rotation, tiled, scale: tiled ? 0.35 : 0.6 });
-      const path = await saveBytes('已加水印.pdf', bytes, PDF_FILTER.name, PDF_FILTER.extensions);
-      if (path) toast.success('水印已添加并保存');
+      const path = await saveBytesWithFeedback('已加水印.pdf', bytes, PDF_FILTER.name, PDF_FILTER.extensions);
       log.info('水印成功', { sizeBytes: bytes.byteLength, path });
     });
 
@@ -282,8 +280,7 @@ export function CompressPanel() {
   const handleSave = () =>
     run(async () => {
       if (!result) return;
-      const path = await saveBytes('已压缩.pdf', result.bytes, PDF_FILTER.name, PDF_FILTER.extensions);
-      if (path) toast.success('已保存压缩结果');
+      const path = await saveBytesWithFeedback('已压缩.pdf', result.bytes, PDF_FILTER.name, PDF_FILTER.extensions);
       log.info('压缩结果已保存', { path, sizeBytes: result.compressed });
     });
 
@@ -364,7 +361,7 @@ export function ToImagesPanel() {
       const images = await renderPdfPages(buffer, { format, dpi, quality: 0.9 }, (done, total) =>
         setProgress(`正在渲染第 ${done}/${total} 页…`)
       );
-      const path = await saveResults(
+      const path = await saveResultsWithFeedback(
         'PDF转图片.zip',
         images,
         format === 'png' ? { name: 'PNG 图片', extensions: ['png'] } : { name: 'JPEG 图片', extensions: ['jpg'] }
@@ -420,7 +417,7 @@ export function ExtractImagesPanel() {
         toast.error('未提取到内嵌图片（矢量图形不在提取范围内）');
         return;
       }
-      const path = await saveResults('提取图片.zip', images, { name: 'PNG 图片', extensions: ['png'] });
+      const path = await saveResultsWithFeedback('提取图片.zip', images, { name: 'PNG 图片', extensions: ['png'] });
       if (path) toast.success(`提取完成，共 ${images.length} 张图片`);
       log.info('提取图片成功', { count: images.length, path });
     });

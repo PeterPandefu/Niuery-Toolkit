@@ -8,6 +8,7 @@ import type { GifAnnotation, GifProject, RecorderAction } from './types';
 import { decodeGif, encodeGif, type DecodedGif, type GifWorkerResponse } from './gif-worker';
 import { Timeline } from './Timeline';
 import { createLogger } from '@/lib/logger';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 const log = createLogger('screen-recorder:gif-editor');
 
@@ -124,18 +125,14 @@ export function GifEditor({ project, dispatch, onBack }: GifEditorProps) {
     log.info('GIF 缩放完成', { width, height, frames: frames.length });
   };
 
-  const exportGif = () => {
+  const exportGif = async () => {
     if (!project.frames.length) return;
     setBusy(true);
     try {
       log.info('GIF 导出开始', { frames: project.frames.length, loopCount });
       const blob = encodeGif(project.frames, loopCount, 800);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `edited-${new Date().toISOString().replace(/[:.]/g, '-')}.gif`;
-      link.click();
-      URL.revokeObjectURL(url);
+      const filename = `edited-${new Date().toISOString().replace(/[:.]/g, '-')}.gif`;
+      await saveBytesWithFeedback(filename, blob, 'GIF 动图', ['gif']);
       dispatch({ type: 'gifLoopChanged', loopCount });
       log.info('GIF 导出完成', { size: blob.size, frames: project.frames.length });
     } catch (e) {

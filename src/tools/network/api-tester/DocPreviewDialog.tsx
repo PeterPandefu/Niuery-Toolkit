@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
 import { useApiTesterStore } from '@/store/api-tester-store';
 import { generateFullDoc } from '@/lib/doc-generator';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 interface DocPreviewDialogProps {
   open: boolean;
@@ -27,15 +28,8 @@ export function DocPreviewDialog({ open, onClose }: DocPreviewDialogProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = () => {
-    const blob = new Blob([doc], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'api-documentation.md';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('文档已导出');
+  const handleDownload = async () => {
+    await saveBytesWithFeedback('api-documentation.md', new Blob([doc], { type: 'text/markdown' }), 'Markdown 文件', ['md']);
   };
 
   return (
