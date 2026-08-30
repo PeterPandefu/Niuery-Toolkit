@@ -6,6 +6,7 @@ import {
   type FoldableCodeEditorHandle,
 } from '@/components/shared/FoldableCodeEditor';
 import { hasFoldableStructure } from '@/lib/structured-editor-folding';
+import { syncFormatterValuePreservingFormat } from '@/lib/formatter-sync';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useToolLogger } from '@/hooks/use-tool-logger';
@@ -15,12 +16,14 @@ export default function XmlFormatter() {
   const [input, setInput] = useState('');
   const [indent, setIndent] = useState('2');
   const [mode, setMode] = useState<'format' | 'minify'>('format');
+  const [output, setOutput] = useState('');
   const log = useToolLogger('xml-formatter');
   const inputEditorRef = useRef<FoldableCodeEditorHandle>(null);
   const outputEditorRef = useRef<FoldableCodeEditorHandle>(null);
+  const skipOutputSync = useRef(false);
 
-  const { output, error } = useMemo(() => {
-    if (!input.trim()) return { output: '', error: null };
+  const { formattedOutput, error } = useMemo(() => {
+    if (!input.trim()) return { formattedOutput: '', error: null };
 
     try {
       const parser = new XMLParser({
@@ -44,12 +47,20 @@ export default function XmlFormatter() {
         inputLength: input.length,
         outputLength: result.length,
       });
-      return { output: result, error: null };
+      return { formattedOutput: result, error: null };
     } catch (e) {
       log.warn('XML 解析错误', { message: (e as Error).message });
-      return { output: '', error: (e as Error).message };
+      return { formattedOutput: '', error: (e as Error).message };
     }
   }, [input, indent, mode, log]);
+
+  useEffect(() => {
+    if (skipOutputSync.current) {
+      skipOutputSync.current = false;
+      return;
+    }
+    setOutput(formattedOutput);
+  }, [formattedOutput, input]);
 
   const sampleXml = `<root><item id="1"><name>Test</name><value>123</value></item><item id="2"><name>Test2</name><value>456</value></item></root>`;
   const hasFoldableContent = hasFoldableStructure(input, 'xml') || hasFoldableStructure(output, 'xml');
@@ -66,10 +77,11 @@ export default function XmlFormatter() {
   return (
     <ToolLayout
       inputTitle="XML 输入"
-      outputTitle={mode === 'format' ? '格式化结果' : '压缩结果'}
+      outputTitle={mode === 'format' ? '格式化结果（可编辑）' : '压缩结果（可编辑）'}
       outputValue={output}
       onClear={() => {
         setInput('');
+        setOutput('');
         log.info('清空输入');
       }}
       inputActions={
@@ -150,23 +162,26 @@ export default function XmlFormatter() {
       }
       output={
         <div className="relative h-full">
-          {error ? (
-            <div className="flex h-full items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4">
-              <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
-              <div>
-                <p className="font-medium text-destructive">XML 解析错误</p>
-                <p className="mt-1 font-mono text-sm text-muted-foreground">{error}</p>
+          <FoldableCodeEditor
+            ref={outputEditorRef}
+            value={output}
+            onChange={(nextValue) => {
+              skipOutputSync.current = true;
+              setOutput(nextValue);
+              setInput(syncFormatterValuePreservingFormat(input, output, nextValue));
+            }}
+            language="xml"
+            placeholder="结果（可编辑，修改后同步左侧）..."
+            tabSize={parseInt(indent)}
+          />
+          {error && (
+            <div className="pointer-events-none absolute left-3 right-3 top-3 z-10 flex items-start gap-2 rounded-md border border-destructive/50 bg-background/95 p-2 shadow-sm">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-destructive">XML 解析错误</p>
+                <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{error}</p>
               </div>
             </div>
-          ) : (
-            <FoldableCodeEditor
-              ref={outputEditorRef}
-              value={output}
-              readOnly
-              language="xml"
-              placeholder="结果..."
-              tabSize={parseInt(indent)}
-            />
           )}
         </div>
       }

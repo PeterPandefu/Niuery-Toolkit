@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
 import { Copy, Download } from 'lucide-react';
 import { optimizeSvg, getSvgStats } from '@/lib/text-utils';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 export default function SvgOptimizer() {
   const log = useToolLogger('svg-optimizer');
@@ -49,15 +50,10 @@ export default function SvgOptimizer() {
     }
   }, [input, output, stats, log]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!output) return;
     const blob = new Blob([output], { type: 'image/svg+xml' });
-    const link = document.createElement('a');
-    link.download = 'optimized.svg';
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    URL.revokeObjectURL(link.href);
-    toast.success('已下载');
+    await saveBytesWithFeedback('optimized.svg', blob, 'SVG 图像', ['svg']);
   };
 
   const handleCopy = async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampDiagramZoom,
+  ensureDiagramBackground,
   ensureWhiteDiagramBackground,
   getDiagramDefaultSource,
   getDiagramExportName,
@@ -33,5 +34,16 @@ describe('diagram editor helpers', () => {
     expect(ensureWhiteDiagramBackground('<svg viewBox="0 0 10 10"><path /></svg>')).toBe(
       '<svg viewBox="0 0 10 10"><rect width="100%" height="100%" fill="#ffffff"/><path /></svg>',
     );
+  });
+
+  it('replaces stale SVG backgrounds with the active theme background', () => {
+    const svg = ensureDiagramBackground(
+      '<svg style="width:100px;background:#202938"><path /></svg>',
+      'hsl(48 58% 97%)',
+    );
+
+    expect(svg).toContain('style="width:100px;background:hsl(48 58% 97%);"');
+    expect(svg).toContain('<rect width="100%" height="100%" fill="hsl(48 58% 97%)"/><path />');
+    expect(svg).not.toContain('#202938');
   });
 });

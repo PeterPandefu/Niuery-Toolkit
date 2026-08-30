@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'sql-formatter';
 import { ToolLayout } from '@/components/shared/ToolLayout';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useToolLogger } from '@/hooks/use-tool-logger';
+import { syncFormatterValuePreservingFormat } from '@/lib/formatter-sync';
 import { AlertCircle } from 'lucide-react';
 
 type SqlDialect =
@@ -41,10 +42,12 @@ export default function SqlFormatter() {
   const [input, setInput] = useState('');
   const [dialect, setDialect] = useState<SqlDialect>('sql');
   const [uppercase, setUppercase] = useState('true');
+  const [output, setOutput] = useState('');
+  const skipOutputSync = useRef(false);
   const log = useToolLogger('sql-formatter');
 
-  const { output, error } = useMemo(() => {
-    if (!input.trim()) return { output: '', error: null };
+  const { formattedOutput, error } = useMemo(() => {
+    if (!input.trim()) return { formattedOutput: '', error: null };
 
     try {
       const result = format(input, {
@@ -58,21 +61,32 @@ export default function SqlFormatter() {
         inputLength: input.length,
         outputLength: result.length,
       });
-      return { output: result, error: null };
+      return { formattedOutput: result, error: null };
     } catch (e) {
       log.warn('SQL 格式化错误', { message: (e as Error).message });
-      return { output: '', error: (e as Error).message };
+      return { formattedOutput: '', error: (e as Error).message };
     }
   }, [input, dialect, uppercase, log]);
+
+  useEffect(() => {
+    if (skipOutputSync.current) {
+      skipOutputSync.current = false;
+      return;
+    }
+    setOutput(formattedOutput);
+  }, [formattedOutput, input]);
 
   const sampleSql = `SELECT u.id, u.name, u.email, COUNT(o.id) as order_count FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE u.created_at > '2024-01-01' AND u.status = 'active' GROUP BY u.id, u.name, u.email HAVING COUNT(o.id) > 5 ORDER BY order_count DESC LIMIT 10;`;
 
   return (
     <ToolLayout
       inputTitle="SQL 输入"
-      outputTitle="格式化结果"
+      outputTitle="格式化结果（可编辑）"
       outputValue={output}
-      onClear={() => setInput('')}
+      onClear={() => {
+        setInput('');
+        setOutput('');
+      }}
       inputActions={
         <div className="flex items-center gap-2">
           <Select
@@ -110,22 +124,25 @@ export default function SqlFormatter() {
       }
       output={
         <div className="relative h-full">
-          {error ? (
-            <div className="flex h-full items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4">
-              <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
-              <div>
-                <p className="font-medium text-destructive">格式化错误</p>
-                <p className="mt-1 font-mono text-sm text-muted-foreground">{error}</p>
+          <Textarea
+            value={output}
+            onChange={(e) => {
+              skipOutputSync.current = true;
+              setOutput(e.target.value);
+              setInput(syncFormatterValuePreservingFormat(input, output, e.target.value));
+            }}
+            placeholder="结果（可编辑，修改后同步左侧）..."
+            className="h-full resize-none bg-muted/50 font-mono text-sm"
+            spellCheck={false}
+          />
+          {error && (
+            <div className="pointer-events-none absolute left-3 right-3 top-3 z-10 flex items-start gap-2 rounded-md border border-destructive/50 bg-background/95 p-2 shadow-sm">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-destructive">格式化错误</p>
+                <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{error}</p>
               </div>
             </div>
-          ) : (
-            <Textarea
-              value={output}
-              readOnly
-              placeholder="结果..."
-              className="h-full resize-none bg-muted/50 font-mono text-sm"
-              spellCheck={false}
-            />
           )}
         </div>
       }

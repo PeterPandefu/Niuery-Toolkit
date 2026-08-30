@@ -8,7 +8,7 @@ async function openMarkdownEditor(page: Page, content: string) {
     localStorage.setItem('niuery-markdown-editor-draft', draft);
   }, content);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('nav[aria-label="Category navigation"]')).toBeVisible();
+  await expect(page.locator('nav[aria-label="工具分类"]')).toBeVisible();
   await page.keyboard.press('Control+k');
   await page.getByPlaceholder(/Search|搜索/i).first().fill('Markdown Editor');
   await page.keyboard.press('Enter');
@@ -33,6 +33,13 @@ test.describe('Markdown Mermaid', () => {
     const downloadPath = await download.path();
     expect(downloadPath).not.toBeNull();
     expect(await readFile(downloadPath!, 'utf8')).toContain('<svg');
+    await expect(page.getByText(/Exported HTML file.*browser download folder/i)).toBeVisible();
+
+    const markdownDownloadPromise = page.waitForEvent('download');
+    await page.getByTitle('Export .md').click();
+    const markdownDownload = await markdownDownloadPromise;
+    expect(await markdownDownload.path()).not.toBeNull();
+    await expect(page.getByText(/Exported Markdown file.*browser download folder/i)).toBeVisible();
 
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://localhost:4173' });
     await page.getByTitle('Copy HTML').click();

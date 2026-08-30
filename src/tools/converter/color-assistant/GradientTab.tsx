@@ -3,6 +3,7 @@ import { Code2, ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/utils';
 import { gradientPresets, colorFilterDots, type GradientPreset } from './color-data';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 export default function GradientTab() {
   const [activeFilter, setActiveFilter] = useState<number | null>(null);
@@ -45,13 +46,7 @@ export default function GradientTab() {
         toast.success('已复制渐变图片');
       } catch {
         // Fallback: download
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'gradient.png';
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('已下载渐变图片');
+        await saveBytesWithFeedback('gradient.png', blob, 'PNG 图像', ['png']);
       }
     });
   }, [selectedGradient, angle, imgWidth, imgHeight]);

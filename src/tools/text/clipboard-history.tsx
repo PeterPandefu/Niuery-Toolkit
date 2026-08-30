@@ -27,6 +27,68 @@ interface ClipboardEntryView {
   timestamp: number;
 }
 
+function ClipboardThumbnail({ entry, onPreview }: { entry: ClipboardEntryView; onPreview: () => void }) {
+  const [thumbnail, setThumbnail] = useState(entry.image_thumbnail);
+  const [shouldLoad, setShouldLoad] = useState(Boolean(entry.image_thumbnail));
+  const targetRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (thumbnail || shouldLoad) return;
+    const target = targetRef.current;
+    if (!target) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setShouldLoad(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(([intersection]) => {
+      if (!intersection?.isIntersecting) return;
+      setShouldLoad(true);
+      observer.disconnect();
+    }, { rootMargin: '240px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [shouldLoad, thumbnail]);
+
+  useEffect(() => {
+    if (!shouldLoad || thumbnail) return;
+    let cancelled = false;
+    import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke<string | null>('get_clipboard_thumbnail', { id: entry.id }))
+      .then((result) => {
+        if (!cancelled && result) setThumbnail(result);
+      })
+      .catch(() => {
+        // 缩略图加载失败时保留文字占位，不影响历史记录操作。
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.id, shouldLoad, thumbnail]);
+
+  return (
+    <button
+      ref={targetRef}
+      type="button"
+      className="block min-h-[48px] min-w-[80px] rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={onPreview}
+      title="预览原图"
+    >
+      {thumbnail ? (
+        <img
+          src={`data:image/png;base64,${thumbnail}`}
+          alt="剪贴板图片，点击预览原图"
+          loading="lazy"
+          className="max-h-[120px] max-w-[200px] rounded-md border border-border/50 object-contain"
+        />
+      ) : (
+        <span className="block px-2 py-3 text-left text-sm text-muted-foreground">{entry.preview}</span>
+      )}
+    </button>
+  );
+}
+
 type FilterType = 'all' | 'text' | 'image' | 'files';
 
 function formatRelativeTime(ts: number): string {
@@ -284,13 +346,7 @@ export default function ClipboardHistory() {
 
                     {entry.content_type === 'image' && (
                       <div className="space-y-1">
-                        {entry.image_thumbnail ? (
-                          <button type="button" className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setPreviewId(entry.id)} title="预览原图">
-                            <img src={`data:image/png;base64,${entry.image_thumbnail}`} alt="剪贴板图片，点击预览原图" className="max-h-[120px] max-w-[200px] rounded-md border border-border/50 object-contain" />
-                          </button>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">{entry.preview}</p>
-                        )}
+                        <ClipboardThumbnail entry={entry} onPreview={() => setPreviewId(entry.id)} />
                       </div>
                     )}
 

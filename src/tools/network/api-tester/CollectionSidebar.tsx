@@ -15,6 +15,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 import {
   useApiTesterStore,
   type ApiRequest,
@@ -71,16 +72,9 @@ export function CollectionSidebar({ onLoadRequest }: CollectionSidebarProps) {
     toast.success('已保存到集合');
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const data = JSON.stringify(collections, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'api-collections.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('集合已导出');
+    await saveBytesWithFeedback('api-collections.json', new Blob([data], { type: 'application/json' }), 'JSON 文件', ['json']);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {

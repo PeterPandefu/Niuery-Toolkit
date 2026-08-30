@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Clipboard, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { copyToClipboard } from '@/lib/utils';
@@ -107,14 +108,9 @@ export function OcrPanel() {
     toast.error('复制失败，请手动复制');
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!result) return;
-    const url = URL.createObjectURL(new Blob([result], { type: 'text/plain;charset=utf-8' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'OCR识别结果.txt';
-    link.click();
-    URL.revokeObjectURL(url);
+    await saveBytesWithFeedback('OCR识别结果.txt', new Blob([result], { type: 'text/plain;charset=utf-8' }), '文本文件', ['txt']);
     log.info('OCR 结果已导出', { textLength: result.length });
   };
 
