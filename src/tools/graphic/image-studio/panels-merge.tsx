@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { OptionRow } from '@/tools/pdf/common';
 import { calcMergeLayout, canvasToBlob, encodeImagesToGif, encodeImagesToPdf, fileToCanvas, loadImageElement } from '@/lib/image-utils';
-import { saveBytes } from '@/lib/file-save';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 import { useBusyRun, useImageProcessingResult } from './common';
 import { ImagePreview } from './image-preview';
 import { ImageFileDropzone } from './image-file-dropzone';
@@ -115,8 +115,7 @@ export function MergePdfPanel() {
         });
         setProgress('正在生成 PDF…');
         const bytes = await encodeImagesToPdf(files);
-        const path = await saveBytes('图片合并.pdf', bytes, 'PDF 文件', ['pdf']);
-        if (path) toast.success(`处理完成，共 ${files.length} 页`);
+        const path = await saveBytesWithFeedback('图片合并.pdf', bytes, 'PDF 文件', ['pdf']);
         log.info('合并为 PDF 成功', { count: files.length, size: bytes.byteLength, path });
       } catch (e) {
         log.error('合并为 PDF 失败', e);

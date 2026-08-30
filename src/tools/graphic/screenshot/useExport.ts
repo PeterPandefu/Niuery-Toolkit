@@ -4,6 +4,7 @@ import Konva from 'konva';
 import { invoke } from '@tauri-apps/api/core';
 import { createLogger } from '@/lib/logger';
 import type { ExportFormat } from './types';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 const log = createLogger('screenshot-editor:export');
 
@@ -96,32 +97,16 @@ export function useExport({ stageRef, canvasSize }: UseExportOptions) {
         if (!dataURL) throw new Error('没有可导出的内容');
         const filename = generateFilename(format);
 
-        if (isTauri) {
-          const savedPath = await invoke<string | null>('save_image_dialog', {
-            base64Data: base64FromDataUrl(dataURL),
-            format,
-          });
-          if (savedPath) {
-            log.info('图片已保存', { format, path: savedPath });
-            toast.success(`已保存到：${savedPath}`);
-          } else {
-            log.info('导出已取消', { format });
-            toast.info('已取消导出');
-          }
-        } else {
-          const link = document.createElement('a');
-          link.download = filename;
-          link.href = dataURL;
-          link.click();
-          log.info('图片已下载', { format, filename });
-          toast.success(`${filename} 已下载到浏览器默认下载目录`);
-        }
+        const bytes = Uint8Array.from(atob(base64FromDataUrl(dataURL)), (character) => character.charCodeAt(0));
+        const path = await saveBytesWithFeedback(filename, bytes, format.toUpperCase(), [format === 'jpeg' ? 'jpg' : format]);
+        if (path) log.info('图片已保存', { format, path });
+        else log.info('导出已取消', { format });
       } catch (e) {
         log.error('导出失败', e);
         toast.error('导出失败');
       }
     },
-    [stageRef, renderExportDataUrl, generateFilename, isTauri, base64FromDataUrl]
+    [stageRef, renderExportDataUrl, generateFilename, base64FromDataUrl]
   );
 
   const copyToClipboard = useCallback(async () => {

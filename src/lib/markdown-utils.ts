@@ -521,18 +521,11 @@ export function escapeHtml(text: string): string {
 }
 
 /**
- * 下载文件
+ * 保存文本文件
  */
-export function downloadFile(content: string, filename: string, mimeType = 'text/plain'): void {
-  const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+export async function downloadFile(content: string, filename: string, mimeType = 'text/plain'): Promise<string | null> {
+  const { saveBytesWithFeedback } = await import('@/lib/file-save');
+  return saveBytesWithFeedback(filename, new Blob([content], { type: `${mimeType};charset=utf-8` }), '文本文件', [filename.split('.').pop() || 'txt']);
 }
 
 // ==================== 模板 ====================

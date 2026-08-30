@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { Download, FilePlus2, FolderOpen, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { saveBytes } from '@/lib/file-save';
+import { saveBytes, saveBytesWithFeedback } from '@/lib/file-save';
 import {
   discardRecoverySnapshot,
   listRecoverySnapshots,
@@ -145,7 +145,7 @@ export default function TldrawBoard() {
       toast.error(t('whiteboard.emptyExport'));
       return;
     }
-    await saveBytes(
+    await saveBytesWithFeedback(
       `${t('whiteboard.unnamed')}.svg`,
       new Blob([result.svg], { type: 'image/svg+xml' }),
       'SVG',

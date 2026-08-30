@@ -3,7 +3,7 @@ import { Download, FilePlus2, FolderOpen, Library, Plus, Redo2, Save, Undo2, Zoo
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { saveBytes } from '@/lib/file-save';
+import { saveBytes, saveBytesWithFeedback } from '@/lib/file-save';
 import {
   discardRecoverySnapshot,
   listRecoverySnapshots,
@@ -178,7 +178,7 @@ export default function MindMapTool() {
     try {
       const blob = await surfaceRef.current?.exportImage(type, title);
       if (!blob) return;
-      await saveBytes(`${title}.${type}`, blob, type.toUpperCase(), [type]);
+      await saveBytesWithFeedback(`${title}.${type}`, blob, type.toUpperCase(), [type]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('mindMap.exportFailed'));
     }
@@ -187,7 +187,7 @@ export default function MindMapTool() {
   const exportMarkdown = useCallback(async () => {
     try {
       const filename = `${title.replace(/[\\/:*?"<>|]/g, '-').slice(0, 48) || t('mindMap.unnamed')}.md`;
-      await saveBytes(filename, new TextEncoder().encode(mindMapToMarkdown(document)), 'Markdown', ['md']);
+      await saveBytesWithFeedback(filename, new TextEncoder().encode(mindMapToMarkdown(document)), 'Markdown', ['md']);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('mindMap.exportFailed'));
     }
