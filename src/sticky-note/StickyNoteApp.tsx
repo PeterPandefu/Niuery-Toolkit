@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, CircleOff, Folder, ListTodo, Palette, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react';
+import { Check, CircleOff, Folder, GripVertical, ListTodo, Palette, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from '@/lib/api-client';
@@ -592,6 +592,7 @@ export default function StickyNoteApp() {
                     finishPointerDrag();
                   }}
                   >
+                    <GripVertical className="sticky-note-tab-grip" aria-hidden="true" />
                     <span>{note.mode === 'timeline' ? t('stickyNote.timeline') : note.title}</span>
                   </button>
                 </div>
@@ -612,6 +613,7 @@ export default function StickyNoteApp() {
             aria-hidden="true"
             style={{ left: 0, top: 0, transform: `translate3d(${dragPosition.x}px, ${dragPosition.y}px, 0) translate(-50%, -50%) rotate(1deg)`, backgroundColor: color.surface, borderColor: color.border }}
           >
+            <GripVertical className="sticky-note-tab-grip" />
             <span>{draggedNote.mode === 'timeline' ? t('stickyNote.timeline') : draggedNote.title}</span>
           </div>
         );

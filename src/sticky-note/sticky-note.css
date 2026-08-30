@@ -188,7 +188,7 @@
   justify-content: flex-start;
   border: 1px solid;
   border-radius: 0 4px 4px 0;
-  padding: 0 6px 0 8px;
+  padding: 0 7px 0 8px;
   color: #30280e;
   font-size: 11px;
   font-weight: 650;
@@ -196,6 +196,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   touch-action: none;
+}
+
+.sticky-note-tab-grip {
+  width: 11px;
+  height: 14px;
+  flex: 0 0 11px;
+  margin-right: 3px;
+  opacity: 0.42;
 }
 
 .sticky-note-tab span {
