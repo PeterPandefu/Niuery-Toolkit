@@ -19,27 +19,38 @@ describe('Mermaid Markdown 渲染', () => {
   });
 
   it('将 Mermaid 围栏代码块转换为严格安全的内联 SVG', async () => {
-    render.mockResolvedValue({ svg: '<svg data-mermaid="flowchart"></svg>' });
+    render.mockResolvedValue({ svg: '<svg data-mermaid="flowchart"><rect class="background" fill="#202938"></rect></svg>' });
 
     const html = await renderMarkdown('```mermaid\nflowchart TD\n  A --> B\n```', { scheme: 'dark', locale: 'zh-CN' });
 
-    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ securityLevel: 'strict', startOnLoad: false, suppressErrorRendering: true, theme: 'dark' }));
+    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({
+      securityLevel: 'strict',
+      startOnLoad: false,
+      suppressErrorRendering: true,
+      theme: 'dark',
+      themeVariables: expect.objectContaining({ background: expect.any(String), textColor: expect.any(String) }),
+    }));
     expect(render).toHaveBeenCalledWith(expect.stringMatching(/^niuery-mermaid-\d+$/), 'flowchart TD\n  A --> B\n', expect.any(HTMLElement));
-    expect(html).toContain('<svg data-mermaid="flowchart"></svg>');
+    expect(html).toContain('<svg data-mermaid="flowchart"');
+    expect(html).toContain('<pre class="mermaid-block"><code>');
+    expect(html).not.toContain('<pre><code class="language-mermaid">');
     expect(html).toContain('Mermaid 图表');
-    expect(html).toContain('显示 Mermaid 源码');
+    expect(html).not.toContain('mermaid-source');
     expect(html).not.toContain('data-mermaid-source');
-    expect(generateExportHtml(html)).toContain('<svg data-mermaid="flowchart"></svg>');
+    const exported = generateExportHtml(html);
+    expect(exported).toContain('<svg data-mermaid="flowchart"');
+    expect(exported).toContain('pre.mermaid-block');
+    expect(exported).toContain('background: transparent');
   });
 
-  it('在 Mermaid 解析失败时保留源码并显示英文错误卡片', async () => {
+  it('在 Mermaid 解析失败时显示英文错误卡片', async () => {
     render.mockRejectedValue(new Error('Parse error on line 2'));
 
     const html = await renderMarkdown('```mermaid\nnot valid\n```', { locale: 'en' });
 
     expect(html).toContain('Mermaid diagram syntax error');
     expect(html).toContain('Parse error on line 2');
-    expect(html).toContain('not valid');
+    expect(html).not.toContain('mermaid-source');
   });
 
   it('合法 Mermaid 图表会成功渲染', async () => {
@@ -50,7 +61,8 @@ describe('Mermaid Markdown 渲染', () => {
 
     const html = await renderMarkdown('```mermaid\nflowchart TD\n  A --> B\n```');
 
-    expect(html).toContain('<svg data-mermaid="flowchart"></svg>');
+    expect(html).toContain('<svg data-mermaid="flowchart"');
+    expect(html).not.toContain('fill="#202938"');
     expect(html).not.toContain('Mermaid diagram syntax error');
   });
 

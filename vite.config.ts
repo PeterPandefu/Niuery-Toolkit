@@ -75,6 +75,9 @@ export default defineConfig({
   },
   server: {
     port: 21516,
+    // Tauri 的 devUrl 使用固定端口；端口被占用时应直接失败，避免 Vite
+    // 静默切换到其他端口后导致桌面窗口加载错误页面或空白页。
+    strictPort: true,
     host: true,
   },
   build: {

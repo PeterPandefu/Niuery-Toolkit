@@ -1,4 +1,5 @@
 mod capture_guard;
+mod chromium;
 mod clipboard;
 mod file_saver;
 mod hotkey;
@@ -52,6 +53,15 @@ mod dev_server {
         }
 
         std::thread::spawn(move || {
+            // `tauri dev` 会并行启动 beforeDevCommand。先给它时间监听端口，
+            // 避免这里重复启动第二个 Vite 并触发固定端口冲突。
+            for _ in 0..40 {
+                std::thread::sleep(Duration::from_millis(250));
+                if probe(&addr) {
+                    return;
+                }
+            }
+
             // 推导项目根目录：<root>/src-tauri/target/debug/<exe>
             let Some(root) = std::env::current_exe()
                 .ok()
@@ -323,6 +333,8 @@ pub fn run() {
             process_tools::find_file_lock_owners,
             process_tools::terminate_processes,
             file_saver::save_file_dialog,
+            chromium::render_html_to_pdf,
+            chromium::render_html_to_png,
             file_saver::open_text_file_dialog,
             file_saver::pick_existing_file,
             file_saver::write_recovery_snapshot,

@@ -233,29 +233,40 @@
 }
 
 /* Markdown Preview - Mermaid */
+.markdown-preview pre.mermaid-block {
+  margin: 1rem 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+.markdown-preview pre.mermaid-block > code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: normal;
+}
+
 .markdown-preview .mermaid-diagram {
-  @apply my-4 overflow-x-auto rounded-md border border-border bg-background;
+  @apply overflow-x-auto bg-background;
 }
 
 .markdown-preview .mermaid-svg {
-  @apply flex min-w-full w-max justify-center p-4;
+  @apply flex min-w-full w-max justify-center;
 }
 
 .markdown-preview .mermaid-svg svg {
   max-width: none;
   height: auto;
+  background: hsl(var(--background)) !important;
 }
 
-.markdown-preview .mermaid-source {
-  @apply border-t border-border px-3 py-2 text-xs text-muted-foreground;
-}
-
-.markdown-preview .mermaid-source summary {
-  @apply cursor-pointer select-none;
-}
-
-.markdown-preview .mermaid-source pre {
-  @apply mt-2;
+.markdown-preview .mermaid-svg svg rect.background,
+.markdown-preview .mermaid-svg svg rect[class*='background'] {
+  fill: hsl(var(--background)) !important;
 }
 
 .markdown-preview .mermaid-error {

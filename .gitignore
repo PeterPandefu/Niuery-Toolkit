@@ -66,3 +66,5 @@ tmp_review_diff.txt
 
 # temp
 docs/
+src-tauri/resources/chromium/*/
+!src-tauri/resources/chromium/README.md
