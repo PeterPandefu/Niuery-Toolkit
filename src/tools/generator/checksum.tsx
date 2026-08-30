@@ -5,8 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 import { Upload, FileIcon, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { md5 } from 'js-md5';
 
-type HashAlgorithm = 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
+type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-384' | 'SHA-512';
 
 interface FileResult {
   fileName: string;
@@ -29,14 +30,16 @@ export default function ChecksumTool() {
   const computeHash = useCallback(async (file: File, algo: HashAlgorithm): Promise<FileResult> => {
     const start = performance.now();
     const buffer = await file.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest(algo, buffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    const hash = algo === 'MD5'
+      ? md5(buffer)
+      : Array.from(new Uint8Array(await crypto.subtle.digest(algo, buffer)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
     const timeMs = performance.now() - start;
     return { fileName: file.name, fileSize: file.size, algorithm: algo, hash, timeMs };
   }, []);
 
-  const processFiles = useCallback(async (fileList: File[]) => {
+  const processFiles = useCallback(async (fileList: File[], algo: HashAlgorithm = algorithm) => {
     if (fileList.length === 0) return;
     setProcessing(true);
     setProgress(0);
@@ -45,14 +48,14 @@ export default function ChecksumTool() {
     try {
       const newResults: FileResult[] = [];
       for (let i = 0; i < fileList.length; i++) {
-        const result = await computeHash(fileList[i], algorithm);
+        const result = await computeHash(fileList[i], algo);
         newResults.push(result);
         setProgress(Math.round(((i + 1) / fileList.length) * 100));
         setResults([...newResults]);
         log.info('文件哈希计算完成', {
           fileName: result.fileName,
           fileSize: result.fileSize,
-          algorithm,
+          algorithm: algo,
           timeMs: Math.round(result.timeMs * 10) / 10,
         });
       }
@@ -113,9 +116,10 @@ export default function ChecksumTool() {
               const value = e.target.value as HashAlgorithm;
               setAlgorithm(value);
               log.info('切换哈希算法', { algorithm: value });
-              if (files.length > 0) processFiles(files);
+              if (files.length > 0) processFiles(files, value);
             }}
             options={[
+              { value: 'MD5', label: 'MD5' },
               { value: 'SHA-1', label: 'SHA-1' },
               { value: 'SHA-256', label: 'SHA-256' },
               { value: 'SHA-384', label: 'SHA-384' },
@@ -160,6 +164,30 @@ export default function ChecksumTool() {
           </Button>
         </label>
       </div>
+
+      {/* 当前文件 */}
+      {files.length > 0 && (
+        <section className="space-y-2 rounded-lg border bg-muted/20 p-3" aria-live="polite" aria-label="当前文件">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">当前文件</p>
+            <span className="text-xs text-muted-foreground">{files.length} 个</span>
+          </div>
+          <ul className="max-h-40 space-y-1 overflow-y-auto">
+            {files.map((file, index) => (
+              <li
+                key={`${file.name}-${file.lastModified}-${index}`}
+                className="flex min-w-0 items-center gap-2 rounded-md bg-background/70 px-2 py-1.5"
+              >
+                <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1 truncate text-sm" title={file.name}>
+                  {file.name}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{formatSize(file.size)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 进度条 */}
       {processing && (
