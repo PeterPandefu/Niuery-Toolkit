@@ -2,19 +2,22 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import StickyNoteApp from '@/sticky-note/StickyNoteApp';
 
-const { invokeMock, applyThemeMock } = vi.hoisted(() => ({
+const { invokeMock, applyThemeMock, copyToClipboardMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   applyThemeMock: vi.fn(),
+  copyToClipboardMock: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('@/lib/api-client', () => ({ isTauri: true }));
 vi.mock('@/hooks/use-theme', () => ({ useApplyTheme: applyThemeMock }));
+vi.mock('@/lib/utils', () => ({ copyToClipboard: copyToClipboardMock }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 describe('StickyNoteApp', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    copyToClipboardMock.mockResolvedValue(true);
     invokeMock.mockImplementation((command: string) => {
       if (command === 'get_sticky_notes') {
         return Promise.resolve({
@@ -30,6 +33,7 @@ describe('StickyNoteApp', () => {
   afterEach(() => {
     vi.useRealTimers();
     invokeMock.mockReset();
+    copyToClipboardMock.mockReset();
     applyThemeMock.mockReset();
   });
 
@@ -57,6 +61,52 @@ describe('StickyNoteApp', () => {
       },
     });
     expect(applyThemeMock).toHaveBeenCalled();
+  });
+
+  it('可从编辑区域底部复制当前便签内容并显示已复制状态', async () => {
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'stickyNote.copy' }));
+      await Promise.resolve();
+    });
+    expect(copyToClipboardMock).toHaveBeenCalledWith('先完成便签');
+    expect(screen.getByRole('button', { name: 'stickyNote.copied' })).not.toHaveTextContent('stickyNote.copied');
+    expect(document.querySelector('.sticky-note-footer button')).not.toBeInTheDocument();
+    expect(document.querySelector('.sticky-note-header .sticky-note-actions button')).toBeInTheDocument();
+  });
+
+  it('复制时间轴记录时按日期时间换行内容逐条输出', async () => {
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'get_sticky_notes') {
+        return Promise.resolve({
+          notes: [{
+            id: 'note-1', title: '时间轴', content: '', color: 'lime', mode: 'timeline',
+            timelineEntries: [
+              { id: 'late', timestamp: '2026-08-29T12:00:00.000Z', content: '较晚记录' },
+              { id: 'early', timestamp: '2026-08-29T08:00:00.000Z', content: '较早记录' },
+            ],
+          }],
+          activeId: 'note-1', alwaysOnTop: true,
+        });
+      }
+      return Promise.resolve();
+    });
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'stickyNote.copy' }));
+      await Promise.resolve();
+    });
+    expect(copyToClipboardMock).toHaveBeenCalledWith(expect.stringMatching(/2026\/08\/29 20:00\n较晚记录\n\n2026\/08\/29 16:00\n较早记录/));
   });
 
   it('为当前便签标记同色连接点所需的活动标签信息', async () => {
@@ -155,6 +205,26 @@ describe('StickyNoteApp', () => {
     random.mockRestore();
   });
 
+  it('切换为时间轴后侧栏和顶部保持显示便签原名称', async () => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'stickyNote.add' })[0]);
+    expect(screen.getByRole('button', { name: '便签 2' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.toggleMode' }));
+
+    expect(screen.getByRole('button', { name: '便签 2' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('region', { name: 'stickyNote.title' })).toHaveTextContent('便签 2');
+    expect(screen.queryByRole('button', { name: 'stickyNote.timeline' })).not.toBeInTheDocument();
+  });
+
   it('通过右键菜单删除当前便签后会切换到相邻便签，最后一张便签不可删除', async () => {
     render(<StickyNoteApp />);
     await act(async () => {
@@ -221,6 +291,26 @@ describe('StickyNoteApp', () => {
     expect(document.querySelector('.sticky-note-tab-row.is-dragging')).toBeNull();
   });
 
+  it('标签和拖拽浮层移除六点图标后为标题释放空间', async () => {
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const noteTab = screen.getByRole('button', { name: '便签 1' });
+    expect(noteTab.querySelector('.sticky-note-tab-grip')).not.toBeInTheDocument();
+    expect(noteTab.querySelector('span')).toHaveTextContent('便签 1');
+
+    fireEvent.pointerDown(noteTab, { button: 0, pointerId: 3, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(window, { pointerId: 3, clientX: 30, clientY: 30 });
+    await act(async () => {
+      await vi.runOnlyPendingTimersAsync();
+    });
+    expect(document.querySelector('.sticky-note-floating-tab .sticky-note-tab-grip')).not.toBeInTheDocument();
+    fireEvent.pointerUp(window, { pointerId: 3, clientX: 30, clientY: 30 });
+  });
+
   it('单击标签切换时不会立即进入拖动动画状态', async () => {
     render(<StickyNoteApp />);
     await act(async () => {
@@ -284,6 +374,33 @@ describe('StickyNoteApp', () => {
     fireEvent.doubleClick(screen.getByText('新的记录'));
     expect(screen.getByRole('dialog', { name: 'stickyNote.editTimelineEntry' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'stickyNote.timelineContent' })).toHaveValue('新的记录');
+  });
+
+  it('创建时间轴记录后可通过删除按钮移除记录', async () => {
+    render(<StickyNoteApp />);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.toggleMode' }));
+    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.addTimelineEntry' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'stickyNote.timelineContent' }), { target: { value: '待删除记录' } });
+    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.confirm' }));
+
+    expect(screen.getByText('待删除记录')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'stickyNote.deleteTimelineEntry' }));
+    expect(screen.queryByText('待删除记录')).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+    const updateCalls = invokeMock.mock.calls.filter(([command]) => command === 'update_sticky_notes');
+    expect(updateCalls[updateCalls.length - 1]?.[1]).toMatchObject({
+      document: {
+        notes: [{ timelineEntries: [] }],
+      },
+    });
   });
 
   it('加载时间轴记录时按时间从晚到早显示', async () => {
