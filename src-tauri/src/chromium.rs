@@ -19,7 +19,10 @@ fn chromium_path(app: &AppHandle) -> Result<PathBuf, String> {
         }
     }
 
-    let resource_dir = app.path().resource_dir().map_err(|error| error.to_string())?;
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|error| error.to_string())?;
     let executable = if cfg!(target_os = "windows") {
         "chrome-headless-shell.exe"
     } else {
@@ -95,9 +98,11 @@ pub async fn render_html_to_png(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<Vec<u8>, String> {
-    tauri::async_runtime::spawn_blocking(move || render_html_to_png_blocking(&app, &html, width, height))
-        .await
-        .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        render_html_to_png_blocking(&app, &html, width, height)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 fn render_html_to_pdf_blocking(app: &AppHandle, html: &str) -> Result<Vec<u8>, String> {
@@ -106,7 +111,10 @@ fn render_html_to_pdf_blocking(app: &AppHandle, html: &str) -> Result<Vec<u8>, S
         .duration_since(UNIX_EPOCH)
         .map_err(|error| error.to_string())?
         .as_millis();
-    let base = std::env::temp_dir().join(format!("niuery-markdown-pdf-{}-{timestamp}", std::process::id()));
+    let base = std::env::temp_dir().join(format!(
+        "niuery-markdown-pdf-{}-{timestamp}",
+        std::process::id()
+    ));
     fs::create_dir_all(&base).map_err(|error| error.to_string())?;
     let html_path = base.join("document.html");
     let pdf_path = base.join("document.pdf");
@@ -140,13 +148,21 @@ fn render_html_to_pdf_blocking(app: &AppHandle, html: &str) -> Result<Vec<u8>, S
     result
 }
 
-fn render_html_to_png_blocking(app: &AppHandle, html: &str, width: Option<u32>, height: Option<u32>) -> Result<Vec<u8>, String> {
+fn render_html_to_png_blocking(
+    app: &AppHandle,
+    html: &str,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Result<Vec<u8>, String> {
     let chromium = chromium_path(app)?;
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| error.to_string())?
         .as_millis();
-    let base = std::env::temp_dir().join(format!("niuery-markdown-png-{}-{timestamp}", std::process::id()));
+    let base = std::env::temp_dir().join(format!(
+        "niuery-markdown-png-{}-{timestamp}",
+        std::process::id()
+    ));
     fs::create_dir_all(&base).map_err(|error| error.to_string())?;
     let html_path = base.join("document.html");
     let png_path = base.join("document.png");
@@ -168,7 +184,11 @@ fn render_html_to_png_blocking(app: &AppHandle, html: &str, width: Option<u32>, 
             .arg("--hide-scrollbars")
             .arg("--run-all-compositor-stages-before-draw")
             .arg("--virtual-time-budget=1000")
-            .arg(format!("--window-size={},{}", width.unwrap_or(1440), height.unwrap_or(10000)))
+            .arg(format!(
+                "--window-size={},{}",
+                width.unwrap_or(1440),
+                height.unwrap_or(10000)
+            ))
             .arg(format!("--screenshot={}", png_path.display()))
             .arg(url)
             .current_dir(&base);
@@ -187,14 +207,21 @@ fn run_chromium(mut command: Command, format: &str) -> Result<(), String> {
         .map_err(|error| format!("启动 Chromium 失败：{error}"))?;
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
-        match child.try_wait().map_err(|error| format!("等待 Chromium 失败：{error}"))? {
+        match child
+            .try_wait()
+            .map_err(|error| format!("等待 Chromium 失败：{error}"))?
+        {
             Some(status) if status.success() => return Ok(()),
             Some(status) => {
                 let output = child
                     .wait_with_output()
                     .map_err(|error| format!("读取 Chromium 输出失败：{error}"))?;
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(format!("Chromium 生成 {format} 失败（退出码 {:?}）：{}", status.code(), stderr.trim()));
+                return Err(format!(
+                    "Chromium 生成 {format} 失败（退出码 {:?}）：{}",
+                    status.code(),
+                    stderr.trim()
+                ));
             }
             None if Instant::now() >= deadline => {
                 let _ = child.kill();
@@ -217,7 +244,11 @@ fn remove_directory(path: &Path) -> std::io::Result<()> {
 mod tests {
     #[test]
     fn chromium_命令使用离线参数() {
-        let args = ["--disable-background-networking", "--disable-component-update", "--no-first-run"];
+        let args = [
+            "--disable-background-networking",
+            "--disable-component-update",
+            "--no-first-run",
+        ];
         assert!(args.iter().all(|arg| arg.starts_with("--")));
     }
 }
