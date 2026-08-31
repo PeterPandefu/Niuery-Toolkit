@@ -71,6 +71,7 @@
   "stickyNote": {
     "add": "\u65b0\u589e\u4fbf\u7b7e",
     "addTimelineEntry": "新增时间轴记录",
+    "deleteTimelineEntry": "删除时间轴记录",
     "delete": "删除便签",
     "noteMenu": "便签操作",
     "keepOne": "至少保留一张便签",
@@ -89,6 +90,9 @@
     "useCurrentTime": "使用当前时间",
     "cancel": "取消",
     "confirm": "确定",
+    "copy": "复制内容",
+    "copied": "已复制",
+    "copyFailed": "复制失败",
     "title": "便签",
     "rename": "重命名便签",
     "placeholder": "写下此刻的想法…",

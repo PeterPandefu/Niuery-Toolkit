@@ -71,6 +71,7 @@
   "stickyNote": {
     "add": "New note",
     "addTimelineEntry": "Add timeline entry",
+    "deleteTimelineEntry": "Delete timeline entry",
     "delete": "Delete note",
     "noteMenu": "Note actions",
     "keepOne": "Keep at least one note",
@@ -89,6 +90,9 @@
     "useCurrentTime": "Use current time",
     "cancel": "Cancel",
     "confirm": "Save",
+    "copy": "Copy content",
+    "copied": "Copied",
+    "copyFailed": "Copy failed",
     "title": "Sticky Note",
     "rename": "Rename note",
     "placeholder": "Write down what is on your mind…",

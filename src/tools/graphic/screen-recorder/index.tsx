@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { AppWindow, AudioLines, Check, CircleStop, Clock3, ExternalLink, FileImage, FolderOpen, Monitor, MonitorUp, Pause, Play, RefreshCw, Save, Video, Volume2, VolumeX } from 'lucide-react';
+import { useEffect, useReducer, useRef, useState } from 'react';
+import type { CaptureRect, CaptureTarget, RecordingSettings } from './types';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { AudioLines, CircleStop, Clock3, ExternalLink, FileImage, FolderOpen, MonitorUp, Pause, Play, RefreshCw, Save, Video, Volume2, VolumeX } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useToolLogger } from '@/hooks/use-tool-logger';
@@ -12,13 +12,7 @@ import { GifEditor } from './GifEditor';
 import { decodeGif } from './gif-worker';
 import { createInitialRecorderState, recorderReducer } from './recorder-reducer';
 import { useRecorder } from './useRecorder';
-import {
-  DEFAULT_RECORDING_SETTINGS,
-  type CaptureMode,
-  type CaptureRect,
-  type CaptureTarget,
-  type RecordingSettings,
-} from './types';
+import { DEFAULT_RECORDING_SETTINGS } from './types';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -26,11 +20,13 @@ export default function ScreenRecorder() {
   const log = useToolLogger('screen-recorder');
   const [state, dispatch] = useReducer(recorderReducer, undefined, createInitialRecorderState);
   const [view, setView] = useState<'recorder' | 'gif'>('recorder');
-  const [mode, setMode] = useState<CaptureMode>('region');
   const [monitorId, setMonitorId] = useState('');
-  const [windowId, setWindowId] = useState('');
-  const [region, setRegion] = useState<CaptureRect>({ x: 0, y: 0, width: 1280, height: 720 });
+  const [region, setRegion] = useState<CaptureRect | null>(null);
+  const [minimizeBeforeCapture, setMinimizeBeforeCapture] = useState(true);
   const [settings, setSettings] = useState<RecordingSettings>(DEFAULT_RECORDING_SETTINGS);
+  const [selectingRegion, setSelectingRegion] = useState(false);
+  const [startingRecording, setStartingRecording] = useState(false);
+  const startingRecordingRef = useRef(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [previewSource, setPreviewSource] = useState<string | null>(null);
   const recorder = useRecorder({
@@ -51,7 +47,6 @@ export default function ScreenRecorder() {
       const primary = sources.monitors.find((item) => item.primary) ?? sources.monitors[0];
       if (primary) {
         setMonitorId(primary.id);
-        setRegion({ x: primary.x, y: primary.y, width: Math.min(1280, primary.width), height: Math.min(720, primary.height) });
       }
     });
   }, [refreshSources]);
@@ -73,33 +68,60 @@ export default function ScreenRecorder() {
     setPreviewSource(nextSource);
   }, [loadPreview, state.artifact, state.status]);
 
-  const target = useMemo<CaptureTarget | null>(() => {
-    if (mode === 'window') return windowId ? { mode, windowId: Number(windowId) } : null;
-    if (!monitorId) return null;
-    return mode === 'region' ? { mode, monitorId, rect: region } : { mode, monitorId };
-  }, [mode, monitorId, region, windowId]);
-
-  const startRecording = async () => {
+  const selectRecordingRegion = async () => {
     if (!isTauri) {
       log.warn('当前环境不支持录屏');
       toast.error('录屏仅可在 Windows 桌面版使用');
       return;
     }
-    if (!target) {
-      log.warn('未选择录制目标', { mode });
-      toast.error(mode === 'window' ? '请选择要录制的窗口' : '请选择要录制的显示器');
+    let selectedMonitorId = monitorId;
+    if (!selectedMonitorId) {
+      const sources = await refreshSources();
+      const primary = sources?.monitors.find((item) => item.primary) ?? sources?.monitors[0];
+      if (primary) {
+        selectedMonitorId = primary.id;
+        setMonitorId(primary.id);
+      }
+    }
+    if (!selectedMonitorId) {
+      log.warn('未找到可录制显示器');
+      toast.error('未找到可录制显示器');
       return;
     }
-    dispatch({ type: 'countdown' });
-    if (settings.countdownSec > 0) await new Promise((resolve) => window.setTimeout(resolve, settings.countdownSec * 1000));
-    const session = await recorder.start(target, settings);
-    if (session) {
-      setElapsedMs(0);
-      dispatch({ type: 'started', session });
-      log.info('录制已开始', { mode, fps: settings.fps, quality: settings.quality });
-    } else {
-      log.error('录制启动失败', recorder.error);
-      dispatch({ type: 'error', message: recorder.error ?? '无法开始录制' });
+    setSelectingRegion(true);
+    try {
+      await invoke('start_recording_region_selection', { minimizeBeforeCapture });
+    } catch (error) {
+      setSelectingRegion(false);
+      log.error('打开录制区域框选失败', error);
+      toast.error(`打开录制区域框选失败：${error}`);
+    }
+  };
+
+  const startRecordingForRegion = async () => {
+    if (startingRecordingRef.current || recorder.loading || state.status === 'recording' || state.status === 'paused' || state.status === 'stopping') return;
+    if (!region) {
+      toast.error('请先框选录制区域');
+      return;
+    }
+    startingRecordingRef.current = true;
+    setStartingRecording(true);
+    const target: CaptureTarget = { mode: 'region', monitorId, rect: region };
+    try {
+      dispatch({ type: 'countdown' });
+      if (settings.countdownSec > 0) await new Promise((resolve) => window.setTimeout(resolve, settings.countdownSec * 1000));
+      const session = await recorder.start(target, settings);
+      if (session) {
+        setElapsedMs(0);
+        dispatch({ type: 'started', session });
+        log.info('录制已开始', { mode: 'region', fps: settings.fps, quality: settings.quality });
+      } else {
+        log.error('录制启动失败', recorder.error);
+        dispatch({ type: 'error', message: recorder.error ?? '无法开始录制' });
+      }
+    } finally {
+      startingRecordingRef.current = false;
+      setStartingRecording(false);
     }
   };
 
@@ -157,6 +179,47 @@ export default function ScreenRecorder() {
       toast.error(message);
     }
   };
+
+  const startRecording = async () => {
+    await startRecordingForRegion();
+  };
+
+  useEffect(() => {
+    if (!isTauri) return;
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void listen<{ x: number; y: number; width: number; height: number }>('recording-region-selected', (event) => {
+      if (disposed) return;
+      setSelectingRegion(false);
+      // 后端通常会在关闭框选窗口时恢复主窗口；这里再做一次幂等恢复，
+      // 覆盖确认事件与窗口隐藏之间的竞态，确保用户能立即点击“开始录制”。
+      void invoke('restore_main_window_after_recording_region').catch(() => {});
+      const monitor = recorder.monitors.find((item) => item.id === monitorId)
+        ?? recorder.monitors.find((item) => item.primary)
+        ?? recorder.monitors[0];
+      if (!monitor) return;
+      setRegion({
+        x: Math.round(event.payload.x + monitor.x),
+        y: Math.round(event.payload.y + monitor.y),
+        width: Math.round(event.payload.width),
+        height: Math.round(event.payload.height),
+      });
+    }).then((unlisten) => {
+      if (disposed) unlisten();
+      else cleanup = unlisten;
+    });
+    let cancelCleanup: (() => void) | undefined;
+    void listen('recording-region-cancelled', () => {
+      if (!disposed) {
+        setSelectingRegion(false);
+        void invoke('restore_main_window_after_recording_region').catch(() => {});
+      }
+    }).then((unlisten) => {
+      if (disposed) unlisten();
+      else cancelCleanup = unlisten;
+    });
+    return () => { disposed = true; cleanup?.(); cancelCleanup?.(); };
+  }, [monitorId, recorder.monitors]);
 
   const revealRecordingInFolder = async () => {
     if (await recorder.revealInFolder()) {
@@ -257,7 +320,7 @@ export default function ScreenRecorder() {
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/10 text-red-500"><Video className="h-5 w-5" /></span><h2 className="font-heading text-xl font-bold">屏幕录制</h2></div>
-            <p className="mt-2 text-sm text-muted-foreground">区域、窗口或整个显示器录制；停止后可导出 MP4 或制作 GIF。</p>
+            <p className="mt-2 text-sm text-muted-foreground">在屏幕上拖拽框选需要录制的区域；停止后可导出 MP4 或制作 GIF。</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => void recorder.refreshSources()}><RefreshCw className="h-4 w-4" />刷新来源</Button>
@@ -271,31 +334,18 @@ export default function ScreenRecorder() {
         <div className="grid gap-5 lg:grid-cols-[1.25fr_.75fr]">
           <section className="rounded-xl border border-border bg-card p-5 shadow-tinted-sm">
             <h3 className="text-sm font-semibold">1. 选择录制内容</h3>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <ModeCard active={mode === 'region'} icon={<MonitorUp className="h-5 w-5" />} title="框选区域" description="录制显示器中的指定区域" onClick={() => setMode('region')} />
-              <ModeCard active={mode === 'window'} icon={<AppWindow className="h-5 w-5" />} title="选择窗口" description="只录制指定应用窗口" onClick={() => setMode('window')} />
-              <ModeCard active={mode === 'monitor'} icon={<Monitor className="h-5 w-5" />} title="整个显示器" description="录制一块完整屏幕" onClick={() => setMode('monitor')} />
+            <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm font-medium"><MonitorUp className="h-5 w-5 text-primary" />框选录制区域</div>
+                <Button variant="outline" onClick={() => void selectRecordingRegion()} disabled={recorder.loading || !isTauri || selectingRegion}>框选</Button>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">点击“框选”后，在屏幕上按住鼠标左键拖出区域，点击对勾确认；Esc 可取消。</p>
+              <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={minimizeBeforeCapture} onChange={(event) => setMinimizeBeforeCapture(event.target.checked)} /><span>框选前最小化主窗口</span></label>
             </div>
-
-            {mode === 'window' ? (
-              <div className="mt-5">
-                <Label htmlFor="recording-window">窗口</Label>
-                <Select id="recording-window" value={windowId} onChange={(event) => setWindowId(event.target.value)} options={[{ value: '', label: recorder.windows.length ? '请选择窗口' : '未找到可录制窗口' }, ...recorder.windows.map((item) => ({ value: String(item.id), label: `${item.appName} · ${item.title}` }))]} />
-              </div>
-            ) : (
-              <div className="mt-5 space-y-4">
-                <div>
-                  <Label htmlFor="recording-monitor">显示器</Label>
-                  <Select id="recording-monitor" value={monitorId} onChange={(event) => {
-                    const nextId = event.target.value;
-                    setMonitorId(nextId);
-                    const next = recorder.monitors.find((item) => item.id === nextId);
-                    if (next) setRegion({ x: next.x, y: next.y, width: Math.min(1280, next.width), height: Math.min(720, next.height) });
-                  }} options={recorder.monitors.map((item) => ({ value: item.id, label: `${item.name} · ${item.width} × ${item.height}${item.primary ? '（主显示器）' : ''}` }))} />
-                </div>
-                {mode === 'region' && <RegionEditor region={region} monitor={recorder.monitors.find((item) => item.id === monitorId)} onChange={setRegion} />}
-              </div>
-            )}
+            <div className="mt-3 rounded-lg border border-border p-4">
+              <p className="text-sm font-medium">已框选区域参数</p>
+              {region ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{(['x', 'y', 'width', 'height'] as const).map((key) => <div key={key}><Label className="text-[11px]">{key === 'x' ? 'X' : key === 'y' ? 'Y' : key === 'width' ? '宽度' : '高度'}</Label><div className="mt-1 rounded-md border border-border bg-muted/30 px-3 py-2 font-mono text-sm tabular-nums">{region[key]}</div></div>)}</div> : <p className="mt-2 text-xs text-muted-foreground">尚未框选区域</p>}
+            </div>
           </section>
 
           <section className="rounded-xl border border-border bg-card p-5 shadow-tinted-sm">
@@ -315,44 +365,12 @@ export default function ScreenRecorder() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
-          <div className="flex items-center gap-3"><Clock3 className="h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">录制时主窗口会自动隐藏，按 Esc 可停止并直接查看预览。</p></div>
-          <Button size="lg" onClick={() => void startRecording()} disabled={recorder.loading || !isTauri}><CircleStop className="h-4 w-4" />开始录制</Button>
+          <div className="flex items-center gap-3"><Clock3 className="h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">{selectingRegion ? '请在屏幕上拖拽框选区域，按 Enter 确认。' : '开始后主窗口会自动隐藏，框选确认后立即录制。'}</p></div>
+          <Button size="lg" onClick={() => void startRecording()} disabled={recorder.loading || !isTauri || selectingRegion || startingRecording || !region}><CircleStop className="h-4 w-4" />{startingRecording ? '正在启动…' : '开始录制'}</Button>
         </div>
       </div>
     </div>
   );
-}
-
-function ModeCard({ active, icon, title, description, onClick }: { active: boolean; icon: ReactNode; title: string; description: string; onClick: () => void }) {
-  return <button onClick={onClick} className={`relative rounded-lg border p-3 text-left transition ${active ? 'border-primary bg-primary/10 ring-2 ring-primary/15' : 'border-border hover:border-primary/40 hover:bg-accent/40'}`}><span className={active ? 'text-primary' : 'text-muted-foreground'}>{icon}</span><p className="mt-2 text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-muted-foreground">{description}</p>{active && <Check className="absolute right-2 top-2 h-4 w-4 text-primary" />}</button>;
-}
-
-function RegionEditor({ region, monitor, onChange }: { region: CaptureRect; monitor?: { x: number; y: number; width: number; height: number }; onChange: (value: CaptureRect) => void }) {
-  const dragStart = useRef<{ x: number; y: number } | null>(null);
-  const clamp = (next: CaptureRect) => {
-    if (!monitor) return onChange(next);
-    const width = Math.max(16, Math.min(next.width, monitor.width));
-    const height = Math.max(16, Math.min(next.height, monitor.height));
-    onChange({ x: Math.max(monitor.x, Math.min(next.x, monitor.x + monitor.width - width)), y: Math.max(monitor.y, Math.min(next.y, monitor.y + monitor.height - height)), width, height });
-  };
-  const field = (key: keyof CaptureRect, label: string) => <div><Label className="text-[11px]" htmlFor={`region-${key}`}>{label}</Label><Input id={`region-${key}`} type="number" value={region[key]} onChange={(event) => clamp({ ...region, [key]: Number(event.target.value) })} /></div>;
-  const pointFor = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - bounds.left) / bounds.width) * (monitor?.width ?? 1) + (monitor?.x ?? 0);
-    const y = ((event.clientY - bounds.top) / bounds.height) * (monitor?.height ?? 1) + (monitor?.y ?? 0);
-    return { x: Math.round(x), y: Math.round(y) };
-  };
-  const selectByDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragStart.current) return;
-    const end = pointFor(event);
-    const start = dragStart.current;
-    clamp({ x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.max(16, Math.abs(end.x - start.x)), height: Math.max(16, Math.abs(end.y - start.y)) });
-  };
-  const offsetX = monitor ? ((region.x - monitor.x) / monitor.width) * 100 : 0;
-  const offsetY = monitor ? ((region.y - monitor.y) / monitor.height) * 100 : 0;
-  const width = monitor ? (region.width / monitor.width) * 100 : 100;
-  const height = monitor ? (region.height / monitor.height) * 100 : 100;
-  return <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3"><div className="mb-2 flex items-center justify-between"><p className="text-sm font-medium">框选区域</p><span className="text-xs text-muted-foreground">拖拽框选或用方向键微调</span></div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{field('x', 'X')}{field('y', 'Y')}{field('width', '宽度')}{field('height', '高度')}</div>{monitor && <div role="application" tabIndex={0} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); dragStart.current = pointFor(event); }} onPointerMove={selectByDrag} onPointerUp={(event) => { selectByDrag(event); dragStart.current = null; }} onKeyDown={(event) => { const step = event.shiftKey ? 10 : 1; if (event.key === 'ArrowLeft') { event.preventDefault(); clamp({ ...region, x: region.x - step }); } if (event.key === 'ArrowRight') { event.preventDefault(); clamp({ ...region, x: region.x + step }); } if (event.key === 'ArrowUp') { event.preventDefault(); clamp({ ...region, y: region.y - step }); } if (event.key === 'ArrowDown') { event.preventDefault(); clamp({ ...region, y: region.y + step }); } }} className="relative mt-3 h-28 cursor-crosshair overflow-hidden rounded-md border border-border bg-gradient-to-br from-slate-500/30 via-slate-700/20 to-primary/20 outline-none focus-visible:ring-2 focus-visible:ring-primary/60" aria-label="显示器区域选择器"><span className="absolute left-2 top-2 text-[10px] text-foreground/75">{monitor.width} × {monitor.height}</span><div className="absolute border-2 border-primary bg-primary/15 shadow-[0_0_0_999px_rgba(0,0,0,.18)]" style={{ left: `${offsetX}%`, top: `${offsetY}%`, width: `${width}%`, height: `${height}%` }} /></div>}</div>;
 }
 
 function SettingSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
