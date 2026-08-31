@@ -337,14 +337,25 @@ fn hide_main_after_capture(app: &AppHandle) -> bool {
     true
 }
 
-/// 需要排除主窗口时立即隐藏，避免等待 Windows 最小化动画。
+/// 需要排除主窗口时先执行系统最小化，再立即隐藏并等待桌面合成，
+/// 避免 Windows 最小化动画期间的主窗口残影进入截图或长截图底图。
 fn hide_main_before_capture(app: &AppHandle) -> bool {
-    if !hide_visible_main(app) {
+    let Some(main) = app.get_webview_window("main") else {
+        return false;
+    };
+    let visible = main.is_visible().unwrap_or(false);
+    let minimized = main.is_minimized().unwrap_or(false);
+    if !visible || minimized {
+        return false;
+    }
+    let minimized_ok = main.minimize().is_ok();
+    let hidden_ok = main.hide().is_ok();
+    if !minimized_ok && !hidden_ok {
         return false;
     }
     app.state::<ScreenshotState>()
         .mark_main_hidden_as_minimized();
-    // hide() 返回后等待桌面合成器完成一次提交，确保随后 BitBlt 不会读到主窗口残影。
+    // 窗口状态变更后等待桌面合成器完成一次提交，确保随后 BitBlt 不会读到主窗口残影。
     #[cfg(windows)]
     unsafe {
         let _ = windows::Win32::Graphics::Dwm::DwmFlush();
@@ -363,9 +374,12 @@ fn minimize_main_before_recording_selection(app: &AppHandle) -> bool {
     if !visible || minimized {
         return false;
     }
-    if main.minimize().is_err() {
-        // 系统最小化失败时仍隐藏主窗口，避免主窗口出现在录制框选底图中。
-        return hide_main_before_capture(app);
+    let minimized_ok = main.minimize().is_ok();
+    // 最小化动画期间，Windows 桌面捕获仍可能读到主窗口残影；同步隐藏可确保
+    // 框选底图不包含软件界面，同时保留已执行的系统最小化状态供结束后恢复。
+    let hidden_ok = main.hide().is_ok();
+    if !minimized_ok && !hidden_ok {
+        return false;
     }
     app.state::<ScreenshotState>()
         .mark_main_hidden_as_minimized();
