@@ -352,6 +352,30 @@ fn hide_main_before_capture(app: &AppHandle) -> bool {
     true
 }
 
+/// 录屏框选的“最小化主窗口”选项使用系统最小化，而不是仅隐藏窗口，
+/// 让用户可以明确看到主窗口已收起到任务栏；框选结束后由录屏专用恢复流程解除最小化。
+fn minimize_main_before_recording_selection(app: &AppHandle) -> bool {
+    let Some(main) = app.get_webview_window("main") else {
+        return false;
+    };
+    let visible = main.is_visible().unwrap_or(false);
+    let minimized = main.is_minimized().unwrap_or(false);
+    if !visible || minimized {
+        return false;
+    }
+    if main.minimize().is_err() {
+        // 系统最小化失败时仍隐藏主窗口，避免主窗口出现在录制框选底图中。
+        return hide_main_before_capture(app);
+    }
+    app.state::<ScreenshotState>()
+        .mark_main_hidden_as_minimized();
+    #[cfg(windows)]
+    unsafe {
+        let _ = windows::Win32::Graphics::Dwm::DwmFlush();
+    }
+    true
+}
+
 /// 恢复截图前临时隐藏的主窗口，并按入口配置还原为前台或最小化状态。
 pub fn restore_main_after_screenshot(app: &AppHandle) {
     if app.state::<ScreenshotState>().take_main_minimized_request() {
@@ -371,8 +395,33 @@ pub fn restore_main_after_screenshot(app: &AppHandle) {
     }
 }
 
-/// 捕获全屏并打开截图窗口（异步，避免阻塞主线程）
-/// mode 为 "longshot" 时进入长截图框选模式
+fn restore_main_after_recording_selection(app: &AppHandle, state: &ScreenshotState) {
+    let was_hidden = state.take_main_minimized_request() || state.take_main_restore_request();
+    if was_hidden {
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.show();
+            let _ = main.unminimize();
+            let _ = main.set_focus();
+        }
+    }
+}
+
+/// 录屏区域框选结束后恢复主窗口，保证用户可以继续调整设置并开始录制。
+///
+/// 该命令设计为幂等操作：即使后端已经在关闭框选窗口时恢复过主窗口，
+/// 再次调用也只会确保窗口显示、解除最小化并获得焦点，用于覆盖窗口事件竞态。
+#[tauri::command]
+pub fn restore_main_window_after_recording_region(app: AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.unminimize();
+        let _ = main.set_focus();
+    }
+    Ok(())
+}
+
+/// 捕获全屏并打开选择窗口（异步，避免阻塞主线程）。
+/// mode 为 "longshot" 或 "recording" 时进入对应的专用框选模式。
 #[tauri::command]
 pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<(), String> {
     // 在共享入口锁内完成冲突检查和会话占用，避免截图与录屏并发启动。
@@ -392,7 +441,9 @@ pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<()
             None => return Ok(()),
         }
     };
-    if mode.as_deref() == Some("longshot") || should_minimize_before_capture(&app) {
+    if mode.as_deref() == Some("recording") && should_minimize_before_capture(&app) {
+        minimize_main_before_recording_selection(&app);
+    } else if mode.as_deref() == Some("longshot") || should_minimize_before_capture(&app) {
         hide_main_before_capture(&app);
     }
     // 全屏窗口还未显示或意外失焦时，仍可通过 Esc 可靠退出本次截图。
@@ -429,6 +480,20 @@ pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<()
     }
 }
 
+/// 打开录屏专用区域选择层。最小化选项仅对本次操作生效，不写入截图配置。
+#[tauri::command]
+pub async fn start_recording_region_selection(
+    app: AppHandle,
+    minimize_before_capture: bool,
+) -> Result<(), String> {
+    let state = app.state::<ScreenshotState>();
+    let previous = should_minimize_before_capture(&app);
+    state.set_minimize_before_capture(minimize_before_capture);
+    let result = start_screenshot(app.clone(), Some("recording".to_string())).await;
+    state.set_minimize_before_capture(previous);
+    result
+}
+
 /// 当前是否已有截图框选窗口或正在初始化的截图会话。
 pub fn is_screenshot_session_active(app: &AppHandle) -> bool {
     app.state::<ScreenshotState>().is_active()
@@ -441,9 +506,20 @@ pub fn current_screenshot_generation(app: &AppHandle) -> Option<u64> {
 
 /// 截图窗口销毁时释放会话占用，供统一窗口事件处理调用。
 pub fn release_screenshot_session(app: &AppHandle) {
-    app.state::<ScreenshotState>().release_current();
+    let state = app.state::<ScreenshotState>();
+    let recording_selection = state
+        .screen_data
+        .lock()
+        .ok()
+        .and_then(|capture| capture.as_ref().map(|item| item.mode == "recording"))
+        .unwrap_or(false);
+    state.release_current();
     unregister_screenshot_esc(app);
-    restore_main_after_screenshot(app);
+    if recording_selection {
+        restore_main_after_recording_selection(app, &state);
+    } else {
+        restore_main_after_screenshot(app);
+    }
 }
 
 #[cfg(windows)]
@@ -622,6 +698,8 @@ async fn do_start_screenshot(
         generation,
         mode: if mode.as_deref() == Some("longshot") {
             "longshot".to_string()
+        } else if mode.as_deref() == Some("recording") {
+            "recording".to_string()
         } else {
             "normal".to_string()
         },
@@ -762,6 +840,12 @@ fn close_screenshot_window_inner(
     if expected_generation.is_some_and(|generation| !state.is_generation_active(generation)) {
         return Ok(());
     }
+    let recording_selection = state
+        .screen_data
+        .lock()
+        .ok()
+        .and_then(|capture| capture.as_ref().map(|item| item.mode == "recording"))
+        .unwrap_or(false);
     let hide_result = if let Some(win) = app.get_webview_window("screenshot") {
         win.hide().map_err(|error| format!("隐藏窗口失败: {error}"))
     } else {
@@ -772,7 +856,17 @@ fn close_screenshot_window_inner(
         state.release_current();
     }
     unregister_screenshot_esc(app);
-    restore_main_after_screenshot(app);
+    if recording_selection {
+        // 录屏框选只是录制前置步骤，确认后用户还要回到主窗口调整设置并点击开始录制。
+        // 消费截图状态中的恢复标记，但始终恢复为可操作的非最小化窗口。
+        restore_main_after_recording_selection(app, &state);
+    } else {
+        restore_main_after_screenshot(app);
+    }
+    // 全局 Esc 可能在前端收到 keydown 前关闭窗口，通知录屏页面解除“正在框选”状态。
+    if recording_selection {
+        let _ = app.emit("recording-region-cancelled", ());
+    }
     hide_result
 }
 
@@ -785,12 +879,23 @@ fn cleanup_unready_screenshot_generation(app: &AppHandle, generation: u64) {
     if !state.should_cleanup(generation) {
         return;
     }
+    let recording_selection = state
+        .screen_data
+        .lock()
+        .ok()
+        .and_then(|capture| capture.as_ref().map(|item| item.mode == "recording"))
+        .unwrap_or(false);
     if let Some(window) = app.get_webview_window("screenshot") {
         let _ = window.hide();
     }
     state.release_if_generation(generation);
     unregister_screenshot_esc(app);
-    restore_main_after_screenshot(app);
+    if recording_selection {
+        restore_main_after_recording_selection(app, &state);
+        let _ = app.emit("recording-region-cancelled", ());
+    } else {
+        restore_main_after_screenshot(app);
+    }
 }
 
 /// 在指定位置（主显示器 CSS 像素坐标）发送滚轮向下事件，用于长截图自动滚动。

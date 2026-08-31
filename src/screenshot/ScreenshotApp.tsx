@@ -5,7 +5,7 @@ import { ScreenshotOverlay } from './ScreenshotOverlay';
 
 interface ScreenshotCapture {
   generation: number;
-  mode: 'normal' | 'longshot';
+  mode: 'normal' | 'longshot' | 'recording';
   path: string;
 }
 
@@ -139,6 +139,7 @@ export default function ScreenshotApp() {
       screenW={screen.width}
       screenH={screen.height}
       longshotMode={screen.mode === 'longshot'}
+      recordingMode={screen.mode === 'recording'}
     />
   );
 }

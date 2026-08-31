@@ -33,8 +33,9 @@ mod dev_server {
     fn probe(addr: &str) -> bool {
         addr.to_socket_addrs()
             .map(|mut addrs| {
-                addrs
-                    .any(|a| std::net::TcpStream::connect_timeout(&a, Duration::from_millis(500)).is_ok())
+                addrs.any(|a| {
+                    std::net::TcpStream::connect_timeout(&a, Duration::from_millis(500)).is_ok()
+                })
             })
             .unwrap_or(false)
     }
@@ -105,7 +106,10 @@ mod dev_server {
 
 use capture_guard::{CaptureActivity, CaptureGuardState, CaptureShortcut, ShortcutDecision};
 use clipboard::ClipboardHistoryState;
-use hotkey::{HotkeyState, ACTION_LONGSHOT, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW, ACTION_STICKY_NOTE};
+use hotkey::{
+    HotkeyState, ACTION_LONGSHOT, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW,
+    ACTION_STICKY_NOTE,
+};
 use recorder::RecorderState;
 use screenshot::ScreenshotState;
 use system_monitor::SystemMonitorState;
@@ -154,7 +158,8 @@ pub fn run() {
                     if screenshot::is_screenshot_esc(shortcut)
                         && screenshot::is_screenshot_session_active(app)
                     {
-                        let Some(generation) = screenshot::current_screenshot_generation(app) else {
+                        let Some(generation) = screenshot::current_screenshot_generation(app)
+                        else {
                             return;
                         };
                         // 全局快捷键插件的回调内不能同步注销当前 Esc，延后一拍再隐藏窗口并注销。
@@ -212,7 +217,11 @@ pub fn run() {
                                 let _ = app.emit("open-longshot-editor", ());
                                 let app = app.clone();
                                 tauri::async_runtime::spawn(async move {
-                                    let _ = screenshot::start_screenshot(app, Some("longshot".to_string())).await;
+                                    let _ = screenshot::start_screenshot(
+                                        app,
+                                        Some("longshot".to_string()),
+                                    )
+                                    .await;
                                 });
                             }
                             ACTION_SHOW_WINDOW => {
@@ -245,7 +254,8 @@ pub fn run() {
                                         if let Some(session_id) = recorder::active_session_id(app) {
                                             let app = app.clone();
                                             tauri::async_runtime::spawn(async move {
-                                                let _ = recorder::stop_recording(app, session_id).await;
+                                                let _ =
+                                                    recorder::stop_recording(app, session_id).await;
                                             });
                                         }
                                     }
@@ -284,6 +294,8 @@ pub fn run() {
             ws_server::stop_ws_server,
             ws_server::ws_broadcast,
             screenshot::start_screenshot,
+            screenshot::start_recording_region_selection,
+            screenshot::restore_main_window_after_recording_region,
             screenshot::get_screenshot_settings,
             screenshot::set_screenshot_minimize_before_capture,
             screenshot::get_screen_capture,
@@ -350,6 +362,10 @@ pub fn run() {
             // 初始化剪贴板历史
             let app_handle = app.handle().clone();
             recorder::cleanup_stale_recordings(&app_handle);
+            // 后台预热 FFmpeg 编码器探测，缩短首次点击“开始录制”到实际录制的等待。
+            recorder::warm_up_recording_encoder(&app_handle);
+            // 后台预热录制边框/光标高亮 WebView，避免首次录制时创建窗口造成等待。
+            recorder::warm_up_recording_overlay_windows(&app_handle);
             let _ = clipboard::init_clipboard_history(app_handle.clone());
             clipboard::record_startup_clipboard_image(&app_handle);
             // 启动后台剪贴板监控
@@ -380,8 +396,8 @@ pub fn run() {
             });
 
             // 加载托盘图标
-            let tray_icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
-                .expect("加载托盘图标失败");
+            let tray_icon =
+                Image::from_bytes(include_bytes!("../icons/icon.png")).expect("加载托盘图标失败");
 
             // 构建托盘菜单（勾选状态与实际注册状态同步）
             let autostart_checked = app.autolaunch().is_enabled().unwrap_or(false);
