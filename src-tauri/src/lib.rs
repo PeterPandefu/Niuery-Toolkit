@@ -112,6 +112,7 @@ use hotkey::{
 };
 use recorder::RecorderState;
 use screenshot::ScreenshotState;
+use std::sync::atomic::{AtomicBool, Ordering};
 use system_monitor::SystemMonitorState;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
@@ -126,9 +127,33 @@ fn is_window_shown(is_visible: bool, is_minimized: bool) -> bool {
     is_visible && !is_minimized
 }
 
+fn should_show_close_dialog(close_to_exit: Option<bool>, dialog_open: bool) -> bool {
+    close_to_exit.is_none() && !dialog_open
+}
+
 /// 关闭行为状态（仅在本次运行期间有效，不持久化）
 #[derive(Default)]
-struct CloseBehaviorState(std::sync::Mutex<Option<bool>>);
+struct CloseBehaviorState {
+    choice: std::sync::Mutex<Option<bool>>,
+    dialog_open: AtomicBool,
+}
+
+impl CloseBehaviorState {
+    fn try_begin_dialog(&self) -> bool {
+        let choice = *self.choice.lock().unwrap();
+        if !should_show_close_dialog(choice, self.dialog_open.load(Ordering::Acquire)) {
+            return false;
+        }
+        self.dialog_open
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+    }
+
+    fn finish_dialog(&self, choice: bool) {
+        *self.choice.lock().unwrap() = Some(choice);
+        self.dialog_open.store(false, Ordering::Release);
+    }
+}
 
 fn current_capture_activity(app: &tauri::AppHandle) -> CaptureActivity {
     if recorder::active_session_id(app).is_some() {
@@ -147,6 +172,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, shortcut, event| {
@@ -492,7 +524,7 @@ pub fn run() {
                 let app = window.app_handle();
                 let close_to_exit = {
                     let state = app.state::<CloseBehaviorState>();
-                    let value = *state.0.lock().unwrap();
+                    let value = *state.choice.lock().unwrap();
                     value
                 };
 
@@ -506,8 +538,13 @@ pub fn run() {
                         let _ = window.hide();
                     }
                     None => {
-                        // 首次关闭，弹窗询问
+                        // 弹窗等待期间再次点击关闭也必须阻止主窗口关闭。
                         api.prevent_close();
+                        let state = app.state::<CloseBehaviorState>();
+                        if !state.try_begin_dialog() {
+                            return;
+                        }
+                        // 首次关闭，弹窗询问
                         let app_handle = app.clone();
                         app.dialog()
                             .message("关闭窗口时，您希望执行什么操作？")
@@ -520,7 +557,7 @@ pub fn run() {
                                 // 仅在本次运行期间记住选择，下次启动重新询问
                                 {
                                     let state = app_handle.state::<CloseBehaviorState>();
-                                    *state.0.lock().unwrap() = Some(exit);
+                                    state.finish_dialog(exit);
                                 }
 
                                 if exit {
@@ -545,12 +582,26 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::is_window_shown;
+    use super::{is_window_shown, should_show_close_dialog, CloseBehaviorState};
 
     #[test]
     fn 唤出快捷键仅在窗口实际显示时隐藏窗口() {
         assert!(is_window_shown(true, false));
         assert!(!is_window_shown(false, false));
         assert!(!is_window_shown(true, true));
+    }
+
+    #[test]
+    fn 关闭确认弹窗显示期间不会重复弹出() {
+        assert!(!should_show_close_dialog(None, true));
+    }
+
+    #[test]
+    fn 关闭确认状态只允许打开一个弹窗() {
+        let state = CloseBehaviorState::default();
+        assert!(state.try_begin_dialog());
+        assert!(!state.try_begin_dialog());
+        state.finish_dialog(false);
+        assert!(!state.try_begin_dialog());
     }
 }
