@@ -8,6 +8,7 @@ import { AnnotationLayer } from './AnnotationLayer';
 import { EditToolbar } from './EditToolbar';
 import { ScreenshotOcrPanel } from '@/components/ocr/ScreenshotOcrPanel';
 import { saveBytesWithFeedback } from '@/lib/file-save';
+import { Check } from 'lucide-react';
 import {
   type ScreenshotPhase,
   type SelectionMode,
@@ -26,9 +27,10 @@ interface ScreenshotOverlayProps {
   screenH: number;
   /** 长截图模式：框选可滚动区域后发送给主窗口，不做标注 */
   longshotMode?: boolean;
+  recordingMode?: boolean;
 }
 
-export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, longshotMode = false }: ScreenshotOverlayProps) {
+export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, longshotMode = false, recordingMode = false }: ScreenshotOverlayProps) {
   const [phase, setPhase] = useState<ScreenshotPhase>('idle');
   const [mode, setMode] = useState<SelectionMode>('rect');
   const [selection, setSelection] = useState<SelectionRect | null>(null);
@@ -186,8 +188,9 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
 
   const handleCancel = useCallback(() => {
     if (ocrSource && ocrText.trim() && !window.confirm('关闭截图将丢失未保存的识别文本，是否继续？')) return;
+    if (recordingMode) void emitTo('main', 'recording-region-cancelled');
     closeCurrentScreenshot();
-  }, [closeCurrentScreenshot, ocrSource, ocrText]);
+  }, [closeCurrentScreenshot, ocrSource, ocrText, recordingMode]);
 
   const openOcr = useCallback((autoTranslate: boolean) => {
     if (!croppedCanvas) return;
@@ -221,6 +224,15 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
     }).catch((e) => console.error('发送长截图选区失败', e));
     closeCurrentScreenshot();
   }, [closeCurrentScreenshot, selection, longshotIntervalMs, longshotAutoScroll]);
+
+  const confirmRecording = useCallback(() => {
+    if (!selection || selection.width < MIN_SELECTION_SIZE || selection.height < MIN_SELECTION_SIZE) return;
+    emitTo('main', 'recording-region-selected', {
+      x: Math.round(selection.x), y: Math.round(selection.y),
+      width: Math.round(selection.width), height: Math.round(selection.height),
+    }).catch((e) => console.error('发送录制选区失败', e));
+    closeCurrentScreenshot();
+  }, [closeCurrentScreenshot, selection]);
 
   const confirmLongshotRef = useRef(confirmLongshot);
   confirmLongshotRef.current = confirmLongshot;
@@ -372,6 +384,7 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
           isDrawing.current = false;
           setPhase('idle');
         } else {
+          if (recordingMode) void emitTo('main', 'recording-region-cancelled');
           closeCurrentScreenshot();
         }
         return;
@@ -386,13 +399,14 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
         e.preventDefault();
         if (phase === 'drawing') { confirmFreehandRef.current(); }
         else if (phase === 'selected') {
-          if (longshotMode) { confirmLongshotRef.current(); }
+          if (recordingMode) { confirmRecording(); }
+          else if (longshotMode) { confirmLongshotRef.current(); }
           else { copyRef.current(); }
         }
         return;
       }
       // M 键切换模式（仅 idle 阶段，长截图模式仅支持矩形框选）
-      if ((e.key === 'm' || e.key === 'M') && phase === 'idle' && !longshotMode) {
+      if ((e.key === 'm' || e.key === 'M') && phase === 'idle' && !longshotMode && !recordingMode) {
         e.preventDefault();
         setMode((m) => (m === 'freehand' ? 'rect' : 'freehand'));
         setFreehandPoints([]);
@@ -400,7 +414,7 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeCurrentScreenshot, phase, undo, redo, longshotMode, stopMouseTracking]);
+  }, [closeCurrentScreenshot, phase, undo, redo, longshotMode, recordingMode, stopMouseTracking, confirmRecording]);
 
   // ── 工具栏位置（选区下方，空间不足则上方）────────────────
   const toolbarPos = useMemo(() => {
@@ -482,11 +496,16 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
             screenW={screenW}
             screenH={screenH}
             onSelectionChange={handleSelectionChange}
-            onDoubleClick={longshotMode ? confirmLongshot : handleCopy}
+            onDoubleClick={recordingMode ? confirmRecording : longshotMode ? confirmLongshot : handleCopy}
           />
 
           {/* 长截图模式：动作按钮（代替标注工具栏） */}
-          {longshotMode ? (
+          {recordingMode ? (
+            <div className="fixed z-30 flex items-center gap-2 rounded-lg bg-[#2a2a2a]/95 px-3 py-2 text-sm text-white shadow-lg" style={{ left: toolbarPos.x, top: toolbarPos.y }} onMouseDown={(e) => e.stopPropagation()}>
+              <span>{Math.round(selection.width)} × {Math.round(selection.height)}</span>
+              <button type="button" aria-label="确认录制区域" title="确认录制区域" className="flex h-8 w-8 items-center justify-center rounded bg-[#4488ff] hover:bg-[#5a98ff]" onClick={confirmRecording}><Check className="h-4 w-4" /></button>
+            </div>
+          ) : longshotMode ? (
             <div
               className="fixed z-30 flex items-center gap-1 rounded-lg bg-[#2a2a2a]/95 px-2 py-1.5 shadow-lg"
               style={{ left: toolbarPos.x, top: toolbarPos.y }}
@@ -632,9 +651,11 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
             className="pointer-events-auto flex items-center gap-3 rounded-xl border border-white/15 bg-[#202124]/95 px-4 py-2.5 text-sm text-white shadow-2xl select-none"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <span className="font-semibold text-white">正在截图</span>
+            <span className="font-semibold text-white">{recordingMode ? '选择录制区域' : '正在截图'}</span>
             <span className="text-white/80">
-              {longshotMode
+              {recordingMode
+                ? '拖动鼠标框选录制区域 · Enter 确认开始录制'
+                : longshotMode
                 ? '拖动框选可滚动区域 · Enter 开始长截图'
                 : mode === 'freehand'
                   ? '按住鼠标绘制截图区域 · Enter 确认 · M 切换矩形'
@@ -645,7 +666,7 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
               className="rounded-md bg-white/10 px-2.5 py-1 text-xs text-white/90 transition-colors hover:bg-white/20"
               onClick={handleCancel}
             >
-              取消截图（Esc）
+              {recordingMode ? '取消框选（Esc）' : '取消截图（Esc）'}
             </button>
           </div>
         </div>

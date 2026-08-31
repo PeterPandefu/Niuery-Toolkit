@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::ipc::Response;
 use tauri::{
@@ -16,6 +17,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 static NEXT_GIF_EXPORT_ID: AtomicU64 = AtomicU64::new(0);
 static GIF_EXPORT_REPLACE_LOCK: Mutex<()> = Mutex::new(());
+static RECORDING_ENCODER_CACHE: OnceLock<Mutex<Option<&'static str>>> = OnceLock::new();
 
 const RECORDING_ESC: &str = "Esc";
 
@@ -631,6 +633,9 @@ pub async fn start_recording(
         .active
         .lock()
         .map_err(|_| "录屏状态不可用".to_string())?;
+    // 录制线程可能已完成，但此前的停止调用在收尾超时/异常后未能及时清理活动槽位。
+    // 只有确认线程已产出结果且当前没有收尾调用时才回收，避免打断正常的停止重试。
+    let _ = take_recoverable_finished_recording(&mut active);
     if active.is_some() {
         return Err("已有录制任务正在进行".to_string());
     }
@@ -650,7 +655,7 @@ pub async fn start_recording(
     let elapsed_ms = Arc::new(AtomicU64::new(0));
     let finished = Arc::new(Mutex::new(None));
     let finishing = Arc::new(AtomicBool::new(false));
-    let encoder = select_video_encoder(&ffmpeg)?;
+    let encoder = cached_select_video_encoder(&ffmpeg)?;
     let recording_esc_registered = Arc::new(AtomicBool::new(register_recording_esc(&app)?));
     let thread_stop = Arc::clone(&stop_requested);
     let thread_pause = Arc::clone(&pause_requested);
@@ -1028,6 +1033,22 @@ fn clear_finished_recording(state: &RecorderState, session_id: &str) -> Result<(
         Some(_) => Err("录制会话不匹配".to_string()),
         None => Err("未找到录制任务".to_string()),
     }
+}
+
+fn take_recoverable_finished_recording(active: &mut Option<ActiveRecording>) -> bool {
+    let Some(recording) = active.as_ref() else {
+        return false;
+    };
+    let finished = recording
+        .finished
+        .lock()
+        .ok()
+        .is_some_and(|result| result.is_some());
+    if finished && !recording.finishing.load(Ordering::Acquire) {
+        active.take();
+        return true;
+    }
+    false
 }
 
 enum EncoderInput {
@@ -2003,6 +2024,75 @@ fn select_video_encoder(ffmpeg: &Path) -> Result<&'static str, String> {
     select_video_encoder_from_listing(&codecs)
 }
 
+fn cached_select_video_encoder(ffmpeg: &Path) -> Result<&'static str, String> {
+    let cache = RECORDING_ENCODER_CACHE.get_or_init(|| Mutex::new(None));
+    if let Some(encoder) = cache
+        .lock()
+        .map_err(|_| "录屏编码器缓存不可用".to_string())?
+        .as_ref()
+        .copied()
+    {
+        return Ok(encoder);
+    }
+    let encoder = select_video_encoder(ffmpeg)?;
+    let mut cached = cache
+        .lock()
+        .map_err(|_| "录屏编码器缓存不可用".to_string())?;
+    Ok(cached.get_or_insert(encoder))
+}
+
+/// 在应用空闲启动阶段预热录屏编码器探测，避免首次点击“开始录制”时才启动
+/// FFmpeg `-encoders` 子进程。预热失败不阻塞应用启动，真正录制时仍会重试。
+pub fn warm_up_recording_encoder(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let Ok(ffmpeg) = find_ffmpeg(&app) else {
+            return;
+        };
+        let _ = cached_select_video_encoder(&ffmpeg);
+    });
+}
+
+/// 在应用启动后后台创建录制边框和光标高亮窗口，避免首次录制时才创建 WebView。
+/// 窗口保持隐藏，真正开始录制时会复用并设置位置/尺寸。
+pub fn warm_up_recording_overlay_windows(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if app.get_webview_window(RECORDING_BORDER_WINDOW).is_none() {
+            let _ = WebviewWindowBuilder::new(
+                &app,
+                RECORDING_BORDER_WINDOW,
+                WebviewUrl::App("index.html#/recording-capture-border".into()),
+            )
+            .title("录制范围边框")
+            .transparent(true)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(false)
+            .visible(false)
+            .build();
+        }
+
+        #[cfg(target_os = "windows")]
+        if app.get_webview_window(CURSOR_HIGHLIGHT_WINDOW).is_none() {
+            let _ = WebviewWindowBuilder::new(
+                &app,
+                CURSOR_HIGHLIGHT_WINDOW,
+                WebviewUrl::App("index.html#/recording-cursor-highlight".into()),
+            )
+            .title("录制光标高亮")
+            .transparent(true)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(false)
+            .visible(false)
+            .build();
+        }
+    });
+}
+
 /// 硬件 H.264 编码器即使列在 `-encoders` 输出中，也会因系统缺少 MFT、驱动或会话
 /// 限制而在真正开始录制时失败。优先选择软件 H.264，确保 MP4 可由 WebView2 的 video
 /// 元素解码，而不是回退到浏览器通常不支持的 MPEG-4 Part 2。
@@ -2303,7 +2393,8 @@ mod tests {
         is_recording_esc, recording_border_bounds, replace_gif_export_with, select_video_encoder,
         select_video_encoder_from_listing, start_encoder_after_highlight,
         stop_and_join_cursor_follow_thread, take_recording_esc_registration, ActiveRecording,
-        CaptureRect, ExportOptions, FinishAttempt,
+        take_recoverable_finished_recording, CaptureRect, ExportOptions, FinishAttempt,
+        RecordingArtifact,
     };
     use std::path::Path;
     use std::process::Command;
@@ -2407,6 +2498,44 @@ mod tests {
             FinishAttempt::begin(&recording).is_ok(),
             "超时后应允许再次停止同一会话"
         );
+    }
+
+    #[test]
+    fn recovers_finished_session_only_when_no_stop_call_is_finishing() {
+        let recording = ActiveRecording {
+            id: "recording-finished".to_string(),
+            stop_requested: Arc::new(AtomicBool::new(true)),
+            pause_requested: Arc::new(AtomicBool::new(false)),
+            cancelled: Arc::new(AtomicBool::new(false)),
+            elapsed_ms: Arc::new(AtomicU64::new(0)),
+            finished: Arc::new(Mutex::new(Some(Ok(RecordingArtifact {
+                path: "recording.mp4".to_string(),
+                duration_ms: 1,
+                requested_fps: 30,
+                fps: 30,
+                quality: "balanced".to_string(),
+                capture_backend: "xcap".to_string(),
+                width: 16,
+                height: 16,
+                size_bytes: 1,
+            })))),
+            finishing: Arc::new(AtomicBool::new(false)),
+            recording_esc_registered: Arc::new(AtomicBool::new(false)),
+        };
+        let mut active = Some(recording);
+        active
+            .as_ref()
+            .unwrap()
+            .finishing
+            .store(true, Ordering::Release);
+        assert!(!take_recoverable_finished_recording(&mut active));
+        active
+            .as_ref()
+            .unwrap()
+            .finishing
+            .store(false, Ordering::Release);
+        assert!(take_recoverable_finished_recording(&mut active));
+        assert!(active.is_none());
     }
 
     #[test]

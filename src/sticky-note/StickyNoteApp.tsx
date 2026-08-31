@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, CircleOff, Folder, GripVertical, ListTodo, Palette, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react';
+import { Check, CircleOff, Copy, Folder, ListTodo, Palette, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from '@/lib/api-client';
 import { useApplyTheme } from '@/hooks/use-theme';
 import { useAppStore } from '@/store/app-store';
+import { copyToClipboard } from '@/lib/utils';
 import './sticky-note.css';
 
 type NoteColor = 'yellow' | 'lime' | 'pink' | 'blue' | 'purple';
 type NoteMode = 'plain' | 'timeline';
+type CopyStatus = 'idle' | 'success' | 'error';
 
 interface StickyNoteItem {
   id: string;
@@ -111,6 +113,7 @@ export default function StickyNoteApp() {
   const [dropAnchor, setDropAnchor] = useState<{ targetId: string; placeAfter: boolean } | null>(null);
   const [timelineEditor, setTimelineEditor] = useState<TimelineEditorDraft | null>(null);
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>('idle');
   const [contextMenu, setContextMenu] = useState<NoteContextMenu | null>(null);
   const contextMenuRenameRef = useRef<HTMLButtonElement>(null);
   const contextMenuDeleteRef = useRef<HTMLButtonElement>(null);
@@ -234,6 +237,9 @@ export default function StickyNoteApp() {
   const activeContentLength = isTimeline
     ? timelineEntries.reduce((total, entry) => total + entry.content.length, 0)
     : activeNote.content.length;
+  const copyContent = isTimeline
+    ? timelineEntries.map((entry) => `${formatTimelineTimestamp(entry.timestamp)}\n${entry.content}`).join('\n\n')
+    : activeNote.content;
   const visibleNotes = document.notes.filter((note) => {
     const query = searchQuery.trim().toLocaleLowerCase();
     return !query || `${note.title} ${note.content}`.toLocaleLowerCase().includes(query);
@@ -314,6 +320,23 @@ export default function StickyNoteApp() {
     setSelectedTimelineEntryId(entry.id);
     setTimelineEditor(null);
   }, [timelineEditor]);
+
+  const removeTimelineEntry = useCallback((entryId: string) => {
+    setDocument((current) => ({
+      ...current,
+      notes: current.notes.map((note) => note.id === current.activeId
+        ? { ...note, timelineEntries: (note.timelineEntries ?? []).filter((entry) => entry.id !== entryId) }
+        : note),
+    }));
+    setSelectedTimelineEntryId((current) => current === entryId ? null : current);
+  }, []);
+
+  const handleCopyContent = useCallback(async () => {
+    if (!copyContent.trim()) return;
+    const copied = await copyToClipboard(copyContent);
+    setCopyStatus(copied ? 'success' : 'error');
+    window.setTimeout(() => setCopyStatus('idle'), 2000);
+  }, [copyContent]);
 
   const toggleMode = useCallback(() => {
     updateActiveNote({ mode: isTimeline ? 'plain' : 'timeline', content: '' });
@@ -592,8 +615,7 @@ export default function StickyNoteApp() {
                     finishPointerDrag();
                   }}
                   >
-                    <GripVertical className="sticky-note-tab-grip" aria-hidden="true" />
-                    <span>{note.mode === 'timeline' ? t('stickyNote.timeline') : note.title}</span>
+                    <span>{note.title}</span>
                   </button>
                 </div>
                 {showGapAfter && <div className="sticky-note-drop-gap" aria-hidden="true" />}
@@ -613,8 +635,7 @@ export default function StickyNoteApp() {
             aria-hidden="true"
             style={{ left: 0, top: 0, transform: `translate3d(${dragPosition.x}px, ${dragPosition.y}px, 0) translate(-50%, -50%) rotate(1deg)`, backgroundColor: color.surface, borderColor: color.border }}
           >
-            <GripVertical className="sticky-note-tab-grip" />
-            <span>{draggedNote.mode === 'timeline' ? t('stickyNote.timeline') : draggedNote.title}</span>
+            <span>{draggedNote.title}</span>
           </div>
         );
       })()}
@@ -682,6 +703,17 @@ export default function StickyNoteApp() {
             <button type="button" data-note-control className="sticky-note-icon-button" aria-label={t('stickyNote.search')} title={t('stickyNote.search')} aria-pressed={searchOpen} onClick={() => setSearchOpen((open) => !open)}>
               <Search aria-hidden="true" />
             </button>
+            <button
+              type="button"
+              data-note-control
+              className="sticky-note-icon-button"
+              aria-label={copyStatus === 'success' ? t('stickyNote.copied') : t('stickyNote.copy')}
+              title={copyStatus === 'error' ? t('stickyNote.copyFailed') : copyStatus === 'success' ? t('stickyNote.copied') : t('stickyNote.copy')}
+              disabled={!copyContent.trim()}
+              onClick={() => void handleCopyContent()}
+            >
+              {copyStatus === 'success' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+            </button>
             <div className="sticky-note-color-menu" aria-label={t('stickyNote.colorLabel')}>
               <Palette className="sticky-note-toolbar-icon" aria-hidden="true" />
               {NOTE_COLORS.map((color) => (
@@ -720,7 +752,21 @@ export default function StickyNoteApp() {
                   }}
                 >
                   <span className="sticky-note-timeline-dot" aria-hidden="true" />
-                  <time dateTime={entry.timestamp}>{formatTimelineTimestamp(entry.timestamp)}</time>
+                  <div className="sticky-note-timeline-entry-header">
+                    <time dateTime={entry.timestamp}>{formatTimelineTimestamp(entry.timestamp)}</time>
+                    <button
+                      type="button"
+                      className="sticky-note-timeline-delete"
+                      aria-label={t('stickyNote.deleteTimelineEntry')}
+                      title={t('stickyNote.deleteTimelineEntry')}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        removeTimelineEntry(entry.id);
+                      }}
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </button>
+                  </div>
                   <p>{entry.content}</p>
                 </article>
               ))}
