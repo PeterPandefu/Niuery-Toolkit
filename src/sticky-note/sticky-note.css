@@ -198,14 +198,6 @@
   touch-action: none;
 }
 
-.sticky-note-tab-grip {
-  width: 11px;
-  height: 14px;
-  flex: 0 0 11px;
-  margin-right: 3px;
-  opacity: 0.42;
-}
-
 .sticky-note-tab span {
   display: block;
   min-width: 0;
@@ -476,6 +468,38 @@
   font-size: 11px;
 }
 
+.sticky-note-timeline-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sticky-note-timeline-delete {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  padding: 0;
+  background: transparent;
+  color: rgb(48 40 14 / 0.48);
+  opacity: 0.7;
+  transition: background-color 180ms ease, color 180ms ease, opacity 180ms ease;
+}
+
+.sticky-note-timeline-delete:hover,
+.sticky-note-timeline-delete:focus-visible {
+  background: rgb(190 55 55 / 0.12);
+  color: #a32f2f;
+  opacity: 1;
+}
+
+.sticky-note-timeline-delete svg { width: 14px; height: 14px; }
+
 .sticky-note-timeline-entry p {
   margin: 3px 0 0;
   font-size: 13px;
@@ -584,6 +608,11 @@
   height: 28px;
   border-radius: 5px;
   background: transparent;
+}
+
+.sticky-note-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .sticky-note-icon-button:hover,
