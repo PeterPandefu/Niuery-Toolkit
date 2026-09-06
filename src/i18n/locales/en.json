@@ -398,7 +398,7 @@
     "undo": "Undo",
     "redo": "Redo",
     "fit": "Fit canvas",
-    "openTitle": "Open JSON, .smm, or Markdown",
+    "openTitle": "Open XMind, JSON, .smm, or Markdown",
     "saveTitle": "Save (Ctrl+S)",
     "newTitle": "New mind map",
     "saved": "Mind map saved",

@@ -456,7 +456,7 @@ registerTool({
   category: 'canvas',
   component: lazy(() => import('@/tools/graphic/mind-map')),
   keywords: ['mind map', 'mind-map', '思维导图', '大纲', 'markdown', 'smm', '离线'],
-  description: '离线思维导图：本地 .smm 保存、Markdown 导入与 PNG/SVG 导出',
+  description: '离线思维导图：支持 .smm、XMind、Markdown 导入与 PNG/SVG 导出',
 });
 
 registerTool({

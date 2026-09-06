@@ -1,4 +1,6 @@
 import type { MindMapData, MindMapNode } from 'simple-mind-map';
+import JSZip from 'jszip';
+import { XMLParser } from 'fast-xml-parser';
 
 export type MindMapDocument = MindMapData;
 
@@ -47,6 +49,101 @@ export function parseMindMapDocument(source: string): MindMapDocument {
     throw new Error('思维导图只允许使用嵌入式图片，不能加载远程图片');
   }
   return document;
+}
+
+function xmindText(value: unknown) {
+  if (typeof value === 'string') return value.trim() || '未命名主题';
+  if (value && typeof value === 'object') {
+    const record = value as { text?: unknown; plainText?: unknown; '#text'?: unknown };
+    const text = record.text ?? record.plainText ?? record['#text'];
+    if (typeof text === 'string') return text.trim() || '未命名主题';
+  }
+  return '未命名主题';
+}
+
+function xmindJsonNode(value: unknown, isRoot = false): MindMapNode {
+  const topic = (value && typeof value === 'object' ? value : {}) as {
+    title?: unknown;
+    children?: { attached?: unknown };
+  };
+  const attached = Array.isArray(topic.children?.attached) ? topic.children.attached : [];
+  return {
+    data: { text: xmindText(topic.title), expand: isRoot },
+    children: attached.map((child) => xmindJsonNode(child)),
+  };
+}
+
+function xmindXmlNode(value: unknown, isRoot = false): MindMapNode {
+  const topic = (value && typeof value === 'object' ? value : {}) as {
+    title?: unknown;
+    children?: { topics?: unknown };
+  };
+  const topics = topic.children?.topics;
+  const containers = Array.isArray(topics) ? topics : topics ? [topics] : [];
+  const children = containers.flatMap((container) => {
+    if (!container || typeof container !== 'object') return [];
+    const topicValue = (container as { topic?: unknown }).topic;
+    if (topicValue === undefined) return 'title' in container ? [container] : [];
+    return Array.isArray(topicValue) ? topicValue : [topicValue];
+  });
+  return {
+    data: { text: xmindText(topic.title), expand: isRoot },
+    children: children.map((child) => xmindXmlNode(child)),
+  };
+}
+
+/** 从 XMind ZIP（content.json 或旧版 content.xml）导入可编辑导图。 */
+export async function parseXMindDocument(source: ArrayBuffer | Uint8Array): Promise<MindMapDocument> {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(source);
+  } catch {
+    throw new Error('文件不是有效的 XMind 文档');
+  }
+
+  const jsonEntry = zip.file('content.json');
+  if (jsonEntry) {
+    let content: unknown;
+    try {
+      content = JSON.parse(await jsonEntry.async('text'));
+    } catch {
+      throw new Error('XMind 的 content.json 无法解析');
+    }
+    const record = (content && typeof content === 'object' ? content : {}) as {
+      sheets?: unknown;
+      rootTopic?: unknown;
+    };
+    const sheets = Array.isArray(content)
+      ? content
+      : Array.isArray(record.sheets)
+        ? record.sheets
+        : record.rootTopic
+          ? [record]
+          : [];
+    const sheet = sheets[0] as { rootTopic?: unknown } | undefined;
+    if (!sheet?.rootTopic) throw new Error('XMind 的 content.json 中没有可识别的根主题');
+    const root = xmindJsonNode(sheet.rootTopic, true);
+    return { root, layout: 'logicalStructure', theme: { template: 'default', config: {} } };
+  }
+
+  const xmlEntry = zip.file('content.xml');
+  if (xmlEntry) {
+    try {
+      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+      const content = parser.parse(await xmlEntry.async('text')) as {
+        'xmap-content'?: { sheet?: { topic?: unknown } | Array<{ topic?: unknown }> };
+      };
+      const sheets = content['xmap-content']?.sheet;
+      const sheet = Array.isArray(sheets) ? sheets[0] : sheets;
+      if (sheet?.topic) {
+        return { root: xmindXmlNode(sheet.topic, true), layout: 'logicalStructure', theme: { template: 'default', config: {} } };
+      }
+    } catch {
+      throw new Error('XMind 的 content.xml 无法解析');
+    }
+  }
+
+  throw new Error('XMind 文档中没有可识别的主题数据');
 }
 
 function appendNote(node: MindMapNode, line: string) {
