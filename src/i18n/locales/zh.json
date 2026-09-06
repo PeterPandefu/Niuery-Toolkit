@@ -398,7 +398,7 @@
     "undo": "撤销",
     "redo": "重做",
     "fit": "适应画布",
-    "openTitle": "打开 JSON、.smm 或 Markdown",
+    "openTitle": "打开 XMind、JSON、.smm 或 Markdown",
     "saveTitle": "保存 (Ctrl+S)",
     "newTitle": "新建思维导图",
     "saved": "已保存思维导图",

@@ -6,6 +6,11 @@ export interface OpenedTextDocument {
   contents: string;
 }
 
+export interface OpenedBinaryDocument {
+  path: string;
+  contents: string;
+}
+
 export interface RecoverySnapshot {
   id: string;
   tool: string;
@@ -20,6 +25,14 @@ export async function openTextDocument(
 ): Promise<OpenedTextDocument | null> {
   if (!isTauri) return null;
   return invoke<OpenedTextDocument | null>('open_text_file_dialog', { filterName, extensions });
+}
+
+export async function openBinaryDocument(
+  filterName: string,
+  extensions: string[],
+): Promise<OpenedBinaryDocument | null> {
+  if (!isTauri) return null;
+  return invoke<OpenedBinaryDocument | null>('open_binary_file_dialog', { filterName, extensions });
 }
 
 export async function writeRecoverySnapshot(
