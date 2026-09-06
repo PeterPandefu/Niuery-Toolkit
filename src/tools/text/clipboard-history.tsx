@@ -9,12 +9,14 @@ import {
   Check,
   ClipboardList,
   Eye,
+  Languages,
   Search,
   Monitor,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isTauri } from '@/lib/api-client';
 import { useToolLogger } from '@/hooks/use-tool-logger';
+import { openTranslatorWithText } from '@/lib/translation-navigation';
 import { ClipboardImagePreview } from './clipboard-image-preview';
 
 interface ClipboardEntryView {
@@ -367,6 +369,18 @@ export default function ClipboardHistory() {
 
                   {/* 操作按钮 */}
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    {entry.content_type === 'text' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => openTranslatorWithText(entry.text ?? '')}
+                        title="翻译"
+                        aria-label="翻译"
+                      >
+                        <Languages className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     {entry.content_type === 'image' && (
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewId(entry.id)} title="预览原图">
                         <Eye className="h-3.5 w-3.5" />
