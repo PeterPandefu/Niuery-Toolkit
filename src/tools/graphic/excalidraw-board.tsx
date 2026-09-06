@@ -22,6 +22,7 @@ import {
   writeRecoverySnapshot,
 } from '@/lib/local-documents';
 import { isTauri } from '@/lib/api-client';
+import { showOperationError } from '@/lib/operation-feedback';
 
 const TOOL_ID = 'excalidraw-board';
 
@@ -141,19 +142,23 @@ export default function ExcalidrawBoard() {
   const save = useCallback(async () => {
     const content = serializeScene();
     if (!content) return;
-    const path = await saveBytes(
-      filenameFromPath(documentPath, t('whiteboard.unnamed'), '.excalidraw'),
-      new TextEncoder().encode(content),
-      t('whiteboard.excalidrawFile'),
-      ['excalidraw'],
-    );
-    if (!path) return;
-    documentPathRef.current = path;
-    setDocumentPath(path);
-    dirtyRef.current = false;
-    setDirty(false);
-    await discardRecoverySnapshot(TOOL_ID, recoveryId.current).catch(() => undefined);
-    toast.success(t('whiteboard.saved'));
+    try {
+      const path = await saveBytes(
+        filenameFromPath(documentPath, t('whiteboard.unnamed'), '.excalidraw'),
+        new TextEncoder().encode(content),
+        t('whiteboard.excalidrawFile'),
+        ['excalidraw'],
+      );
+      if (!path) return;
+      documentPathRef.current = path;
+      setDocumentPath(path);
+      dirtyRef.current = false;
+      setDirty(false);
+      await discardRecoverySnapshot(TOOL_ID, recoveryId.current).catch(() => undefined);
+      toast.success(t('whiteboard.saved'));
+    } catch (error) {
+      showOperationError({ message: t('whiteboard.saveFailed', '白板保存失败'), error, retry: () => void save(), retryLabel: t('actions.retry', '重试'), copyLabel: t('actions.copyDetails', '复制详情'), logsLabel: t('app.logs', '查看日志') });
+    }
   }, [documentPath, serializeScene, t]);
 
   const openSource = useCallback(async (source: string, path: string) => {

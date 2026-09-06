@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import '@/lib/monaco-setup';
 import Editor, { OnMount } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { useTranslation } from 'react-i18next';
@@ -428,7 +429,11 @@ export default function MarkdownEditor() {
       const title = getMarkdownExportTitle(content, t('markdownEditor.untitled'));
       const svg = generateExportSvg(rendered, title);
       const path = await saveBytes(`${title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || t('markdownEditor.untitled')}.svg`, new TextEncoder().encode(svg), 'SVG 图像', ['svg']);
-      if (path) toast.success(t('markdownEditor.exportedSvg', { path: isTauri ? path : t('markdownEditor.browserDownloadLocation') }));
+      if (!path) {
+        toast.info(t('markdownEditor.exportCancelled'));
+        return;
+      }
+      toast.success(t('markdownEditor.exportedSvg', { path: isTauri ? path : t('markdownEditor.browserDownloadLocation') }));
     } catch (error) {
       toast.error(t('markdownEditor.svgExportFailed', { details: error instanceof Error ? error.message : String(error) }));
     }

@@ -1,3 +1,4 @@
+import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';

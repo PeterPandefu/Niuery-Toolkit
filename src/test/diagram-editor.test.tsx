@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DiagramEditor, type DiagramRenderer } from '@/tools/diagram/diagram-editor';
 
 vi.mock('@monaco-editor/react', () => ({
+  loader: { config: vi.fn() },
   default: function MockEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
     return <textarea aria-label="Diagram source" value={value} onChange={(event) => onChange(event.target.value)} />;
   },

@@ -25,6 +25,24 @@ export type ToolCategory =
   | 'system'
   | 'language';
 
+/** 工具对网络和运行环境的声明，用于在操作前给出可理解的边界提示。 */
+export type ToolNetworkMode = 'offline' | 'network' | 'hybrid';
+export type ToolCapabilityId =
+  | 'file'
+  | 'clipboard'
+  | 'screen'
+  | 'microphone'
+  | 'systemAudio'
+  | 'nativeWindow'
+  | 'system'
+  | 'localNetwork';
+
+export interface ToolCapabilities {
+  network: ToolNetworkMode;
+  permissions: ToolCapabilityId[];
+  desktopOnly?: boolean;
+}
+
 /** 分类显示名称映射 */
 export const CATEGORY_NAMES: Record<ToolCategory, string> = {
   data: '数据与转换',
@@ -79,10 +97,14 @@ export interface ToolDefinition {
   category: ToolCategory;
   /** 懒加载组件 */
   component: LazyExoticComponent<ComponentType>;
+  /** 可选的悬停预加载入口，避免重型工具点击后才开始下载代码。 */
+  preload?: () => Promise<unknown>;
   /** 搜索关键词 */
   keywords: string[];
   /** 简短描述 */
   description: string;
+  /** 离线/联网边界和运行环境能力声明。 */
+  capabilities: ToolCapabilities;
 }
 
 /** 工具状态 */

@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import JSZip from 'jszip';
 import { toast } from 'sonner';
+import i18n from '@/i18n';
 
 function isTauriRuntime() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -50,10 +51,14 @@ export async function saveBytesWithFeedback(
 ): Promise<string | null> {
   const path = await saveBytes(defaultName, bytes, filterName, extensions);
   if (!path) {
-    toast.info('已取消保存');
+    toast.info(i18n.t('actions.saveCancelled'));
     return null;
   }
-  toast.success(isTauriRuntime() ? `已保存到：${path}` : `${defaultName} 已下载到浏览器默认下载目录`);
+  toast.success(
+    isTauriRuntime()
+      ? i18n.t('actions.savedTo', { path })
+      : i18n.t('actions.downloadedToBrowser', { name: defaultName }),
+  );
   return path;
 }
 
@@ -84,10 +89,14 @@ export async function saveResultsWithFeedback(
 ): Promise<string | null> {
   const path = await saveResults(zipName, files, singleFilter);
   if (!path) {
-    toast.info('已取消保存');
+    toast.info(i18n.t('actions.saveCancelled'));
     return null;
   }
   const name = files.length === 1 ? files[0].name : zipName;
-  toast.success(isTauriRuntime() ? `已保存到：${path}` : `${name} 已下载到浏览器默认下载目录`);
+  toast.success(
+    isTauriRuntime()
+      ? i18n.t('actions.savedTo', { path })
+      : i18n.t('actions.downloadedToBrowser', { name }),
+  );
   return path;
 }

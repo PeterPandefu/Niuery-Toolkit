@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { TOOL_CATEGORY_ORDER, ToolDefinition, ToolCategory } from '@/types/tool';
+import { TOOL_CATEGORY_ORDER, ToolDefinition, ToolCategory, ToolCapabilities } from '@/types/tool';
 import {
   ArrowLeftRight,
   Binary,
@@ -43,10 +43,35 @@ import {
 
 // 工具注册表
 const toolRegistry = new Map<string, ToolDefinition>();
+const preloadPromises = new Map<string, Promise<unknown>>();
+
+const TOOL_CAPABILITIES: Partial<Record<string, ToolCapabilities>> = {
+  'sticky-note': { network: 'offline', permissions: ['file', 'nativeWindow'], desktopOnly: true },
+  'clipboard-history': { network: 'offline', permissions: ['clipboard'], desktopOnly: true },
+  'image-studio': { network: 'offline', permissions: ['file', 'clipboard'] },
+  'mind-map': { network: 'offline', permissions: ['file'] },
+  'excalidraw-board': { network: 'offline', permissions: ['file'] },
+  'tldraw-board': { network: 'offline', permissions: ['file'] },
+  'screenshot-editor': { network: 'offline', permissions: ['file', 'clipboard', 'screen'] },
+  'screen-recorder': { network: 'offline', permissions: ['file', 'screen', 'microphone', 'systemAudio'], desktopOnly: true },
+  'system-monitor': { network: 'offline', permissions: ['system'], desktopOnly: true },
+  'port-process-killer': { network: 'offline', permissions: ['system'], desktopOnly: true },
+  'file-unlocker': { network: 'offline', permissions: ['file', 'system'], desktopOnly: true },
+  'socket-tool': { network: 'hybrid', permissions: ['localNetwork'], desktopOnly: true },
+  'api-tester': { network: 'network', permissions: [] },
+  translator: { network: 'network', permissions: [] },
+};
+
+function resolveCapabilities(tool: Omit<ToolDefinition, 'capabilities'>): ToolCapabilities {
+  return TOOL_CAPABILITIES[tool.id] ?? {
+    network: tool.category === 'network' || tool.category === 'language' ? 'network' : 'offline',
+    permissions: [],
+  };
+}
 
 // 注册工具函数
-export function registerTool(tool: ToolDefinition) {
-  toolRegistry.set(tool.id, tool);
+export function registerTool(tool: Omit<ToolDefinition, 'capabilities'> & { capabilities?: ToolCapabilities }) {
+  toolRegistry.set(tool.id, { ...tool, capabilities: tool.capabilities ?? resolveCapabilities(tool) });
 }
 
 // 获取所有工具
@@ -62,6 +87,20 @@ export function getToolsByCategory(category: ToolCategory): ToolDefinition[] {
 // 根据ID获取工具
 export function getToolById(id: string): ToolDefinition | undefined {
   return toolRegistry.get(id);
+}
+
+/** 在用户明确指向工具后预加载其代码；失败不影响正常点击加载。 */
+export function preloadTool(id: string) {
+  const preload = getToolById(id)?.preload;
+  if (!preload) return;
+  const existing = preloadPromises.get(id);
+  if (existing) return;
+  const pending = preload().catch((error) => {
+    preloadPromises.delete(id);
+    throw error;
+  });
+  preloadPromises.set(id, pending);
+  void pending.catch(() => undefined);
 }
 
 // 获取所有分类（有工具的）
@@ -272,6 +311,7 @@ registerTool({
   icon: FileText,
   category: 'text',
   component: lazy(() => import('@/tools/formatter/markdown-editor')),
+  preload: () => import('@/tools/formatter/markdown-editor'),
   keywords: ['markdown', 'md', 'editor', 'preview', '编辑', '预览', '渲染', '写作'],
   description: 'Markdown 编辑器：实时预览、工具栏、导出',
 });
@@ -282,6 +322,7 @@ registerTool({
   icon: Globe,
   category: 'text',
   component: lazy(() => import('@/tools/formatter/html-renderer')),
+  preload: () => import('@/tools/formatter/html-renderer'),
   keywords: ['html', 'preview', 'pdf', 'png', 'screenshot', '离线', '预览', '渲染'],
   description: 'HTML 本地预览与 Chromium 高质量 PDF/PNG 导出',
 });
@@ -302,6 +343,7 @@ registerTool({
   icon: Workflow,
   category: 'text',
   component: lazy(() => import('@/tools/diagram/mermaid-editor')),
+  preload: () => import('@/tools/diagram/mermaid-editor'),
   keywords: ['mermaid', 'diagram', 'flowchart', 'sequence', '图表', '流程图', '实时预览'],
   description: 'Mermaid 图表实时编辑、预览与 PNG/SVG 导出',
 });
@@ -312,6 +354,7 @@ registerTool({
   icon: Code2,
   category: 'text',
   component: lazy(() => import('@/tools/diagram/plantuml-editor')),
+  preload: () => import('@/tools/diagram/plantuml-editor'),
   keywords: ['plantuml', 'uml', 'diagram', 'sequence', 'class', '图表', '时序图', '实时预览'],
   description: '本地离线 PlantUML 编辑、预览与 PNG/SVG 导出',
 });
@@ -465,6 +508,7 @@ registerTool({
   icon: PenTool,
   category: 'canvas',
   component: lazy(() => import('@/tools/graphic/excalidraw-board')),
+  preload: () => import('@/tools/graphic/excalidraw-board'),
   keywords: ['excalidraw', 'whiteboard', 'board', '白板', '画布', '绘图', '离线'],
   description: '离线 Excalidraw 无限白板：本地保存、打开与 PNG/SVG 导出',
 });
@@ -475,6 +519,7 @@ registerTool({
   icon: PenTool,
   category: 'canvas',
   component: lazy(() => import('@/tools/graphic/tldraw-board')),
+  preload: () => import('@/tools/graphic/tldraw-board'),
   keywords: ['tldraw', 'whiteboard', 'board', '白板', '画布', '绘图', '离线'],
   description: '离线 Tldraw 无限白板：本地 .tldr 保存、打开与 SVG 导出',
 });
@@ -589,6 +634,7 @@ registerTool({
   icon: FileStack,
   category: 'image',
   component: lazy(() => import('@/tools/pdf')),
+  preload: () => import('@/tools/pdf'),
   keywords: ['pdf', 'merge', 'split', 'watermark', 'compress', '合并', '拆分', '水印', '压缩', '提取图片', '转图片'],
   description: 'PDF 合并/拆分/水印/压缩/转图片/提取图片，全程本地处理',
 });

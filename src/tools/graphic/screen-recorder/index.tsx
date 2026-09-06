@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useToolLogger } from '@/hooks/use-tool-logger';
+import { showOperationError } from '@/lib/operation-feedback';
 import { GifEditor } from './GifEditor';
 import { decodeGif } from './gif-worker';
 import { createInitialRecorderState, recorderReducer } from './recorder-reducer';
@@ -94,7 +95,7 @@ export default function ScreenRecorder() {
     } catch (error) {
       setSelectingRegion(false);
       log.error('打开录制区域框选失败', error);
-      toast.error(`打开录制区域框选失败：${error}`);
+      showOperationError({ message: '打开录制区域框选失败', error, retry: () => void selectRecordingRegion(), retryLabel: '重试', copyLabel: '复制详情', logsLabel: '查看日志' });
     }
   };
 
@@ -118,6 +119,7 @@ export default function ScreenRecorder() {
       } else {
         log.error('录制启动失败', recorder.error);
         dispatch({ type: 'error', message: recorder.error ?? '无法开始录制' });
+        showOperationError({ message: '录制启动失败', error: recorder.error ?? '无法开始录制', retry: () => void startRecordingForRegion(), retryLabel: '重试', copyLabel: '复制详情', logsLabel: '查看日志' });
       }
     } finally {
       startingRecordingRef.current = false;
@@ -147,6 +149,7 @@ export default function ScreenRecorder() {
     } else {
       log.error('停止录制失败', recorder.error);
       dispatch({ type: 'error', message: recorder.error ?? '录制停止失败' });
+      showOperationError({ message: '停止录制失败', error: recorder.error ?? '录制停止失败', copyLabel: '复制详情', logsLabel: '查看日志' });
     }
   };
 
@@ -176,7 +179,7 @@ export default function ScreenRecorder() {
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       log.error('导出录制失败', { format, error: message });
-      toast.error(message);
+      showOperationError({ message: `导出 ${format.toUpperCase()} 失败`, error: reason, retry: () => void exportRecording(format), retryLabel: '重试导出', copyLabel: '复制详情', logsLabel: '查看日志' });
     }
   };
 
