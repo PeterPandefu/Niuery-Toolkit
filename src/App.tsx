@@ -12,6 +12,7 @@ import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
 import { openTranslatorWithText } from '@/lib/translation-navigation';
 import { openTool } from '@/lib/tool-navigation';
 import { NativeFileDropBridge } from '@/components/shared/NativeFileDropBridge';
+import { measurePerformance } from '@/lib/performance-diagnostics';
 
 export default function App() {
   // 初始化主题
@@ -23,6 +24,7 @@ export default function App() {
 
   // 应用启动时自动加载常驻工具
   useEffect(() => {
+    measurePerformance('应用首屏', 'app:render-start');
     initAlwaysOnTools();
   }, [initAlwaysOnTools]);
 

@@ -180,18 +180,33 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     const currentSessionId = session?.id ?? lastSessionIdRef.current;
     if (!currentSessionId && !artifact) return null;
     setError(null);
+    const startedAt = Date.now();
+    log.info('导出录制开始', {
+      format,
+      options,
+      sessionId: currentSessionId,
+      hasArtifact: Boolean(artifact),
+    });
     try {
-      return await invoke<{ path: string; format: 'mp4' | 'gif'; sizeBytes?: number; warning?: string }>('export_recording', {
+      const result = await invoke<{ path: string; format: 'mp4' | 'gif'; sizeBytes?: number; warning?: string }>('export_recording', {
         sessionId: currentSessionId ?? '',
         format,
         options,
         outputPath,
       });
+      log.info('录制导出完成', {
+        format,
+        path: result.path,
+        sizeBytes: result.sizeBytes,
+        warning: result.warning,
+        elapsedMs: Date.now() - startedAt,
+      });
+      return result;
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       // 后端会将 FFmpeg 的末尾诊断整理为可操作的错误文本；日志和界面必须保留它，
       // 不能再把真实失败原因折叠成泛化的“GIF 导出失败”。
-      log.error('导出录制失败', { format, error: message });
+      log.error('导出录制失败', { format, options, elapsedMs: Date.now() - startedAt, error: message });
       setError(message);
       throw new Error(message);
     }

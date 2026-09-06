@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
-import { getAvailableCategories, getToolsByCategory } from '@/registry/tool-registry';
+import { getAvailableCategories, getToolsByCategory, preloadTool } from '@/registry/tool-registry';
 import { CATEGORY_ICONS } from '@/types/tool';
 import { ChevronDown, Home, Pin, Search, ShieldCheck } from 'lucide-react';
 import { BrandMark } from '@/components/shared/BrandMark';
@@ -19,6 +19,8 @@ function ToolItem({
   running,
   alwaysOn,
   onClick,
+  onPointerEnter,
+  onFocus,
 }: {
   active: boolean;
   icon: React.ComponentType<{ className?: string }>;
@@ -26,10 +28,14 @@ function ToolItem({
   running?: boolean;
   alwaysOn?: boolean;
   onClick: () => void;
+  onPointerEnter?: () => void;
+  onFocus?: () => void;
 }) {
   return (
     <button
       onClick={onClick}
+      onPointerEnter={onPointerEnter}
+      onFocus={onFocus}
       aria-current={active ? 'page' : undefined}
       title={label}
       className={cn(
@@ -135,6 +141,8 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
                         running={activeTools.includes(tool.id)}
                         alwaysOn={alwaysOnTools.includes(tool.id)}
                         onClick={() => onSelectTool(tool.id)}
+                        onPointerEnter={() => preloadTool(tool.id)}
+                        onFocus={() => preloadTool(tool.id)}
                       />
                     ))}
                   </div>

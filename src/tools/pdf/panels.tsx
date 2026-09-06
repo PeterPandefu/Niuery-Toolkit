@@ -17,6 +17,7 @@ import { formatBytes } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
+import { showOperationError } from '@/lib/operation-feedback';
 
 const log = createLogger('pdf-toolkit:panels');
 
@@ -27,13 +28,14 @@ function useBusyRun() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
 
-  const run = async (fn: () => Promise<void>) => {
+  const run = async (fn: () => Promise<void>, onError?: (error: unknown) => void) => {
     setBusy(true);
     setProgress(null);
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '处理失败');
+      if (onError) onError(e);
+      else toast.error(e instanceof Error ? e.message : '处理失败');
     } finally {
       setBusy(false);
       setProgress(null);
@@ -55,7 +57,7 @@ function useLoggedRun(operation: string) {
         log.error('处理失败', { operation, error: e });
         throw e;
       }
-    });
+    }, (error) => showOperationError({ message: `${operation}失败`, error }));
   };
 
   return { busy, progress, setProgress, run: loggedRun };

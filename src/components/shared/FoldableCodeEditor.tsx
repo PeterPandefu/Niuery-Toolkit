@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { useTheme } from '@/hooks/use-theme';

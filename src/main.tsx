@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/space-grotesk'
 import '@fontsource-variable/ibm-plex-sans'
 import '@fontsource-variable/jetbrains-mono'
-import './lib/monaco-setup'
 import './index.css'
 import './i18n'
 import './store/log-store'
@@ -14,6 +13,9 @@ import LongshotPanel from './screenshot/longshot/LongshotPanel.tsx'
 import CursorHighlightOverlay from './recording/CursorHighlightOverlay.tsx'
 import RecordingCaptureBorderOverlay from './recording/RecordingCaptureBorderOverlay.tsx'
 import StickyNoteApp from './sticky-note/StickyNoteApp.tsx'
+import { markPerformance } from './lib/performance-diagnostics'
+
+markPerformance('app:main-start')
 
 // 截图窗口使用独立渲染路径（由 Tauri 以 #/screenshot 打开）
 const hash = window.location.hash
@@ -44,6 +46,8 @@ appLogger.info('应用启动', {
   hash: window.location.hash,
   userAgent: navigator.userAgent,
 })
+
+markPerformance('app:render-start')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

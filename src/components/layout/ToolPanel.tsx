@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } from '@/registry/tool-registry';
@@ -7,9 +7,12 @@ import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useTheme } from '@/hooks/use-theme';
 import { Button } from '@/components/ui/button';
 import { LogPanel } from '@/components/layout/LogPanel';
+import { LocalizedToolErrorBoundary } from '@/components/shared/ToolErrorBoundary';
+import { ToolCapabilityNotice } from '@/components/shared/ToolCapabilityNotice';
 import { useLogStore } from '@/store/log-store';
 import { openTool } from '@/lib/tool-navigation';
 import { Activity, ArrowUpRight, Command, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, ShieldCheck, Sun } from 'lucide-react';
+import { markPerformance, measurePerformance } from '@/lib/performance-diagnostics';
 
 interface ToolPanelProps {
   toolId: string | null;
@@ -25,6 +28,13 @@ function ToolLoader() {
       </div>
     </div>
   );
+}
+
+function ToolLoadTelemetry({ toolId }: { toolId: string }) {
+  useEffect(() => {
+    measurePerformance('工具首次挂载', `tool:${toolId}:selected`, { toolId });
+  }, [toolId]);
+  return null;
 }
 
 function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void }) {
@@ -208,6 +218,10 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   const isChinese = (i18n.resolvedLanguage ?? i18n.language).startsWith('zh');
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
 
+  useEffect(() => {
+    if (toolId) markPerformance(`tool:${toolId}:selected`);
+  }, [toolId]);
+
   const handleSelectTool = (id: string) => {
     openTool(id);
   };
@@ -226,6 +240,7 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
           <div className="min-w-0">
             <p className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:block">{tool ? t(`categories.${tool.category}`) : 'Niuery Toolkit'}</p>
             <h1 className="truncate font-heading text-lg font-semibold tracking-tight text-foreground">{tool ? t(`tools.${tool.id}`, tool.name) : t('app.workspace')}</h1>
+            {tool && <ToolCapabilityNotice tool={tool} />}
           </div>
           {tool && <ToolPowerSwitch toolId={tool.id} />}
         </div>
@@ -241,7 +256,11 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
         {tool && activeTools.includes(tool.id) ? activeTools.map((id) => {
           const definition = getToolById(id);
           if (!definition) return null;
-          return <div key={id} className={id === toolId ? 'h-full animate-tool-enter' : 'hidden'} aria-hidden={id !== toolId}><Suspense fallback={<ToolLoader />}><definition.component /></Suspense></div>;
+          return <div key={id} className={id === toolId ? 'h-full animate-tool-enter' : 'hidden'} aria-hidden={id !== toolId}>
+            <LocalizedToolErrorBoundary toolId={definition.id} toolName={t(`tools.${definition.id}`, definition.name)}>
+              <Suspense fallback={<ToolLoader />}><ToolLoadTelemetry toolId={definition.id} /><definition.component /></Suspense>
+            </LocalizedToolErrorBoundary>
+          </div>;
         }) : tool ? <ToolStoppedScreen toolId={tool.id} /> : <WelcomeScreen onSelectTool={handleSelectTool} />}
       </main>
 

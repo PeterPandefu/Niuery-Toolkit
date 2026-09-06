@@ -24,6 +24,7 @@ import {
   writeRecoverySnapshot,
 } from '@/lib/local-documents';
 import { isTauri } from '@/lib/api-client';
+import { showOperationError } from '@/lib/operation-feedback';
 
 const TOOL_ID = 'tldraw-board';
 // 资源由 Vite 在开发与生产环境统一提供，避免 Tauri 包内落到 node_modules 或 CDN 地址。
@@ -98,19 +99,23 @@ export default function TldrawBoard() {
   const save = useCallback(async () => {
     const editor = editorRef.current;
     if (!editor) return;
-    const path = await saveBytes(
-      filenameFromPath(documentPath, t('whiteboard.unnamed'), '.tldr'),
-      new TextEncoder().encode(await serializeTldrawJson(editor)),
-      t('whiteboard.tldrawFile'),
-      ['tldr'],
-    );
-    if (!path) return;
-    documentPathRef.current = path;
-    setDocumentPath(path);
-    dirtyRef.current = false;
-    setDirty(false);
-    await discardRecoverySnapshot(TOOL_ID, recoveryId.current).catch(() => undefined);
-    toast.success(t('whiteboard.saved'));
+    try {
+      const path = await saveBytes(
+        filenameFromPath(documentPath, t('whiteboard.unnamed'), '.tldr'),
+        new TextEncoder().encode(await serializeTldrawJson(editor)),
+        t('whiteboard.tldrawFile'),
+        ['tldr'],
+      );
+      if (!path) return;
+      documentPathRef.current = path;
+      setDocumentPath(path);
+      dirtyRef.current = false;
+      setDirty(false);
+      await discardRecoverySnapshot(TOOL_ID, recoveryId.current).catch(() => undefined);
+      toast.success(t('whiteboard.saved'));
+    } catch (error) {
+      showOperationError({ message: t('whiteboard.saveFailed', '白板保存失败'), error, retry: () => void save(), retryLabel: t('actions.retry', '重试'), copyLabel: t('actions.copyDetails', '复制详情'), logsLabel: t('app.logs', '查看日志') });
+    }
   }, [documentPath, t]);
 
   const openSource = useCallback((source: string, path: string | null, restored = false) => {
