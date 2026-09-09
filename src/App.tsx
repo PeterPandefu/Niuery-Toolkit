@@ -3,6 +3,8 @@ import { Toaster } from 'sonner';
 import { useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useApplyTheme } from '@/hooks/use-theme';
+import { AtmosphereLayer } from '@/components/layout/SkinAtmosphere';
+import { StatusBar } from '@/components/layout/StatusBar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ToolPanel } from '@/components/layout/ToolPanel';
 import { SearchDialog } from '@/components/layout/SearchDialog';
@@ -12,6 +14,7 @@ import { useScreenshotOcrStore } from '@/store/screenshot-ocr-store';
 import { openTranslatorWithText } from '@/lib/translation-navigation';
 import { openTool } from '@/lib/tool-navigation';
 import { NativeFileDropBridge } from '@/components/shared/NativeFileDropBridge';
+import { measurePerformance } from '@/lib/performance-diagnostics';
 
 export default function App() {
   // 初始化主题
@@ -23,6 +26,7 @@ export default function App() {
 
   // 应用启动时自动加载常驻工具
   useEffect(() => {
+    measurePerformance('应用首屏', 'app:render-start');
     initAlwaysOnTools();
   }, [initAlwaysOnTools]);
 
@@ -62,14 +66,18 @@ export default function App() {
   }, [handleSelectTool]);
 
   return (
-    <div className="flex h-dvh min-h-0 overflow-hidden bg-background">
-      <Sidebar onSelectTool={handleSelectTool} />
-      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <ToolPanel toolId={activeToolId} onOpenSettings={() => setSettingsOpen(true)} />
+    <div className="app-chrome app-shell relative flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
+      <AtmosphereLayer pointerGlow />
+      <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <Sidebar onSelectTool={handleSelectTool} />
+        <div className="relative z-10 min-h-0 min-w-0 flex-1 overflow-hidden">
+          <ToolPanel toolId={activeToolId} onOpenSettings={() => setSettingsOpen(true)} />
+        </div>
       </div>
+      <StatusBar />
       <SearchDialog onSelectTool={handleSelectTool} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <Toaster position="bottom-right" richColors closeButton />
+      <Toaster position="bottom-right" richColors closeButton offset={48} />
       <NativeFileDropBridge />
     </div>
   );

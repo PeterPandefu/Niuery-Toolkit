@@ -29,7 +29,7 @@ export default function PasswordGenerator() {
   const entropy = useMemo(() => calculateEntropy(password), [password]);
   const strength = useMemo(() => {
     const { label, level } = getStrengthLabel(entropy);
-    const colorMap = { weak: 'text-red-500', medium: 'text-yellow-500', strong: 'text-green-500', 'very-strong': 'text-emerald-500' };
+    const colorMap = { weak: 'text-destructive', medium: 'text-warning', strong: 'text-success', 'very-strong': 'text-success' };
     return { label, color: colorMap[level] };
   }, [entropy]);
 

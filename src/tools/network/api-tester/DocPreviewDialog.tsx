@@ -43,7 +43,7 @@ export function DocPreviewDialog({ open, onClose }: DocPreviewDialogProps) {
           <h3 className="text-sm font-semibold">接口文档预览</h3>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={handleCopy}>
-              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
               复制
             </Button>
             <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={handleDownload}>

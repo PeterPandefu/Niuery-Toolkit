@@ -7,17 +7,19 @@ import { saveBytes, saveBytesWithFeedback } from '@/lib/file-save';
 import {
   discardRecoverySnapshot,
   listRecoverySnapshots,
-  openTextDocument,
+  openBinaryDocument,
   writeRecoverySnapshot,
   type RecoverySnapshot,
 } from '@/lib/local-documents';
 import { isTauri } from '@/lib/api-client';
+import { showOperationError } from '@/lib/operation-feedback';
 import { MindMapSurface, type MindMapSurfaceHandle } from './MindMapSurface';
 import {
   createMindMapDocument,
   mindMapToMarkdown,
   markdownToMindMap,
   parseMindMapDocument,
+  parseXMindDocument,
   type MindMapDocument,
 } from './document';
 
@@ -135,17 +137,21 @@ export default function MindMapTool() {
   }, []);
 
   const save = useCallback(async () => {
-    const path = await saveBytes(
-      filenameFromPath(documentPath, title, '.json'),
-      new TextEncoder().encode(JSON.stringify(document, null, 2)),
-      t('tools.mind-map'),
-      ['json'],
-    );
-    if (!path) return;
-    setDocumentPath(path);
-    setDirty(false);
-    await discardRecoverySnapshot(TOOL_ID, recoveryId.current).catch(() => undefined);
-    toast.success(t('mindMap.saved'));
+    try {
+      const path = await saveBytes(
+        filenameFromPath(documentPath, title, '.json'),
+        new TextEncoder().encode(JSON.stringify(document, null, 2)),
+        t('tools.mind-map'),
+        ['json'],
+      );
+      if (!path) return;
+      setDocumentPath(path);
+      setDirty(false);
+      await discardRecoverySnapshot(TOOL_ID, recoveryId.current).catch(() => undefined);
+      toast.success(t('mindMap.saved'));
+    } catch (error) {
+      showOperationError({ message: t('mindMap.saveFailed', '思维导图保存失败'), error, retry: () => void save(), retryLabel: t('actions.retry', '重试'), copyLabel: t('actions.copyDetails', '复制详情'), logsLabel: t('app.logs', '查看日志') });
+    }
   }, [document, documentPath, t, title]);
 
   const openSource = useCallback((source: string, path: string) => {
@@ -158,15 +164,28 @@ export default function MindMapTool() {
     }
   }, [loadDocument, t]);
 
+  const openXMind = useCallback(async (bytes: ArrayBuffer | Uint8Array, path: string) => {
+    try {
+      loadDocument(await parseXMindDocument(bytes), path);
+      toast.success(t('mindMap.opened'));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('mindMap.openFailed'));
+    }
+  }, [loadDocument, t]);
+
   const open = useCallback(async () => {
     if (dirty && !window.confirm(t('mindMap.unsavedOpen'))) return;
     if (isTauri) {
-      const result = await openTextDocument(`${t('tools.mind-map')} / Markdown`, ['smm', 'json', 'md']);
-      if (result) openSource(result.contents, result.path);
+      const result = await openBinaryDocument(`${t('tools.mind-map')} / XMind、JSON、Markdown`, ['xmind', 'smm', 'json', 'md']);
+      if (result) {
+        const bytes = Uint8Array.from(atob(result.contents), (character) => character.charCodeAt(0));
+        if (result.path.toLowerCase().endsWith('.xmind')) void openXMind(bytes, result.path);
+        else openSource(new TextDecoder().decode(bytes), result.path);
+      }
       return;
     }
     fileInputRef.current?.click();
-  }, [dirty, openSource, t]);
+  }, [dirty, openSource, openXMind, t]);
 
   const startNew = useCallback(() => {
     if (dirty && !window.confirm(t('mindMap.unsavedNew'))) return;
@@ -440,10 +459,13 @@ export default function MindMapTool() {
         ref={fileInputRef}
         className="hidden"
         type="file"
-        accept=".smm,.json,.md,text/markdown,application/json"
+        accept=".smm,.json,.md,.xmind,text/markdown,application/json,application/zip"
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
-          if (file) void file.text().then((source) => openSource(source, file.name));
+          if (file) {
+            if (file.name.toLowerCase().endsWith('.xmind')) void file.arrayBuffer().then((bytes) => openXMind(bytes, file.name));
+            else void file.text().then((source) => openSource(source, file.name));
+          }
           event.currentTarget.value = '';
         }}
       />

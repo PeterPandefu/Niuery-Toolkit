@@ -5,46 +5,46 @@
 @layer base {
   /*
    * Niuery Toolkit — "Forge" design language
-   * 深炭黑基底 + 余烬橙点缀。余烬表面始终承载墨色文字（暗色模式），
-   * 亮色模式使用深余烬 + 暖白文字。单一强调色，全局锁定。
+   * 暖白纸面 + 锻铜强调。亮色模式使用深铜与暖白文字，
+   * 暗色模式为炭黑基底与锻铜高光。单一强调色，全局锁定。
    */
   :root {
-    --background: 48 58% 97%;
-    --foreground: 21 48% 18%;
-    --card: 44 100% 99%;
-    --card-foreground: 21 48% 18%;
-    --popover: 44 100% 99%;
-    --popover-foreground: 21 48% 18%;
-    --primary: 13 82% 64%;
-    --primary-foreground: 21 48% 18%;
-    --secondary: 53 82% 93%;
-    --secondary-foreground: 28 39% 23%;
-    --muted: 49 44% 93%;
-    --muted-foreground: 25 22% 37%;
-    --accent: 154 32% 88%;
-    --accent-foreground: 152 28% 22%;
-    --destructive: 4 73% 44%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 65 27% 35%;
-    --success-foreground: 44 100% 99%;
-    --warning: 50 78% 40%;
-    --warning-foreground: 21 48% 18%;
-    --info: 198 52% 36%;
+    --background: 32 20% 96%;
+    --foreground: 22 38% 13%;
+    --card: 36 32% 99%;
+    --card-foreground: 22 38% 13%;
+    --popover: 36 32% 99%;
+    --popover-foreground: 22 38% 13%;
+    --primary: 16 70% 42%;
+    --primary-foreground: 40 50% 98%;
+    --secondary: 30 28% 92%;
+    --secondary-foreground: 22 32% 20%;
+    --muted: 30 18% 93%;
+    --muted-foreground: 24 14% 32%;
+    --accent: 24 38% 92%;
+    --accent-foreground: 22 36% 16%;
+    --destructive: 4 72% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 34% 28%;
+    --success-foreground: 0 0% 100%;
+    --warning: 36 78% 32%;
+    --warning-foreground: 40 50% 98%;
+    --info: 198 52% 34%;
     --info-foreground: 0 0% 100%;
-    --border: 38 32% 84%;
-    --input: 37 28% 78%;
-    --ring: 9 48% 49%;
-    --radius: 0.75rem;
-    --sidebar: 48 54% 95%;
-    --sidebar-foreground: 21 43% 20%;
-    --sidebar-accent: 154 31% 88%;
-    --sidebar-border: 38 32% 84%;
+    --border: 30 14% 84%;
+    --input: 30 12% 76%;
+    --ring: 16 70% 42%;
+    --radius: 0.5rem;
+    --sidebar: 32 16% 94%;
+    --sidebar-foreground: 22 32% 16%;
+    --sidebar-accent: 24 34% 90%;
+    --sidebar-border: 30 14% 84%;
 
     /* 扩展令牌 */
-    --surface-raised: 44 100% 99%;
-    --surface-overlay: 48 58% 98%;
-    --ember-glow: 13 82% 64%;
-    --shadow-tint: 22 29% 42%;
+    --surface-raised: 36 32% 99%;
+    --surface-overlay: 32 20% 97%;
+    --ember-glow: 16 70% 42%;
+    --shadow-tint: 22 24% 36%;
     --syntax-keyword: 265 49% 42%;
     --syntax-string: 152 35% 30%;
     --syntax-number: 11 57% 40%;
@@ -56,41 +56,41 @@
   }
 
   .dark {
-    --background: 22 36% 9%;
-    --foreground: 43 70% 94%;
-    --card: 22 29% 12%;
-    --card-foreground: 43 70% 94%;
-    --popover: 22 32% 11%;
-    --popover-foreground: 43 70% 94%;
-    --primary: 11 77% 77%;
-    --primary-foreground: 21 48% 18%;
-    --secondary: 23 19% 18%;
-    --secondary-foreground: 43 52% 89%;
-    --muted: 23 19% 18%;
-    --muted-foreground: 37 24% 70%;
-    --accent: 149 17% 18%;
-    --accent-foreground: 154 32% 88%;
-    --destructive: 9 81% 69%;
-    --destructive-foreground: 12 50% 13%;
-    --success: 78 33% 68%;
-    --success-foreground: 105 28% 13%;
-    --warning: 48 100% 72%;
-    --warning-foreground: 43 55% 13%;
-    --info: 197 69% 78%;
-    --info-foreground: 199 51% 14%;
-    --border: 22 17% 24%;
-    --input: 22 17% 29%;
-    --ring: 11 77% 77%;
-    --sidebar: 22 41% 7%;
-    --sidebar-foreground: 43 51% 89%;
-    --sidebar-accent: 22 24% 15%;
-    --sidebar-border: 22 19% 18%;
+    --background: 22 28% 7%;
+    --foreground: 36 28% 94%;
+    --card: 22 22% 10%;
+    --card-foreground: 36 28% 94%;
+    --popover: 22 24% 9%;
+    --popover-foreground: 36 28% 94%;
+    --primary: 18 72% 58%;
+    --primary-foreground: 22 40% 10%;
+    --secondary: 22 16% 16%;
+    --secondary-foreground: 36 22% 90%;
+    --muted: 22 16% 14%;
+    --muted-foreground: 32 12% 70%;
+    --accent: 22 20% 15%;
+    --accent-foreground: 32 30% 90%;
+    --destructive: 8 78% 68%;
+    --destructive-foreground: 12 40% 10%;
+    --success: 152 36% 62%;
+    --success-foreground: 152 40% 10%;
+    --warning: 38 88% 68%;
+    --warning-foreground: 36 50% 10%;
+    --info: 198 62% 72%;
+    --info-foreground: 198 40% 10%;
+    --border: 22 14% 20%;
+    --input: 22 14% 26%;
+    --ring: 18 72% 58%;
+    --sidebar: 22 30% 6%;
+    --sidebar-foreground: 36 22% 90%;
+    --sidebar-accent: 22 20% 13%;
+    --sidebar-border: 22 16% 16%;
 
     /* 扩展令牌 */
-    --surface-raised: 22 25% 15%;
-    --surface-overlay: 22 32% 11%;
-    --ember-glow: 11 77% 77%;
-    --shadow-tint: 20 46% 3%;
+    --surface-raised: 22 20% 13%;
+    --surface-overlay: 22 24% 9%;
+    --ember-glow: 18 72% 58%;
+    --shadow-tint: 20 40% 2%;
     --syntax-keyword: 267 82% 81%;
     --syntax-string: 151 45% 72%;
     --syntax-number: 20 91% 74%;
@@ -114,9 +114,16 @@
     @apply bg-background text-foreground font-sans;
     font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
   }
-  /* 展示型标题使用 Space Grotesk */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  input[type="range"] {
+    accent-color: hsl(var(--primary));
+  }
+  /* 展示型标题使用 Space Grotesk，中文回退系统黑体 */
   h1, h2, h3 {
-    font-family: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Space Grotesk Variable", "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
   }
 }
 
@@ -129,24 +136,122 @@
     background-color: hsl(var(--background));
   }
 
+  .app-chrome {
+    position: relative;
+    isolation: isolate;
+  }
+
   .app-workbench {
-    background-color: hsl(var(--background));
-    background-image:
-      radial-gradient(hsl(var(--foreground) / 0.055) 0.8px, transparent 0.9px),
-      repeating-linear-gradient(135deg, hsl(var(--primary) / 0.045) 0 1px, transparent 1px 8px);
-    background-size: 18px 18px, auto;
+    position: relative;
+    isolation: isolate;
+    background-color: transparent;
+    background-image: radial-gradient(hsl(var(--foreground) / 0.035) 1px, transparent 1px);
+    background-size: 22px 22px;
   }
 
   .dark .app-workbench {
-    background-image:
-      radial-gradient(hsl(var(--foreground) / 0.045) 0.8px, transparent 0.9px),
-      repeating-linear-gradient(135deg, hsl(var(--primary) / 0.035) 0 1px, transparent 1px 8px);
+    background-image: radial-gradient(hsl(var(--foreground) / 0.04) 1px, transparent 1px);
   }
 
   .app-sidebar {
-    background-image:
-      linear-gradient(145deg, hsl(var(--primary) / 0.055), transparent 42%),
-      repeating-linear-gradient(135deg, hsl(var(--foreground) / 0.025) 0 1px, transparent 1px 9px);
+    background-image: linear-gradient(180deg, hsl(var(--primary) / 0.04), transparent 42%);
+  }
+
+  .app-sidebar-panel {
+    width: 16.5rem;
+    transition: width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .app-sidebar-panel.is-collapsed {
+    width: 3.5rem;
+  }
+
+  .app-sidebar-panel.is-collapsed::after {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-sidebar-panel {
+      transition: none;
+    }
+  }
+
+  /* 侧栏右缘用短渐变软接缝，避免硬边框把光晕裁成两半 */
+  .app-sidebar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    pointer-events: none;
+    z-index: 2;
+    background: linear-gradient(90deg, transparent, hsl(var(--sidebar-border) / 0.42));
+    opacity: 0.5;
+  }
+
+  .app-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .app-panel {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .app-statusbar {
+    background-color: hsl(var(--sidebar));
+  }
+
+  html[data-atmosphere="low"] .app-statusbar,
+  html[data-atmosphere="high"] .app-statusbar {
+    background-color: hsl(var(--sidebar) / 0.9);
+  }
+
+  html[data-skin="mono"] .app-statusbar {
+    background-color: hsl(var(--sidebar));
+  }
+
+  html[data-atmosphere="low"] .app-shell::before,
+  html[data-atmosphere="high"] .app-shell::before {
+    opacity: 1;
+  }
+
+  html[data-atmosphere="low"] .app-sidebar,
+  html[data-atmosphere="high"] .app-sidebar {
+    background-color: hsl(var(--sidebar) / 0.78);
+  }
+
+  html[data-atmosphere="low"] .app-panel,
+  html[data-atmosphere="high"] .app-panel {
+    background-color: hsl(var(--background) / 0.78);
+  }
+
+  html[data-skin="mono"] .app-sidebar {
+    background-image: none;
+    box-shadow: none;
+  }
+
+  html[data-skin="mono"] .app-sidebar::after {
+    content: none;
+  }
+
+  html[data-skin="mono"] .app-workbench {
+    background-image: none;
+  }
+
+  html[data-skin="mono"] .tool-card {
+    transition-duration: 80ms;
+  }
+
+  html[data-skin="mono"] .tool-card:hover,
+  html[data-skin="ink"] .tool-card:hover {
+    transform: none;
   }
 
   .brand-mark {
@@ -163,6 +268,10 @@
     box-shadow: 0 0 0 1px hsl(var(--ember-glow) / 0.25);
   }
 
+  html[data-skin="forge"] .ember-glow {
+    box-shadow: 0 0 0 1px hsl(var(--ember-glow) / 0.28), 0 0 18px hsl(var(--ember-glow) / 0.18);
+  }
+
   /* kbd 键帽样式 */
   .kbd {
     @apply inline-flex h-5 min-w-5 items-center justify-center rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground;
@@ -170,11 +279,16 @@
   }
 
   .tool-card {
-    @apply flex min-h-[88px] items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-tinted-sm transition-colors duration-150 hover:border-primary/45 hover:bg-accent/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+    @apply flex min-h-[72px] items-center gap-3 rounded-lg border border-border bg-card px-3.5 py-3 shadow-tinted-sm transition-all duration-150 hover:-translate-y-px hover:border-primary/40 hover:bg-accent/40 hover:shadow-tinted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
   }
 
   .tool-card-icon {
-    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary;
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-primary;
+    background-color: hsl(var(--primary) / 0.12);
+  }
+
+  .nav-item {
+    @apply relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
   }
 
   .skip-link {
@@ -341,7 +455,7 @@
 .longshot-border {
   position: fixed;
   inset: 0;
-  border: 3px solid #4488ff;
+  border: 3px solid #d36a32;
   background: transparent;
   pointer-events: none;
   animation: longshot-breathe 1.2s ease-in-out infinite;
@@ -361,7 +475,7 @@
 .recording-capture-border {
   position: fixed;
   inset: 0;
-  border: 3px solid #4488ff;
+  border: 3px solid #d36a32;
   background: transparent;
   pointer-events: none;
   animation: recording-capture-breathe 1.2s ease-in-out infinite;
@@ -375,6 +489,89 @@
   50% {
     opacity: 0.35;
   }
+}
+
+
+html[data-atmosphere="low"][data-skin="forge"] .app-shell::before {
+  background:
+    radial-gradient(70% 48% at 12% 0%, hsl(var(--ember-glow) / 0.34), transparent 64%),
+    linear-gradient(180deg, hsl(var(--ember-glow) / 0.1), transparent 42%);
+}
+
+html[data-atmosphere="high"][data-skin="forge"] .app-shell::before {
+  background:
+    radial-gradient(70% 48% at 12% 0%, hsl(var(--ember-glow) / 0.5), transparent 62%),
+    radial-gradient(42% 32% at 92% 100%, hsl(16 80% 48% / 0.2), transparent 58%);
+  animation: atmosphere-drift 12s ease-in-out infinite;
+}
+
+html[data-atmosphere="low"][data-skin="ocean"] .app-shell::before {
+  background:
+    radial-gradient(64% 46% at 18% 0%, hsl(var(--ember-glow) / 0.32), transparent 64%),
+    linear-gradient(160deg, hsl(191 70% 50% / 0.12), transparent 46%);
+}
+
+html[data-atmosphere="high"][data-skin="ocean"] .app-shell::before {
+  background:
+    radial-gradient(58% 42% at 16% 8%, hsl(var(--ember-glow) / 0.42), transparent 62%),
+    radial-gradient(46% 36% at 86% 92%, hsl(191 70% 50% / 0.26), transparent 58%);
+  animation: atmosphere-drift 12s ease-in-out infinite;
+}
+
+html[data-atmosphere="low"][data-skin="forest"] .app-shell::before {
+  background:
+    radial-gradient(68% 50% at 86% 0%, hsl(95 32% 42% / 0.28), transparent 66%),
+    linear-gradient(180deg, hsl(140 25% 30% / 0.1), transparent 44%);
+}
+
+html[data-atmosphere="high"][data-skin="forest"] .app-shell::before {
+  background:
+    radial-gradient(62% 46% at 88% 0%, hsl(95 32% 42% / 0.36), transparent 64%),
+    radial-gradient(40% 32% at 10% 100%, hsl(140 25% 30% / 0.18), transparent 60%);
+  animation: atmosphere-drift 16s ease-in-out infinite;
+}
+
+html[data-atmosphere="low"][data-skin="aurora"] .app-shell::before {
+  background:
+    radial-gradient(58% 44% at 12% 6%, hsl(170 80% 50% / 0.3), transparent 62%),
+    radial-gradient(52% 40% at 88% 16%, hsl(262 80% 60% / 0.26), transparent 60%);
+}
+
+html[data-atmosphere="high"][data-skin="aurora"] .app-shell::before {
+  background:
+    radial-gradient(52% 40% at 14% 8%, hsl(170 80% 50% / 0.44), transparent 60%),
+    radial-gradient(48% 42% at 84% 18%, hsl(262 80% 60% / 0.38), transparent 58%),
+    linear-gradient(115deg, hsl(170 70% 50% / 0.12), transparent 42%, hsl(262 70% 60% / 0.14));
+  background-size: 160% 160%;
+  animation: aurora-shift 10s ease-in-out infinite;
+}
+
+html[data-atmosphere="low"][data-skin="ink"] .app-shell::before,
+html[data-atmosphere="high"][data-skin="ink"] .app-shell::before {
+  background:
+    radial-gradient(hsl(var(--foreground) / 0.07) 0.8px, transparent 0.8px),
+    linear-gradient(180deg, hsl(var(--primary) / 0.08), transparent 36%);
+  background-size: 14px 14px, auto;
+}
+
+html[data-skin="mono"] .app-shell::before,
+html[data-atmosphere="off"] .app-shell::before {
+  opacity: 0;
+  animation: none;
+}
+
+html[data-atmosphere="low"] .app-shell::before {
+  animation: none;
+}
+
+@keyframes atmosphere-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(3%, 2%, 0) scale(1.06); }
+}
+
+@keyframes aurora-shift {
+  0%, 100% { background-position: 0% 0%, 100% 0%, 0 0; }
+  50% { background-position: 24% 14%, 76% 20%, 0 0; }
 }
 
 /* 减少动效偏好 */

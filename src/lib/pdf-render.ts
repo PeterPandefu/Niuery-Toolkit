@@ -2,6 +2,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { PDFDocument } from 'pdf-lib';
 import { isTauri } from '@/lib/api-client';
+import { createLogger } from '@/lib/logger';
 
 // 保证 fake worker 的动态 import 与模块 chunk 的相对路径无关（尤其是 Tauri 的 asset:// 页面）。
 pdfjsLib.GlobalWorkerOptions.workerSrc = typeof window === 'undefined' ? workerUrl : new URL(workerUrl, window.location.href).href;
@@ -16,6 +17,7 @@ export type ProgressFn = (done: number, total: number) => void;
 /** PDF.js 在桌面 WebView 中偶发无法完成图像解码或 worker 销毁。 */
 const PDF_OPERATION_TIMEOUT_MS = 30_000;
 const PDF_TASK_DESTROY_TIMEOUT_MS = 2_000;
+const log = createLogger('pdf-render');
 
 function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = PDF_OPERATION_TIMEOUT_MS): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -74,9 +76,30 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 
 async function loadPdf(buffer: ArrayBuffer) {
-  const task = createPdfLoadingTask(buffer);
-  const doc = await withTimeout(task.promise, 'PDF 加载');
-  return { doc, task };
+  const startedAt = Date.now();
+  const workerMode = isTauri ? 'fake-worker' : 'module-worker';
+  let task: ReturnType<typeof createPdfLoadingTask> | undefined;
+  log.info('PDF 加载开始', { bytes: buffer.byteLength, workerMode });
+  try {
+    task = createPdfLoadingTask(buffer);
+    const doc = await withTimeout(task.promise, 'PDF 加载');
+    log.info('PDF 加载完成', {
+      bytes: buffer.byteLength,
+      pageCount: doc.numPages,
+      workerMode,
+      elapsedMs: Date.now() - startedAt,
+    });
+    return { doc, task };
+  } catch (error) {
+    if (task) await destroyPdfTask(task);
+    log.error('PDF 加载失败', {
+      bytes: buffer.byteLength,
+      workerMode,
+      elapsedMs: Date.now() - startedAt,
+      error,
+    });
+    throw error;
+  }
 }
 
 /** 将每页渲染为图片（PNG/JPEG） */

@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } from '@/registry/tool-registry';
@@ -7,9 +7,14 @@ import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useTheme } from '@/hooks/use-theme';
 import { Button } from '@/components/ui/button';
 import { LogPanel } from '@/components/layout/LogPanel';
-import { useLogStore } from '@/store/log-store';
+import { LocalizedToolErrorBoundary } from '@/components/shared/ToolErrorBoundary';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { ToolCapabilityNotice } from '@/components/shared/ToolCapabilityNotice';
 import { openTool } from '@/lib/tool-navigation';
-import { Activity, ArrowUpRight, Command, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, ShieldCheck, Sun } from 'lucide-react';
+import { Activity, ArrowUpRight, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, ShieldCheck, Sun } from 'lucide-react';
+import { markPerformance, measurePerformance } from '@/lib/performance-diagnostics';
+import { AtmosphereLayer } from '@/components/layout/SkinAtmosphere';
+import { WindowControls } from '@/components/layout/AppTitleBar';
 
 interface ToolPanelProps {
   toolId: string | null;
@@ -25,6 +30,13 @@ function ToolLoader() {
       </div>
     </div>
   );
+}
+
+function ToolLoadTelemetry({ toolId }: { toolId: string }) {
+  useEffect(() => {
+    measurePerformance('工具首次挂载', `tool:${toolId}:selected`, { toolId });
+  }, [toolId]);
+  return null;
 }
 
 function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void }) {
@@ -47,23 +59,19 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
   );
 
   return (
-    <div className="app-workbench h-full overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-8 xl:grid-cols-[minmax(0,1fr)_260px] xl:px-10 xl:py-10">
+    <div className="app-workbench relative h-full overflow-y-auto">
+      <div className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-6 xl:grid-cols-[minmax(0,1fr)_240px] xl:px-8 xl:py-8">
         <div>
-          <section className="border-b border-border pb-8">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              {t('app.localFirstWorkspace')}
-            </div>
-            <h1 className="mt-4 max-w-2xl font-heading text-4xl font-semibold tracking-[-0.04em] text-foreground sm:text-5xl">
+          <section className="border-b border-border pb-6">
+            <h1 className="max-w-2xl font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">
               {t('app.welcome')}
             </h1>
-            <p className="mt-4 max-w-xl text-[15px] leading-7 text-muted-foreground">{t('app.welcomeDesc')}</p>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">{t('app.welcomeDesc')}</p>
             <button
               onClick={() => setSearchOpen(true)}
-              className="group mt-7 flex min-h-12 w-full max-w-xl items-center gap-3 rounded-xl border border-border bg-card px-4 text-left shadow-tinted-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="group mt-5 flex min-h-11 w-full max-w-xl items-center gap-3 rounded-lg border border-border bg-card px-3.5 text-left shadow-tinted-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Search className="h-4 w-4" /></span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/12 text-primary"><Search className="h-4 w-4" /></span>
               <span className="flex-1 text-sm text-muted-foreground">{t('app.searchHint', { count: allTools.length })}</span>
               <kbd className="kbd">Ctrl K</kbd>
               <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -71,11 +79,10 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
           </section>
 
           {pinnedToolDefs.length > 0 && (
-            <section className="pt-8">
+            <section className="pt-6">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('app.pinnedBar')}</p>
-                  <h2 className="mt-1 font-heading text-xl font-semibold tracking-tight">{t('app.startNow')}</h2>
+                  <h2 className="font-heading text-lg font-semibold tracking-tight">{t('app.pinnedBar')}</h2>
                 </div>
                 <Pin className="h-4 w-4 text-primary" aria-hidden="true" />
               </div>
@@ -100,11 +107,10 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
 
           <section className="pt-8">
             <div className="mb-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{t('app.recentTools')}</p>
-              <h2 className="mt-1 font-heading text-xl font-semibold tracking-tight">{t('app.recentTools')}</h2>
+              <h2 className="font-heading text-lg font-semibold tracking-tight">{t('app.recentTools')}</h2>
             </div>
             {recentTools.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border px-4 py-5 text-sm text-muted-foreground">{t('app.recentToolsEmpty')}</p>
+              <EmptyState title={t('app.recentToolsEmpty')} className="rounded-lg border border-dashed border-border" />
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {recentTools.map((tool) => {
@@ -126,21 +132,21 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
           </section>
         </div>
 
-        <aside className="self-start border border-border bg-card p-5 xl:sticky xl:top-0" aria-label="工具概览">
-          <div className="flex items-center gap-2 text-primary"><Activity className="h-4 w-4" /><span className="text-[11px] font-semibold uppercase tracking-[0.16em]">{t('app.workspaceOverview')}</span></div>
-          <div className="mt-5 border-y border-border py-5">
-            <p className="font-heading text-4xl font-semibold tracking-tight text-foreground">{allTools.length}</p>
+        <aside className="self-start rounded-lg border border-border bg-card p-4 shadow-tinted-sm xl:sticky xl:top-4" aria-label="工具概览">
+          <div className="flex items-center gap-2 text-primary"><Activity className="h-4 w-4" /><span className="text-sm font-medium">{t('app.workspaceOverview')}</span></div>
+          <div className="mt-4 border-y border-border py-4">
+            <p className="font-heading text-3xl font-semibold tracking-tight text-foreground">{allTools.length}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t('app.offlineTools')}</p>
           </div>
-          <div className="mt-5 space-y-1">
+          <div className="mt-3 space-y-0.5">
             {categories.map((category) => (
-              <button key={category} onClick={() => setActiveCategory(category)} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              <button key={category} onClick={() => setActiveCategory(category)} className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                 <span>{t(`categories.${category}`)}</span>
                 <span className="font-mono text-[11px] text-primary">{getToolsByCategory(category).length}</span>
               </button>
             ))}
           </div>
-          <div className="mt-5 flex items-center gap-2 border-t border-border pt-4 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden="true" /> {t('app.localProcessing')}</div>
+          <div className="mt-4 flex items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden="true" /> {t('app.localProcessing')}</div>
         </aside>
       </div>
     </div>
@@ -154,7 +160,7 @@ function ToolStoppedScreen({ toolId }: { toolId: string }) {
   const Icon = toolDef.icon;
 
   return (
-    <div className="app-workbench flex h-full items-center justify-center p-6">
+    <div className="app-workbench relative flex h-full items-center justify-center p-6">
       <div className="max-w-sm border border-border bg-card p-7 text-center shadow-tinted-sm">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span>
         <h2 className="mt-5 font-heading text-xl font-semibold">{t(`tools.${toolDef.id}`, toolDef.name)}</h2>
@@ -194,19 +200,23 @@ function ToolPowerSwitch({ toolId }: { toolId: string }) {
   );
 }
 
-function UnreadLogBadge() {
-  const unreadCount = useLogStore((s) => s.unreadCount);
-  return unreadCount > 0 ? <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold text-primary">{unreadCount > 99 ? '99+' : unreadCount}</span> : null;
-}
-
 export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
+  const pinnedTools = useAppStore((s) => s.pinnedTools);
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
+  const pinnedToolDefs = useMemo(
+    () => pinnedTools.map((id) => getToolById(id)).filter((tool): tool is NonNullable<ReturnType<typeof getToolById>> => Boolean(tool)),
+    [pinnedTools]
+  );
   const tool = toolId ? getToolById(toolId) : null;
   const isChinese = (i18n.resolvedLanguage ?? i18n.language).startsWith('zh');
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
+
+  useEffect(() => {
+    if (toolId) markPerformance(`tool:${toolId}:selected`);
+  }, [toolId]);
 
   const handleSelectTool = (id: string) => {
     openTool(id);
@@ -218,22 +228,57 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
   };
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
+    <div className="app-panel flex h-full min-h-0 min-w-0 flex-col bg-background">
+      <AtmosphereLayer />
       <a href="#workspace-main" className="skip-link">{t('app.skipToMain')}</a>
-      <header className="flex min-h-[68px] shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-3 sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          {tool ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><tool.icon className="h-4 w-4" /></span> : <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground"><LayoutDashboard className="h-4 w-4" /></span>}
-          <div className="min-w-0">
-            <p className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:block">{tool ? t(`categories.${tool.category}`) : 'Niuery Toolkit'}</p>
-            <h1 className="truncate font-heading text-lg font-semibold tracking-tight text-foreground">{tool ? t(`tools.${tool.id}`, tool.name) : t('app.workspace')}</h1>
-          </div>
-          {tool && <ToolPowerSwitch toolId={tool.id} />}
+      <header className="relative z-[1] flex h-12 shrink-0 items-center gap-3 border-b border-border/50 bg-transparent pl-3 sm:pl-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {tool ? (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+              <tool.icon className="h-4 w-4" />
+            </span>
+          ) : (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <LayoutDashboard className="h-4 w-4" />
+            </span>
+          )}
+          <h1 className="truncate font-heading text-[15px] font-semibold tracking-tight text-foreground">
+            {tool ? t(`tools.${tool.id}`, tool.name) : t('app.workspace')}
+          </h1>
+          {tool && <ToolCapabilityNotice tool={tool} compact />}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setSearchOpen(true)} aria-label={t('app.searchTools')} title="Ctrl+K"><Search /></Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => i18n.changeLanguage(isChinese ? 'en' : 'zh')} aria-label={isChinese ? '切换为英语' : 'Switch to Chinese'} title={isChinese ? 'English' : '中文'}><Languages /></Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={cycleTheme} aria-label={t(`theme.${theme}`)} title={t(`theme.${theme}`)}><ThemeIcon /></Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onOpenSettings} aria-label={t('app.settings')} title={t('app.settings')}><Settings /></Button>
+        <div className="h-full min-w-6 flex-1" data-tauri-drag-region onDoubleClick={(event) => event.preventDefault()} />
+        <div className="ml-auto flex shrink-0 items-center gap-1 pr-1">
+          {tool && pinnedToolDefs.length > 0 && (
+            <div className="hidden items-center gap-0.5 md:flex" aria-label={t('app.pinnedBar')}>
+              {pinnedToolDefs.slice(0, 6).map((item) => {
+                const Icon = item.icon;
+                const active = toolId === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectTool(item.id)}
+                    title={t(`tools.${item.id}`, item.name)}
+                    aria-label={t(`tools.${item.id}`, item.name)}
+                    className={cn(
+                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors',
+                      active ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {tool && <ToolPowerSwitch toolId={tool.id} />}
+          <span className="mx-1 hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)} aria-label={t('app.searchTools')} title="Ctrl+K"><Search /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => i18n.changeLanguage(isChinese ? 'en' : 'zh')} aria-label={isChinese ? '切换为英语' : 'Switch to Chinese'} title={isChinese ? 'English' : '中文'}><Languages /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cycleTheme} aria-label={t(`theme.${theme}`)} title={t(`theme.${theme}`)}><ThemeIcon /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onOpenSettings} aria-label={t('app.settings')} title={t('app.settings')}><Settings /></Button>
+          <WindowControls />
         </div>
       </header>
 
@@ -241,19 +286,15 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
         {tool && activeTools.includes(tool.id) ? activeTools.map((id) => {
           const definition = getToolById(id);
           if (!definition) return null;
-          return <div key={id} className={id === toolId ? 'h-full animate-tool-enter' : 'hidden'} aria-hidden={id !== toolId}><Suspense fallback={<ToolLoader />}><definition.component /></Suspense></div>;
+          return <div key={id} className={id === toolId ? 'h-full animate-tool-enter' : 'hidden'} aria-hidden={id !== toolId}>
+            <LocalizedToolErrorBoundary toolId={definition.id} toolName={t(`tools.${definition.id}`, definition.name)}>
+              <Suspense fallback={<ToolLoader />}><ToolLoadTelemetry toolId={definition.id} /><definition.component /></Suspense>
+            </LocalizedToolErrorBoundary>
+          </div>;
         }) : tool ? <ToolStoppedScreen toolId={tool.id} /> : <WelcomeScreen onSelectTool={handleSelectTool} />}
       </main>
 
       <LogPanel />
-      <footer className="flex h-8 shrink-0 items-center justify-between border-t border-border bg-card px-5 font-mono text-[10px] text-muted-foreground">
-        <span className="min-w-0 truncate">{tool ? t(`tools.${tool.id}`, tool.name) : t('app.offlineWorkspace')}</span>
-        <div className="flex items-center gap-4">
-          <button onClick={() => useLogStore.getState().setPanelOpen(!useLogStore.getState().panelOpen)} className="flex items-center gap-1.5 rounded px-1 py-0.5 transition-colors hover:text-foreground" aria-label={t('app.logs', '日志')}><Command className="h-3 w-3" />{t('app.logs', '日志')}<UnreadLogBadge /></button>
-          <span className="hidden sm:inline">UTF-8</span>
-          <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-success" />{t('app.offlineMode')}</span>
-        </div>
-      </footer>
     </div>
   );
 }

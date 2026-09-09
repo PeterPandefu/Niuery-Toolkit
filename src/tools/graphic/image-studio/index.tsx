@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { cn } from '@/lib/utils';
+import { useState, type ComponentType } from 'react';
+import { FeatureRail } from '@/components/shared/FeatureRail';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 import { PrivacyNote } from '@/tools/pdf/common';
 import {
@@ -51,7 +51,7 @@ type FeatureId =
 interface Feature {
   id: FeatureId;
   name: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   desc: string;
 }
 
@@ -78,7 +78,7 @@ const CUTOUT_FEATURES: Feature[] = [
   { id: 'cutout', name: '手动裁剪', icon: Eraser, desc: '画笔涂抹抠图，输出透明背景 PNG' },
 ];
 
-const PANELS: Record<FeatureId, React.ComponentType> = {
+const PANELS: Record<FeatureId, ComponentType> = {
   compress: CompressPanel,
   convert: ConvertPanel,
   resize: ResizePanel,
@@ -95,41 +95,7 @@ const PANELS: Record<FeatureId, React.ComponentType> = {
   cutout: CutoutPanel,
 };
 
-function FeatureGroup({ title, features, active, onSelect }: { title: string; features: Feature[]; active: FeatureId; onSelect: (id: FeatureId) => void }) {
-  return (
-    <>
-      <div className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</div>
-      <div className="space-y-px">
-        {features.map((feature) => {
-          const Icon = feature.icon;
-          const isActive = active === feature.id;
-          return (
-            <button
-              key={feature.id}
-              onClick={() => onSelect(feature.id)}
-              className={cn(
-                'group relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-all duration-150',
-                'hover:bg-accent hover:translate-x-[2px]',
-                isActive ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-all duration-200',
-                  isActive ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-50'
-                )}
-              />
-              <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')} />
-              <span className="truncate">{feature.name}</span>
-            </button>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-/** 图片处理工具箱：单入口 + 内部左侧栏 */
+/** 图片处理工具箱：顶部功能分段 + 预览/属性工作台 */
 export default function ImageStudio() {
   const log = useToolLogger('image-studio');
   const [active, setActive] = useState<FeatureId>('compress');
@@ -142,26 +108,28 @@ export default function ImageStudio() {
   };
 
   return (
-    <div className="flex h-full">
-      <aside className="w-44 shrink-0 overflow-y-auto border-r border-border bg-muted/20 p-2">
-        <FeatureGroup title="图片编辑" features={EDIT_FEATURES} active={active} onSelect={handleSelect} />
-        <FeatureGroup title="图片合并" features={MERGE_FEATURES} active={active} onSelect={handleSelect} />
-        <FeatureGroup title="抠图" features={CUTOUT_FEATURES} active={active} onSelect={handleSelect} />
-      </aside>
-
-      <main className="min-w-0 flex-1 overflow-y-auto p-5">
-        <div className="mx-auto w-full max-w-2xl space-y-5">
-          <header>
-            <h2 className="text-base font-semibold">{activeFeature.name}</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">{activeFeature.desc}</p>
-          </header>
-          {Object.entries(PANELS).map(([id, Panel]) => (
-            <div key={id} className={id === active ? 'block' : 'hidden'} aria-hidden={id !== active}>
-              <Panel />
-            </div>
-          ))}
-          <PrivacyNote />
-        </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <FeatureRail
+        ariaLabel="图片操作"
+        active={active}
+        onSelect={handleSelect}
+        groups={[
+          { title: '图片编辑', features: EDIT_FEATURES },
+          { title: '图片合并', features: MERGE_FEATURES },
+          { title: '抠图', features: CUTOUT_FEATURES },
+        ]}
+      />
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
+        <header className="mb-4">
+          <h2 className="text-base font-semibold">{activeFeature.name}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">{activeFeature.desc}</p>
+        </header>
+        {Object.entries(PANELS).map(([id, Panel]) => (
+          <div key={id} className={id === active ? 'block' : 'hidden'} aria-hidden={id !== active}>
+            <Panel />
+          </div>
+        ))}
+        <PrivacyNote />
       </main>
     </div>
   );

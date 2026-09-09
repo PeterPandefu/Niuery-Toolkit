@@ -23,9 +23,9 @@ interface RequestPanelProps {
 type TabId = 'params' | 'headers' | 'body' | 'auth' | 'scripts';
 
 const METHOD_COLORS: Record<HttpMethod, string> = {
-  GET: 'text-green-600 dark:text-green-400',
+  GET: 'text-success',
   POST: 'text-yellow-600 dark:text-yellow-400',
-  PUT: 'text-blue-600 dark:text-blue-400',
+  PUT: 'text-info',
   PATCH: 'text-purple-600 dark:text-purple-400',
   DELETE: 'text-red-600 dark:text-red-400',
   HEAD: 'text-cyan-600 dark:text-cyan-400',

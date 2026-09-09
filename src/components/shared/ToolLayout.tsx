@@ -1,4 +1,5 @@
 import { ReactNode, useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, Trash2, ArrowDownUp, Columns2, Rows2 } from 'lucide-react';
@@ -42,6 +43,7 @@ export function ToolLayout({
   onDrop,
   className,
 }: ToolLayoutProps) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [vertical, setVertical] = useState(false);
   const [isWideLayout, setIsWideLayout] = useState(() =>
@@ -67,11 +69,13 @@ export function ToolLayout({
       const success = await copyToClipboard(outputValue);
       if (success) {
         setCopied(true);
-        toast.success('已复制到剪贴板');
+        toast.success(t('actions.copied'));
         setTimeout(() => setCopied(false), 2000);
+      } else {
+        toast.error(t('actions.copyFailed'));
       }
     }
-  }, [outputValue]);
+  }, [outputValue, t]);
 
   // Ctrl+Shift+C 快捷键复制输出
   useEffect(() => {
@@ -117,25 +121,7 @@ export function ToolLayout({
   }, [isVertical]);
 
   return (
-    <div className={cn('flex h-full min-h-0 min-w-0 flex-col bg-background p-2 sm:p-3', className)}>
-      {/* 工具栏 */}
-      <div className="mb-3 flex min-h-10 items-center justify-end gap-1 rounded-xl border border-border bg-card px-2 shadow-tinted-sm">
-        {onSwap && (
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={onSwap} title="交换输入输出">
-            <ArrowDownUp className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          onClick={() => setVertical(!vertical)}
-          disabled={!isWideLayout}
-          title={isWideLayout ? (vertical ? '切换为水平布局' : '切换为垂直布局') : '窗口较窄时自动使用上下布局'}
-        >
-          {isVertical ? <Columns2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
-        </Button>
-      </div>
+    <div className={cn('flex h-full min-h-0 min-w-0 flex-col bg-background p-2 sm:p-2.5', className)}>
 
       {/* Panels */}
       <div
@@ -144,7 +130,7 @@ export function ToolLayout({
       >
         {/* Input Panel */}
         <div
-          className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-tinted-sm"
+          className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-tinted-sm"
           style={isVertical ? { height: `${splitRatio}%` } : { width: `${splitRatio}%` }}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
@@ -170,24 +156,40 @@ export function ToolLayout({
         >
           {dragOver && (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-primary bg-primary/8">
-              <span className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-tinted">拖放文件或文本到此处</span>
+              <span className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-tinted">{t('actions.dropHint')}</span>
             </div>
           )}
-          <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-2">
-            <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <div className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-3 py-1.5">
+            <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs font-medium text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               {inputTitle}
             </span>
             <div className="ml-auto flex items-center gap-1">
+              {onSwap && (
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={onSwap} title={t('actions.swap')} aria-label={t('actions.swap')}>
+                  <ArrowDownUp className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setVertical(!vertical)}
+                disabled={!isWideLayout}
+                title={isWideLayout ? (vertical ? t('actions.horizontalLayout') : t('actions.verticalLayout')) : t('actions.layoutAuto')}
+                aria-label={isWideLayout ? (vertical ? t('actions.horizontalLayout') : t('actions.verticalLayout')) : t('actions.layoutAuto')}
+              >
+                {isVertical ? <Columns2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
+              </Button>
               {inputActions}
               {onClear && (
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onClear} title="清空">
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onClear} title={t('actions.clearInput')} aria-label={t('actions.clearInput')}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
             </div>
           </div>
-          <div className="min-h-0 flex-1 p-4">{input}</div>
+          <div className="min-h-0 flex-1 p-3">{input}</div>
         </div>
 
         {/* 拖拽手柄 */}
@@ -207,22 +209,22 @@ export function ToolLayout({
         </div>
 
         {/* 输出面板 */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-tinted-sm">
-          <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-2">
-            <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-tinted-sm">
+          <div className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-3 py-1.5">
+            <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs font-medium text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               {outputTitle}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {outputActions}
               {outputValue !== undefined && (
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={handleCopy} title="复制输出 (Ctrl+Shift+C)">
-                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={handleCopy} disabled={!outputValue} title={t('actions.copyOutput')} aria-label={copied ? t('actions.copied') : t('actions.copyOutput')}>
+                  {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
                 </Button>
               )}
             </div>
           </div>
-          <div className="min-h-0 flex-1 p-4">{output}</div>
+          <div className="min-h-0 flex-1 p-3">{output}</div>
         </div>
       </div>
     </div>

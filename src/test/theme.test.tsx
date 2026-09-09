@@ -26,8 +26,9 @@ describe('主题系统', () => {
       removeListener: vi.fn(),
       dispatchEvent: vi.fn(),
     })));
-    useAppStore.setState({ theme: 'system', skin: 'forge' });
+    useAppStore.setState({ theme: 'system', skin: 'forge', atmosphere: 'low' });
     document.documentElement.removeAttribute('data-skin');
+    document.documentElement.removeAttribute('data-atmosphere');
     document.documentElement.classList.remove('dark');
   });
 
@@ -38,6 +39,7 @@ describe('主题系统', () => {
   it('应用皮肤，并在系统偏好变化时更新亮暗方案', async () => {
     render(<ThemeHarness />);
     await waitFor(() => expect(document.documentElement.dataset.skin).toBe('forge'));
+    expect(document.documentElement.dataset.atmosphere).toBe('low');
 
     act(() => useAppStore.getState().setSkin('ocean'));
     await waitFor(() => expect(document.documentElement.dataset.skin).toBe('ocean'));
@@ -56,6 +58,9 @@ describe('主题系统', () => {
         const pairs: [string, string][] = [
           [tokens.foreground, tokens.background],
           [tokens['card-foreground'], tokens.card],
+          [tokens['muted-foreground'], tokens.background],
+          [tokens['muted-foreground'], tokens.card],
+          [tokens['sidebar-foreground'], tokens.sidebar],
           [tokens['primary-foreground'], tokens.primary],
           [tokens['destructive-foreground'], tokens.destructive],
           [tokens['success-foreground'], tokens.success],
@@ -73,8 +78,10 @@ describe('主题系统', () => {
     const defineTheme = vi.fn();
     registerMonacoThemes({ editor: { defineTheme } } as never);
 
-    expect(defineTheme).toHaveBeenCalledTimes(8);
+    expect(defineTheme).toHaveBeenCalledTimes(12);
     expect(defineTheme).toHaveBeenCalledWith(getMonacoThemeName('ocean', 'dark'), expect.objectContaining({ base: 'vs-dark' }));
     expect(defineTheme).toHaveBeenCalledWith(getMonacoThemeName('forest', 'light'), expect.objectContaining({ base: 'vs' }));
+    expect(defineTheme).toHaveBeenCalledWith(getMonacoThemeName('aurora', 'dark'), expect.objectContaining({ base: 'vs-dark' }));
+    expect(defineTheme).toHaveBeenCalledWith(getMonacoThemeName('ink', 'light'), expect.objectContaining({ base: 'vs' }));
   });
 });

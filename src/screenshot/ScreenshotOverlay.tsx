@@ -19,6 +19,7 @@ import {
   MOSAIC_BLOCK_SIZE,
   FREEHAND_MIN_POINTS,
 } from './types';
+import { HUD } from './hud';
 
 interface ScreenshotOverlayProps {
   generation: number;
@@ -464,7 +465,7 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
           <polyline
             points={freehandPoints.map((p) => `${p.x},${p.y}`).join(' ')}
             fill="none"
-            stroke="#4488ff"
+            stroke={HUD.accent}
             strokeWidth={3}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -501,26 +502,28 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
 
           {/* 长截图模式：动作按钮（代替标注工具栏） */}
           {recordingMode ? (
-            <div className="fixed z-30 flex items-center gap-2 rounded-lg bg-[#2a2a2a]/95 px-3 py-2 text-sm text-white shadow-lg" style={{ left: toolbarPos.x, top: toolbarPos.y }} onMouseDown={(e) => e.stopPropagation()}>
+            <div className="fixed z-30 flex items-center gap-2 rounded-lg bg-black/90 px-3 py-2 text-sm text-white shadow-lg" style={{ left: toolbarPos.x, top: toolbarPos.y }} onMouseDown={(e) => e.stopPropagation()}>
               <span>{Math.round(selection.width)} × {Math.round(selection.height)}</span>
-              <button type="button" aria-label="确认录制区域" title="确认录制区域" className="flex h-8 w-8 items-center justify-center rounded bg-[#4488ff] hover:bg-[#5a98ff]" onClick={confirmRecording}><Check className="h-4 w-4" /></button>
+              <button type="button" aria-label="确认录制区域" title="确认录制区域" className="flex h-8 w-8 items-center justify-center rounded hover:opacity-90" style={{ background: HUD.accent }} onClick={confirmRecording}><Check className="h-4 w-4" /></button>
             </div>
           ) : longshotMode ? (
             <div
-              className="fixed z-30 flex items-center gap-1 rounded-lg bg-[#2a2a2a]/95 px-2 py-1.5 shadow-lg"
+              className="fixed z-30 flex items-center gap-1 rounded-lg bg-black/90 px-2 py-1.5 shadow-lg"
               style={{ left: toolbarPos.x, top: toolbarPos.y }}
               onMouseDown={(e) => e.stopPropagation()}
             >
               {/* 滚动模式切换：仅在框选阶段可调，确认后锁定 */}
               <div className="flex items-center rounded bg-white/10 p-0.5 text-xs">
                 <button
-                  className={`rounded px-2 py-0.5 ${longshotAutoScroll ? 'bg-[#4488ff] text-white' : 'text-white/70 hover:text-white'}`}
+                  className={`rounded px-2 py-0.5 ${longshotAutoScroll ? 'text-white' : 'text-white/70 hover:text-white'}`}
+                  style={longshotAutoScroll ? { background: HUD.accent } : undefined}
                   onClick={() => setLongshotAutoScroll(true)}
                 >
                   自动
                 </button>
                 <button
-                  className={`rounded px-2 py-0.5 ${!longshotAutoScroll ? 'bg-[#4488ff] text-white' : 'text-white/70 hover:text-white'}`}
+                  className={`rounded px-2 py-0.5 ${!longshotAutoScroll ? 'text-white' : 'text-white/70 hover:text-white'}`}
+                  style={!longshotAutoScroll ? { background: HUD.accent } : undefined}
                   onClick={() => setLongshotAutoScroll(false)}
                 >
                   手动
@@ -537,7 +540,8 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
                   step={100}
                   value={longshotIntervalMs}
                   onChange={(e) => setLongshotIntervalMs(Number(e.target.value))}
-                  className="h-1 w-28 accent-[#4488ff]"
+                  className="h-1 w-28"
+                  style={{ accentColor: HUD.accent }}
                   aria-label="捕获间隔"
                 />
                 <span className="w-8 text-right font-mono text-white/85">
@@ -546,7 +550,8 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
               </label>
               <div className="h-4 w-px bg-white/20" />
               <button
-                className="rounded bg-[#4488ff] px-3 py-1 text-sm text-white hover:bg-[#3377ee]"
+                className="rounded px-3 py-1 text-sm text-white hover:opacity-90"
+                style={{ background: HUD.accent }}
                 onClick={confirmLongshot}
               >
                 开始长截图
@@ -610,14 +615,14 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
                 onCopy={handleCopy}
               />
               <div
-                className="fixed z-50 flex items-center gap-1 rounded-md bg-[#202124]/95 p-1 shadow-lg"
+                className="fixed z-50 flex items-center gap-1 rounded-md bg-black/90 p-1 shadow-lg"
                 style={{ left: toolbarPos.x, top: Math.max(4, toolbarPos.y - 36) }}
                 onMouseDown={(event) => event.stopPropagation()}
               >
                 <button type="button" className="rounded px-2 py-1 text-xs text-white hover:bg-white/15" onClick={() => openOcr(false)}>
                   识别文字
                 </button>
-                <button type="button" className="rounded bg-[#07c160] px-2 py-1 text-xs text-white" onClick={() => openOcr(true)}>
+                <button type="button" className="rounded px-2 py-1 text-xs text-white" style={{ background: HUD.success }} onClick={() => openOcr(true)}>
                   翻译文字
                 </button>
               </div>
@@ -648,7 +653,7 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
       {phase === 'idle' && (
         <div className="pointer-events-none fixed inset-x-0 top-8 z-50 flex justify-center px-4">
           <div
-            className="pointer-events-auto flex items-center gap-3 rounded-xl border border-white/15 bg-[#202124]/95 px-4 py-2.5 text-sm text-white shadow-2xl select-none"
+            className="pointer-events-auto flex items-center gap-3 rounded-xl border border-white/15 bg-black/90 px-4 py-2.5 text-sm text-white shadow-2xl select-none"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <span className="font-semibold text-white">{recordingMode ? '选择录制区域' : '正在截图'}</span>

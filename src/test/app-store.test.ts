@@ -6,11 +6,13 @@ describe('useAppStore', () => {
     useAppStore.setState({
       theme: 'system',
       skin: 'forge',
+      atmosphere: 'low',
       activeCategory: null,
       activeToolId: null,
       searchOpen: false,
       recentToolUsage: {},
       usageSequence: 0,
+      sidebarCollapsed: false,
     });
   });
 
@@ -32,11 +34,21 @@ describe('useAppStore', () => {
     it('sets skin and restores the default appearance', () => {
       useAppStore.getState().setSkin('ocean');
       useAppStore.getState().setTheme('dark');
+      useAppStore.getState().setAtmosphere('high');
       expect(useAppStore.getState().skin).toBe('ocean');
+      expect(useAppStore.getState().atmosphere).toBe('high');
 
       useAppStore.getState().resetAppearance();
       expect(useAppStore.getState().skin).toBe('forge');
       expect(useAppStore.getState().theme).toBe('system');
+      expect(useAppStore.getState().atmosphere).toBe('low');
+    });
+
+    it('defaults atmosphere to low and persists it', () => {
+      expect(useAppStore.getState().atmosphere).toBe('low');
+      useAppStore.getState().setAtmosphere('off');
+      const persisted = useAppStore.persist.getOptions().partialize?.(useAppStore.getState());
+      expect(persisted).toMatchObject({ atmosphere: 'off' });
     });
   });
 
@@ -126,6 +138,22 @@ describe('useAppStore', () => {
       const persisted = useAppStore.persist.getOptions().partialize?.(useAppStore.getState());
       expect(persisted).not.toHaveProperty('recentToolUsage');
       expect(persisted).not.toHaveProperty('usageSequence');
+    });
+  });
+
+  describe('sidebarCollapsed', () => {
+    it('defaults to expanded and can toggle', () => {
+      expect(useAppStore.getState().sidebarCollapsed).toBe(false);
+      useAppStore.getState().toggleSidebarCollapsed();
+      expect(useAppStore.getState().sidebarCollapsed).toBe(true);
+      useAppStore.getState().setSidebarCollapsed(false);
+      expect(useAppStore.getState().sidebarCollapsed).toBe(false);
+    });
+
+    it('persists collapsed state', () => {
+      useAppStore.getState().setSidebarCollapsed(true);
+      const persisted = useAppStore.persist.getOptions().partialize?.(useAppStore.getState());
+      expect(persisted).toMatchObject({ sidebarCollapsed: true });
     });
   });
 });

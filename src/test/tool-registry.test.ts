@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } from '@/registry/tool-registry';
+import { describe, expect, it, vi } from 'vitest';
+import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory, preloadTool } from '@/registry/tool-registry';
 import { TOOL_CATEGORY_ORDER } from '@/types/tool';
+import zh from '@/i18n/locales/zh.json';
+import en from '@/i18n/locales/en.json';
 
 describe('工具注册表', () => {
   it('完整注册 50 个工具', () => {
@@ -51,6 +53,46 @@ describe('工具注册表', () => {
       expect(tool.component).toBeDefined();
       expect(tool.keywords.length).toBeGreaterThan(0);
       expect(tool.description).toBeTruthy();
+      expect(tool.capabilities.network).toMatch(/^(offline|network|hybrid)$/);
+      expect(Array.isArray(tool.capabilities.permissions)).toBe(true);
     });
+  });
+
+  it('为联网、桌面和高权限工具声明边界', () => {
+    expect(getToolById('api-tester')?.capabilities.network).toBe('network');
+    expect(getToolById('translator')?.capabilities.network).toBe('network');
+    expect(getToolById('screen-recorder')?.capabilities).toMatchObject({
+      desktopOnly: true,
+      permissions: expect.arrayContaining(['screen', 'microphone', 'systemAudio']),
+    });
+    expect(getToolById('sticky-note')?.capabilities).toMatchObject({ desktopOnly: true, permissions: ['file', 'nativeWindow'] });
+  });
+
+  it('支持重型工具的指向预加载，并忽略预加载失败', async () => {
+    const tool = getToolById('tldraw-board');
+    expect(tool).toBeDefined();
+    const original = tool?.preload;
+    const preload = vi.fn().mockResolvedValue(undefined);
+    if (tool) tool.preload = preload;
+
+    preloadTool('tldraw-board');
+    preloadTool('tldraw-board');
+    await Promise.resolve();
+    expect(preload).toHaveBeenCalledTimes(1);
+
+    if (tool) tool.preload = () => Promise.reject(new Error('预加载失败'));
+    expect(() => preloadTool('tldraw-board')).not.toThrow();
+    if (tool) tool.preload = original;
+  });
+
+  it.each([
+    ['中文', zh.tools],
+    ['英文', en.tools],
+  ] as const)('所有工具都有%s本地化名称', (_language, translations) => {
+    const missing = getAllTools()
+      .map((tool) => tool.id)
+      .filter((toolId) => !(toolId in translations));
+
+    expect(missing).toEqual([]);
   });
 });

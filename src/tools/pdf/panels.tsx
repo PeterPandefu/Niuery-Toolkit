@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { WorkbenchSplit } from '@/components/shared/WorkbenchSplit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -17,6 +18,7 @@ import { formatBytes } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createLogger } from '@/lib/logger';
+import { showOperationError } from '@/lib/operation-feedback';
 
 const log = createLogger('pdf-toolkit:panels');
 
@@ -27,13 +29,14 @@ function useBusyRun() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
 
-  const run = async (fn: () => Promise<void>) => {
+  const run = async (fn: () => Promise<void>, onError?: (error: unknown) => void) => {
     setBusy(true);
     setProgress(null);
     try {
       await fn();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '处理失败');
+      if (onError) onError(e);
+      else toast.error(e instanceof Error ? e.message : '处理失败');
     } finally {
       setBusy(false);
       setProgress(null);
@@ -55,7 +58,7 @@ function useLoggedRun(operation: string) {
         log.error('处理失败', { operation, error: e });
         throw e;
       }
-    });
+    }, (error) => showOperationError({ message: `${operation}失败`, error }));
   };
 
   return { busy, progress, setProgress, run: loggedRun };
@@ -130,12 +133,12 @@ export function MergePanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <FileDropzone files={files} onChange={setFiles} multiple hint="选择多个 PDF，按列表顺序合并" />
       <RunButton busy={busy} disabled={files.length < 2} onClick={handleRun}>
         开始合并
       </RunButton>
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -164,7 +167,7 @@ export function SplitPanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <FileDropzone files={files} onChange={(f) => void handleChange(f)} />
       {pageCount > 0 && <p className="text-xs text-muted-foreground">共 {pageCount} 页</p>}
       <OptionRow label="拆分方式">
@@ -191,7 +194,7 @@ export function SplitPanel() {
       <RunButton busy={busy} disabled={!buffer} onClick={handleRun}>
         开始拆分
       </RunButton>
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -221,7 +224,7 @@ export function WatermarkPanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <FileDropzone files={files} onChange={(f) => void handleChange(f)} />
       <OptionRow label="水印文字">
         <Input value={text} onChange={(e) => setText(e.target.value)} className="h-8 text-xs" />
@@ -248,7 +251,7 @@ export function WatermarkPanel() {
       <RunButton busy={busy} disabled={!buffer} onClick={handleRun}>
         添加水印
       </RunButton>
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -287,7 +290,7 @@ export function CompressPanel() {
   const saved = result ? Math.round((1 - result.compressed / result.original) * 100) : 0;
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <FileDropzone files={files} onChange={(f) => void handleChange(f)} />
       <OptionRow label="压缩模式">
         <Select
@@ -313,7 +316,7 @@ export function CompressPanel() {
           <OptionRow label={`JPEG 质量 ${quality}%`}>
             <input type="range" min={30} max={95} value={quality} onChange={(e) => setQuality(parseInt(e.target.value))} className="w-full" />
           </OptionRow>
-          <p className="text-xs text-amber-600">激进模式会将页面转为图片，文本将无法选中/搜索</p>
+          <p className="text-xs text-warning">激进模式会将页面转为图片，文本将无法选中/搜索</p>
         </>
       )}
       <RunButton busy={busy} disabled={!buffer} onClick={handleRun}>
@@ -330,8 +333,8 @@ export function CompressPanel() {
             <div className="font-mono text-sm font-semibold">{formatBytes(result.compressed)}</div>
             <div className="mt-1 text-muted-foreground">压缩后</div>
           </div>
-          <div className={`rounded-lg border p-3 ${saved > 0 ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-border'}`}>
-            <div className={`font-mono text-sm font-semibold ${saved > 0 ? 'text-emerald-500' : ''}`}>
+          <div className={`rounded-lg border p-3 ${saved > 0 ? 'border-success/50 bg-success/10' : 'border-border'}`}>
+            <div className={`font-mono text-sm font-semibold ${saved > 0 ? 'text-success' : ''}`}>
               {saved > 0 ? `-${saved}%` : '+0%'}
             </div>
             <div className="mt-1 text-muted-foreground">节省</div>
@@ -343,7 +346,7 @@ export function CompressPanel() {
           保存压缩结果
         </Button>
       )}
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -371,7 +374,7 @@ export function ToImagesPanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <FileDropzone files={files} onChange={(f) => void handleChange(f)} />
       <OptionRow label="输出格式">
         <Select
@@ -396,7 +399,7 @@ export function ToImagesPanel() {
         开始转换
       </RunButton>
       <ProgressText text={progress} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -423,12 +426,12 @@ export function ExtractImagesPanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <FileDropzone files={files} onChange={(f) => void handleChange(f)} />
       <RunButton busy={busy} disabled={!buffer} onClick={handleRun}>
         提取图片
       </RunButton>
       <ProgressText text={progress} />
-    </div>
+    </WorkbenchSplit>
   );
 }

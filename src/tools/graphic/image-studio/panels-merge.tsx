@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { WorkbenchSplit } from '@/components/shared/WorkbenchSplit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -64,7 +65,7 @@ export function MergeImagePanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label="排列方式">
@@ -96,7 +97,7 @@ export function MergeImagePanel() {
       </Button>
       {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -124,7 +125,7 @@ export function MergePdfPanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <p className="text-xs text-muted-foreground">每张图片作为一页，页面尺寸与图片一致</p>
@@ -133,7 +134,7 @@ export function MergePdfPanel() {
         开始处理
       </Button>
       {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -160,7 +161,7 @@ export function MergeGifPanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`帧间隔 ${delayMs}ms`}>
@@ -173,7 +174,7 @@ export function MergeGifPanel() {
       </Button>
       {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -340,7 +341,7 @@ export function CutoutPanel() {
     });
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={file} onChange={setFile} />
       <ImagePreview files={file} />
       {imgUrl && imgSize && (
@@ -382,6 +383,6 @@ export function CutoutPanel() {
       </Button>
       {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
       <ProcessingResultPreview sourceFiles={file} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }

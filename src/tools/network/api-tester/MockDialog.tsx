@@ -45,7 +45,7 @@ export function MockDialog({ open, onClose }: MockDialogProps) {
               className={cn(
                 'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
                 mockEnabled
-                  ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                  ? 'bg-success/10 text-success'
                   : 'bg-muted text-muted-foreground'
               )}
             >
@@ -82,7 +82,7 @@ export function MockDialog({ open, onClose }: MockDialogProps) {
                 <span
                   className={cn(
                     'h-1.5 w-1.5 shrink-0 rounded-full',
-                    rule.enabled ? 'bg-green-500' : 'bg-gray-300'
+                    rule.enabled ? 'bg-success' : 'bg-muted-foreground/40'
                   )}
                 />
                 <span className="flex-1 truncate">{rule.name}</span>

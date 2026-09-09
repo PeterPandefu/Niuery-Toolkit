@@ -7,8 +7,10 @@ import { useAppStore } from '@/store/app-store';
 import { isTauri } from '@/lib/api-client';
 import { emitHotkeysChanged } from '@/lib/hotkeys';
 import { CATEGORY_ICONS } from '@/types/tool';
-import { Check, Contrast, Keyboard, Monitor, Moon, Palette, Pin, Power, RotateCcw, Search, Sunrise, Sun, Trees, Waves, X, Zap } from 'lucide-react';
+import { Check, Contrast, Feather, Keyboard, Monitor, Moon, Palette, Pin, Power, RotateCcw, Search, Sparkles, Sunrise, Sun, Trees, Waves, X, Zap } from 'lucide-react';
 import { getThemeTokens, SKIN_IDS } from '@/lib/theme';
+import { ATMOSPHERE_IDS } from '@/lib/atmosphere';
+import type { SkinId } from '@/types/tool';
 import { useTheme } from '@/hooks/use-theme';
 
 interface SettingsDialogProps {
@@ -151,7 +153,7 @@ function HotkeyRecorder({
 
 function AppearanceSettings() {
   const { t } = useTranslation();
-  const { theme, setTheme, skin, setSkin, resetAppearance, scheme } = useTheme();
+  const { theme, setTheme, skin, setSkin, atmosphere, setAtmosphere, resetAppearance, scheme } = useTheme();
   const modes = [
     { id: 'light' as const, icon: Sun },
     { id: 'dark' as const, icon: Moon },
@@ -202,7 +204,7 @@ function AppearanceSettings() {
           {SKIN_IDS.map((skinId) => {
             const tokens = getThemeTokens(skinId, scheme);
             const selected = skin === skinId;
-            const SkinIcon = { forge: Sunrise, ocean: Waves, forest: Trees, mono: Contrast }[skinId];
+            const SkinIcon = SKIN_ICONS[skinId];
             return (
               <button
                 key={skinId}
@@ -231,9 +233,41 @@ function AppearanceSettings() {
           })}
         </div>
       </div>
+
+      <div>
+        <div className="mb-2">
+          <h3 className="text-sm font-semibold text-foreground">{t('theme.atmosphere')}</h3>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{t('theme.atmosphereDesc')}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1">
+          {ATMOSPHERE_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setAtmosphere(id)}
+              aria-pressed={atmosphere === id}
+              className={cn(
+                'rounded-md px-2 py-1.5 text-[11px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                atmosphere === id ? 'bg-card text-foreground shadow-tinted-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t(`theme.atmosphere${id[0].toUpperCase()}${id.slice(1)}`)}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
+
+const SKIN_ICONS = {
+  forge: Sunrise,
+  ocean: Waves,
+  forest: Trees,
+  mono: Contrast,
+  aurora: Sparkles,
+  ink: Feather,
+} as const satisfies Record<SkinId, typeof Sunrise>;
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const { t } = useTranslation();

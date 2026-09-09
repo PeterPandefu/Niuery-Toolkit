@@ -121,7 +121,10 @@ async function renderMermaidSvg(source: string, scheme: ColorScheme, background?
   const id = `niuery-mermaid-${++diagramSequence}`;
   const container = document.createElement('div');
   container.setAttribute('aria-hidden', 'true');
-  container.style.display = 'none';
+  // Mermaid 的状态图和 ER 图会在渲染时读取 SVG 的布局尺寸；`display: none`
+  // 会使这些尺寸为 0，进而导致 dagre 抛出 “suitable point” 异常。视觉隐藏但
+  // 保留布局能力，待 SVG 生成后再移除该临时容器。
+  container.style.cssText = 'position:fixed;inset:0 auto auto 0;visibility:hidden;pointer-events:none;';
   document.body.appendChild(container);
   try {
     const { svg } = await mermaid.render(id, source, container);

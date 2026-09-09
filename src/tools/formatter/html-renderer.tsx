@@ -1,3 +1,4 @@
+import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -159,7 +160,7 @@ export default function HtmlRenderer() {
         </div>
       </header>
       {diagnostics.warnings.length > 0 && (
-        <div role="status" className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+        <div role="status" className="border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           <div>{diagnostics.warnings.join('；')}</div>
           <div className="mt-1 text-[11px] opacity-80">图片 {diagnostics.imageCount} 张，脚本 {diagnostics.scriptCount} 个</div>
         </div>

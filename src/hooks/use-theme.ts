@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { applyThemeTokens, getMonacoThemeName, getThemeTokens, type ThemeScheme } from '@/lib/theme';
+import { applyThemeTokens, getMonacoThemeName, getThemeTokens, toHex, type ThemeScheme } from '@/lib/theme';
+import { isTauri } from '@/lib/api-client';
 import { useAppStore } from '@/store/app-store';
 
 const darkSchemeQuery = '(prefers-color-scheme: dark)';
@@ -28,14 +29,26 @@ export function useResolvedTheme(): ThemeScheme {
 /** 仅在应用根部调用：把当前外观写入 DOM。 */
 export function useApplyTheme() {
   const skin = useAppStore((state) => state.skin);
+  const atmosphere = useAppStore((state) => state.atmosphere);
   const scheme = useResolvedTheme();
 
   useEffect(() => {
     const root = document.documentElement;
+    const tokens = getThemeTokens(skin, scheme);
     root.dataset.skin = skin;
+    root.dataset.atmosphere = atmosphere ?? 'low';
     root.classList.toggle('dark', scheme === 'dark');
-    applyThemeTokens(root, getThemeTokens(skin, scheme));
-  }, [skin, scheme]);
+    applyThemeTokens(root, tokens);
+
+    if (!isTauri) return;
+    void import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke('set_window_chrome', {
+        background: toHex(tokens.background),
+        foreground: toHex(tokens.foreground),
+        dark: scheme === 'dark',
+      }).catch(() => undefined);
+    });
+  }, [skin, atmosphere, scheme]);
 }
 
 export function useTheme() {
@@ -43,6 +56,8 @@ export function useTheme() {
   const setTheme = useAppStore((state) => state.setTheme);
   const skin = useAppStore((state) => state.skin);
   const setSkin = useAppStore((state) => state.setSkin);
+  const atmosphere = useAppStore((state) => state.atmosphere);
+  const setAtmosphere = useAppStore((state) => state.setAtmosphere);
   const resetAppearance = useAppStore((state) => state.resetAppearance);
   const scheme = useResolvedTheme();
 
@@ -51,6 +66,8 @@ export function useTheme() {
     setTheme,
     skin,
     setSkin,
+    atmosphere,
+    setAtmosphere,
     resetAppearance,
     scheme,
     monacoTheme: getMonacoThemeName(skin, scheme),

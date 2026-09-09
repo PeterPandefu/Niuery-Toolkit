@@ -1,3 +1,4 @@
+import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
 import { openTextDocument } from '@/lib/local-documents';
 import { saveBytesWithFeedback } from '@/lib/file-save';
