@@ -208,8 +208,7 @@
     background-color: hsl(var(--sidebar));
   }
 
-  html[data-atmosphere="low"] .app-statusbar,
-  html[data-atmosphere="high"] .app-statusbar {
+  html[data-atmosphere="on"] .app-statusbar {
     background-color: hsl(var(--sidebar) / 0.9);
   }
 
@@ -217,18 +216,15 @@
     background-color: hsl(var(--sidebar));
   }
 
-  html[data-atmosphere="low"] .app-shell::before,
-  html[data-atmosphere="high"] .app-shell::before {
+  html[data-atmosphere="on"] .app-shell::before {
     opacity: 1;
   }
 
-  html[data-atmosphere="low"] .app-sidebar,
-  html[data-atmosphere="high"] .app-sidebar {
+  html[data-atmosphere="on"] .app-sidebar {
     background-color: hsl(var(--sidebar) / 0.78);
   }
 
-  html[data-atmosphere="low"] .app-panel,
-  html[data-atmosphere="high"] .app-panel {
+  html[data-atmosphere="on"] .app-panel {
     background-color: hsl(var(--background) / 0.78);
   }
 
@@ -492,52 +488,28 @@
 }
 
 
-html[data-atmosphere="low"][data-skin="forge"] .app-shell::before {
-  background:
-    radial-gradient(70% 48% at 12% 0%, hsl(var(--ember-glow) / 0.34), transparent 64%),
-    linear-gradient(180deg, hsl(var(--ember-glow) / 0.1), transparent 42%);
-}
-
-html[data-atmosphere="high"][data-skin="forge"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="forge"] .app-shell::before {
   background:
     radial-gradient(70% 48% at 12% 0%, hsl(var(--ember-glow) / 0.5), transparent 62%),
     radial-gradient(42% 32% at 92% 100%, hsl(16 80% 48% / 0.2), transparent 58%);
   animation: atmosphere-drift 12s ease-in-out infinite;
 }
 
-html[data-atmosphere="low"][data-skin="ocean"] .app-shell::before {
-  background:
-    radial-gradient(64% 46% at 18% 0%, hsl(var(--ember-glow) / 0.32), transparent 64%),
-    linear-gradient(160deg, hsl(191 70% 50% / 0.12), transparent 46%);
-}
-
-html[data-atmosphere="high"][data-skin="ocean"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="ocean"] .app-shell::before {
   background:
     radial-gradient(58% 42% at 16% 8%, hsl(var(--ember-glow) / 0.42), transparent 62%),
     radial-gradient(46% 36% at 86% 92%, hsl(191 70% 50% / 0.26), transparent 58%);
   animation: atmosphere-drift 12s ease-in-out infinite;
 }
 
-html[data-atmosphere="low"][data-skin="forest"] .app-shell::before {
-  background:
-    radial-gradient(68% 50% at 86% 0%, hsl(95 32% 42% / 0.28), transparent 66%),
-    linear-gradient(180deg, hsl(140 25% 30% / 0.1), transparent 44%);
-}
-
-html[data-atmosphere="high"][data-skin="forest"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="forest"] .app-shell::before {
   background:
     radial-gradient(62% 46% at 88% 0%, hsl(95 32% 42% / 0.36), transparent 64%),
     radial-gradient(40% 32% at 10% 100%, hsl(140 25% 30% / 0.18), transparent 60%);
   animation: atmosphere-drift 16s ease-in-out infinite;
 }
 
-html[data-atmosphere="low"][data-skin="aurora"] .app-shell::before {
-  background:
-    radial-gradient(58% 44% at 12% 6%, hsl(170 80% 50% / 0.3), transparent 62%),
-    radial-gradient(52% 40% at 88% 16%, hsl(262 80% 60% / 0.26), transparent 60%);
-}
-
-html[data-atmosphere="high"][data-skin="aurora"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="aurora"] .app-shell::before {
   background:
     radial-gradient(52% 40% at 14% 8%, hsl(170 80% 50% / 0.44), transparent 60%),
     radial-gradient(48% 42% at 84% 18%, hsl(262 80% 60% / 0.38), transparent 58%),
@@ -546,8 +518,7 @@ html[data-atmosphere="high"][data-skin="aurora"] .app-shell::before {
   animation: aurora-shift 10s ease-in-out infinite;
 }
 
-html[data-atmosphere="low"][data-skin="ink"] .app-shell::before,
-html[data-atmosphere="high"][data-skin="ink"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="ink"] .app-shell::before {
   background:
     radial-gradient(hsl(var(--foreground) / 0.07) 0.8px, transparent 0.8px),
     linear-gradient(180deg, hsl(var(--primary) / 0.08), transparent 36%);
@@ -557,10 +528,6 @@ html[data-atmosphere="high"][data-skin="ink"] .app-shell::before {
 html[data-skin="mono"] .app-shell::before,
 html[data-atmosphere="off"] .app-shell::before {
   opacity: 0;
-  animation: none;
-}
-
-html[data-atmosphere="low"] .app-shell::before {
   animation: none;
 }
 

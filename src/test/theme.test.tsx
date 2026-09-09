@@ -26,7 +26,7 @@ describe('主题系统', () => {
       removeListener: vi.fn(),
       dispatchEvent: vi.fn(),
     })));
-    useAppStore.setState({ theme: 'system', skin: 'forge', atmosphere: 'low' });
+    useAppStore.setState({ theme: 'system', skin: 'forge', atmosphere: 'on' });
     document.documentElement.removeAttribute('data-skin');
     document.documentElement.removeAttribute('data-atmosphere');
     document.documentElement.classList.remove('dark');
@@ -39,7 +39,7 @@ describe('主题系统', () => {
   it('应用皮肤，并在系统偏好变化时更新亮暗方案', async () => {
     render(<ThemeHarness />);
     await waitFor(() => expect(document.documentElement.dataset.skin).toBe('forge'));
-    expect(document.documentElement.dataset.atmosphere).toBe('low');
+    expect(document.documentElement.dataset.atmosphere).toBe('on');
 
     act(() => useAppStore.getState().setSkin('ocean'));
     await waitFor(() => expect(document.documentElement.dataset.skin).toBe('ocean'));

@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AtmosphereIntensity, SkinId, ThemeMode, ToolCategory } from '@/types/tool';
+import { AtmosphereIntensity, PointerEffect, SkinId, ThemeMode, ToolCategory } from '@/types/tool';
 import { DEFAULT_SKIN, isSkinId } from '@/lib/theme';
-import { DEFAULT_ATMOSPHERE, isAtmosphereIntensity } from '@/lib/atmosphere';
+import { DEFAULT_ATMOSPHERE, normalizeAtmosphere } from '@/lib/atmosphere';
+import { DEFAULT_POINTER_EFFECT, normalizePointerEffect } from '@/lib/pointer-effect';
 
 export interface RecentToolUsage {
   count: number;
@@ -26,6 +27,8 @@ interface AppStore {
   setSkin: (skin: SkinId) => void;
   atmosphere: AtmosphereIntensity;
   setAtmosphere: (atmosphere: AtmosphereIntensity) => void;
+  pointerEffect: PointerEffect;
+  setPointerEffect: (pointerEffect: PointerEffect) => void;
   resetAppearance: () => void;
 
   // 当前展开的分类面板
@@ -67,7 +70,10 @@ export const useAppStore = create<AppStore>()(
       setSkin: (skin) => set({ skin }),
       atmosphere: DEFAULT_ATMOSPHERE,
       setAtmosphere: (atmosphere) => set({ atmosphere }),
-      resetAppearance: () => set({ theme: 'system', skin: DEFAULT_SKIN, atmosphere: DEFAULT_ATMOSPHERE }),
+      pointerEffect: DEFAULT_POINTER_EFFECT,
+      setPointerEffect: (pointerEffect) => set({ pointerEffect }),
+      resetAppearance: () =>
+        set({ theme: 'system', skin: DEFAULT_SKIN, atmosphere: DEFAULT_ATMOSPHERE, pointerEffect: DEFAULT_POINTER_EFFECT }),
 
       // 分类面板
       activeCategory: null,
@@ -124,16 +130,35 @@ export const useAppStore = create<AppStore>()(
         theme: state.theme,
         skin: state.skin,
         atmosphere: state.atmosphere,
+        pointerEffect: state.pointerEffect,
         pinnedTools: state.pinnedTools,
         sidebarCollapsed: state.sidebarCollapsed,
       }),
-      version: 4,
+      version: 7,
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<
+          Pick<AppStore, 'theme' | 'skin' | 'atmosphere' | 'pointerEffect' | 'pinnedTools' | 'sidebarCollapsed'>
+        >;
+        return {
+          ...currentState,
+          ...persisted,
+          theme: persisted.theme ?? currentState.theme,
+          skin: isSkinId(persisted.skin) ? persisted.skin : currentState.skin,
+          atmosphere: persisted.atmosphere !== undefined ? normalizeAtmosphere(persisted.atmosphere) : currentState.atmosphere,
+          pointerEffect: normalizePointerEffect(persisted.pointerEffect ?? currentState.pointerEffect),
+          pinnedTools: persisted.pinnedTools ?? currentState.pinnedTools,
+          sidebarCollapsed: persisted.sidebarCollapsed ?? currentState.sidebarCollapsed,
+        };
+      },
       migrate: (persistedState) => {
-        const persisted = persistedState as Partial<Pick<AppStore, 'theme' | 'skin' | 'atmosphere' | 'pinnedTools' | 'sidebarCollapsed'>>;
+        const persisted = (persistedState ?? {}) as Partial<
+          Pick<AppStore, 'theme' | 'skin' | 'atmosphere' | 'pointerEffect' | 'pinnedTools' | 'sidebarCollapsed'>
+        >;
         return {
           theme: persisted.theme ?? 'system',
           skin: isSkinId(persisted.skin) ? persisted.skin : DEFAULT_SKIN,
-          atmosphere: isAtmosphereIntensity(persisted.atmosphere) ? persisted.atmosphere : DEFAULT_ATMOSPHERE,
+          atmosphere: normalizeAtmosphere(persisted.atmosphere),
+          pointerEffect: normalizePointerEffect(persisted.pointerEffect),
           pinnedTools: persisted.pinnedTools ?? ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'qrcode', 'text-diff'],
           sidebarCollapsed: persisted.sidebarCollapsed ?? false,
         };

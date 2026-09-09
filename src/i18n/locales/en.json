@@ -258,10 +258,12 @@
     "ink": "Ink",
     "inkDesc": "Xuan paper grain and cinnabar seals, almost still",
     "atmosphere": "Atmosphere",
-    "atmosphereDesc": "Controls glow and particles without touching editors",
-    "atmosphereOff": "Off",
-    "atmosphereLow": "Low",
-    "atmosphereHigh": "High"
+    "atmosphereDesc": "Shows sidebar and home particles without touching editors",
+    "pointerEffect": "Pointer effect",
+    "pointerEffectDesc": "A cursor decoration that hides over editors",
+    "pointerEffectOff": "Off",
+    "pointerEffectTassel": "Tassel",
+    "pointerEffectGlow": "Glow"
   },
   "language": {
     "zh": "中文",

@@ -1,10 +1,17 @@
 import type { AtmosphereIntensity, SkinId } from '@/types/tool';
 
-export const ATMOSPHERE_IDS: AtmosphereIntensity[] = ['off', 'low', 'high'];
-export const DEFAULT_ATMOSPHERE: AtmosphereIntensity = 'high';
+export const ATMOSPHERE_IDS: AtmosphereIntensity[] = ['off', 'on'];
+export const DEFAULT_ATMOSPHERE: AtmosphereIntensity = 'on';
 
 export function isAtmosphereIntensity(value: unknown): value is AtmosphereIntensity {
   return ATMOSPHERE_IDS.includes(value as AtmosphereIntensity);
+}
+
+/** 兼容旧版关 / 低 / 高：低和高都视为开启。 */
+export function normalizeAtmosphere(value: unknown): AtmosphereIntensity {
+  if (value === 'off') return 'off';
+  if (value === 'on' || value === 'low' || value === 'high') return 'on';
+  return DEFAULT_ATMOSPHERE;
 }
 
 export interface AtmosphereParticle {
@@ -19,7 +26,7 @@ export interface AtmosphereParticle {
 }
 
 export function atmosphereParticleCount(skin: SkinId, atmosphere: AtmosphereIntensity, reducedMotion: boolean) {
-  if (atmosphere !== 'high' || reducedMotion || skin === 'mono') return 0;
+  if (atmosphere !== 'on' || reducedMotion || skin === 'mono') return 0;
   if (skin === 'ink') return 14;
   return 42;
 }

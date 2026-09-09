@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { applyThemeTokens, getMonacoThemeName, getThemeTokens, toHex, type ThemeScheme } from '@/lib/theme';
 import { DEFAULT_ATMOSPHERE } from '@/lib/atmosphere';
+import { DEFAULT_POINTER_EFFECT } from '@/lib/pointer-effect';
 import { isTauri } from '@/lib/api-client';
 import { useAppStore } from '@/store/app-store';
 
@@ -59,6 +60,8 @@ export function useTheme() {
   const setSkin = useAppStore((state) => state.setSkin);
   const atmosphere = useAppStore((state) => state.atmosphere);
   const setAtmosphere = useAppStore((state) => state.setAtmosphere);
+  const pointerEffect = useAppStore((state) => state.pointerEffect) ?? DEFAULT_POINTER_EFFECT;
+  const setPointerEffect = useAppStore((state) => state.setPointerEffect);
   const resetAppearance = useAppStore((state) => state.resetAppearance);
   const scheme = useResolvedTheme();
 
@@ -69,6 +72,8 @@ export function useTheme() {
     setSkin,
     atmosphere,
     setAtmosphere,
+    pointerEffect,
+    setPointerEffect,
     resetAppearance,
     scheme,
     monacoTheme: getMonacoThemeName(skin, scheme),

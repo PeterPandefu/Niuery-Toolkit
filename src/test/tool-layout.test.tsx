@@ -18,5 +18,27 @@ describe('共享工具布局动作', () => {
     expect(screen.getByRole('button', { name: /Clear input|清空输入/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Swap input\/output|交换输入输出/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Copy output|复制输出/ })).toBeDisabled();
+    expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
+  });
+
+  it('把输入操作放到共享工具栏，避免左右标题栏高度不一致', () => {
+    render(
+      <ToolLayout
+        inputTitle="JSON"
+        outputTitle="YAML"
+        input={<textarea aria-label="input" />}
+        output={<div />}
+        outputValue="result"
+        inputActions={<button type="button">示例</button>}
+        onClear={() => undefined}
+        onSwap={() => undefined}
+      />
+    );
+
+    const toolbar = screen.getByRole('toolbar');
+    expect(toolbar).toHaveTextContent('示例');
+    expect(screen.getByText('JSON')).toBeInTheDocument();
+    expect(screen.getByText('YAML')).toBeInTheDocument();
+    expect(toolbar.compareDocumentPosition(screen.getByText('JSON')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
