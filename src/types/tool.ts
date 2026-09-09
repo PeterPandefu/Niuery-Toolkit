@@ -25,6 +25,24 @@ export type ToolCategory =
   | 'system'
   | 'language';
 
+/** 工具对网络和运行环境的声明，用于在操作前给出可理解的边界提示。 */
+export type ToolNetworkMode = 'offline' | 'network' | 'hybrid';
+export type ToolCapabilityId =
+  | 'file'
+  | 'clipboard'
+  | 'screen'
+  | 'microphone'
+  | 'systemAudio'
+  | 'nativeWindow'
+  | 'system'
+  | 'localNetwork';
+
+export interface ToolCapabilities {
+  network: ToolNetworkMode;
+  permissions: ToolCapabilityId[];
+  desktopOnly?: boolean;
+}
+
 /** 分类显示名称映射 */
 export const CATEGORY_NAMES: Record<ToolCategory, string> = {
   data: '数据与转换',
@@ -35,7 +53,7 @@ export const CATEGORY_NAMES: Record<ToolCategory, string> = {
   canvas: '图表与画布',
   capture: '截图与录制',
   network: '接口与网络',
-  system: '系统与剪贴板',
+  system: '系统工具',
   language: '语言翻译',
 };
 
@@ -79,10 +97,14 @@ export interface ToolDefinition {
   category: ToolCategory;
   /** 懒加载组件 */
   component: LazyExoticComponent<ComponentType>;
+  /** 可选的悬停预加载入口，避免重型工具点击后才开始下载代码。 */
+  preload?: () => Promise<unknown>;
   /** 搜索关键词 */
   keywords: string[];
   /** 简短描述 */
   description: string;
+  /** 离线/联网边界和运行环境能力声明。 */
+  capabilities: ToolCapabilities;
 }
 
 /** 工具状态 */
@@ -96,12 +118,16 @@ export interface ToolState {
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 /** 内置视觉皮肤 */
-export type SkinId = 'forge' | 'ocean' | 'forest' | 'mono';
+export type SkinId = 'forge' | 'ocean' | 'forest' | 'mono' | 'aurora' | 'ink';
+
+/** 皮肤氛围强度：关 / 低 / 高 */
+export type AtmosphereIntensity = 'off' | 'low' | 'high';
 
 /** 全局应用状态 */
 export interface AppState {
   theme: ThemeMode;
   skin: SkinId;
+  atmosphere: AtmosphereIntensity;
   activeCategory: ToolCategory | null;
   activeToolId: string | null;
 }

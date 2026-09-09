@@ -63,3 +63,5 @@ export function ImagePreview({ files }: ImagePreviewProps) {
     </section>
   );
 }
+
+ImagePreview.displayName = 'ImagePreview';

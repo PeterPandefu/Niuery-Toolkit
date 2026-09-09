@@ -1,4 +1,5 @@
 import { type ScreenshotTool, TOOL_COLORS, STROKE_WIDTHS, FONT_SIZES, MOSAIC_SIZES } from './types';
+import { HUD } from './hud';
 
 interface EditToolbarProps {
   /** 工具栏左上角在屏幕中的坐标 */
@@ -58,7 +59,7 @@ export function EditToolbar({
       style={{
         left: x,
         top: y,
-        background: 'rgba(30,30,30,0.92)',
+        background: HUD.bg,
         backdropFilter: 'blur(8px)',
       }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -218,7 +219,7 @@ export function EditToolbar({
         title="复制到剪贴板 (Enter)"
         onClick={onCopy}
         className="flex h-7 w-9 items-center justify-center rounded text-base font-bold transition-colors"
-        style={{ background: '#07c160', color: '#fff' }}
+        style={{ background: HUD.success, color: HUD.text }}
       >
         ✓
       </button>

@@ -2,6 +2,31 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
 const flowchart = '```mermaid\nflowchart TD\n  A[开始] --> B[结束]\n```';
+const stateDiagram = `\`\`\`mermaid
+stateDiagram-v2
+  [*] --> Dash: 该项目首次结果
+  Dash --> r: 拟：手工/危急值/LIS同项目工单新建的重测行且未出结果
+  r --> R: 该重测行返回结果
+  r --> Dash: 等待超时或失败
+  Dash --> R: 拟：仪器自行再次上报（无过程态）
+\`\`\``;
+const erDiagram = `\`\`\`mermaid
+erDiagram
+  samples ||--|{ TestItem : contains
+  TestItem {
+    string itemId PK
+    string assayName
+    string status
+    bool isRetest
+    string retestOriginalId
+    string retestSource "拟 Manual或Lis"
+    string deviceId
+    string channelNo
+    bool handled
+    string handleOpinion
+    datetime createdTime
+  }
+\`\`\``;
 
 async function openMarkdownEditor(page: Page, content: string) {
   await page.addInitScript((draft) => {
@@ -65,6 +90,13 @@ test.describe('Markdown Mermaid', () => {
 
     await expect(page.locator('html')).toHaveClass(/dark/);
     await expect(page.locator('.markdown-preview .mermaid-svg svg')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('支持带中文长标签的状态图和 ER 图', async ({ page }) => {
+    await openMarkdownEditor(page, `${stateDiagram}\n\n${erDiagram}`);
+
+    await expect(page.locator('.markdown-preview .mermaid-svg svg')).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.locator('.markdown-preview .mermaid-error')).toHaveCount(0);
   });
 
   test('工具栏插入 Mermaid 模板', async ({ page }) => {

@@ -9,6 +9,12 @@ pub struct OpenedTextFile {
     pub contents: String,
 }
 
+#[derive(Serialize)]
+pub struct OpenedBinaryFile {
+    pub path: String,
+    pub contents: String,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RecoverySnapshot {
     pub id: String,
@@ -73,6 +79,30 @@ pub fn open_text_file_dialog(
             Ok(Some(OpenedTextFile {
                 path: path.to_string_lossy().into_owned(),
                 contents,
+            }))
+        }
+        None => Ok(None),
+    }
+}
+
+/// 打开用户明确选择的二进制文档，以 base64 传回前端。
+#[tauri::command]
+pub fn open_binary_file_dialog(
+    filter_name: String,
+    extensions: Vec<String>,
+) -> Result<Option<OpenedBinaryFile>, String> {
+    let extension_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
+    let path = rfd::FileDialog::new()
+        .add_filter(&filter_name, &extension_refs)
+        .pick_file();
+
+    match path {
+        Some(path) => {
+            let bytes = std::fs::read(&path).map_err(|error| format!("读取文档失败: {error}"))?;
+            use base64::Engine;
+            Ok(Some(OpenedBinaryFile {
+                path: path.to_string_lossy().into_owned(),
+                contents: base64::engine::general_purpose::STANDARD.encode(bytes),
             }))
         }
         None => Ok(None),

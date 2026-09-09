@@ -10,6 +10,7 @@ import { hasFoldableStructure } from '@/lib/structured-editor-folding';
 const mockRunAction = vi.hoisted(() => vi.fn());
 
 vi.mock('@monaco-editor/react', () => ({
+  loader: { config: vi.fn() },
   default: function MockEditor({ language, onMount, readOnly, value }: {
     language: string;
     onMount?: (editor: { getAction: () => { run: typeof mockRunAction } }) => void;

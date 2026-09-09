@@ -32,6 +32,8 @@ vi.mock('@/hooks/use-theme', () => ({
     skin: 'forge',
     setSkin: setSkinMock,
     resetAppearance: resetAppearanceMock,
+    atmosphere: 'low',
+    setAtmosphere: vi.fn(),
     scheme: 'light',
     monacoTheme: 'niuery-forge-light',
   }),

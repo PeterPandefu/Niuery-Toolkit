@@ -1,10 +1,13 @@
 import { createWorker, OEM } from 'tesseract.js';
+import { createLogger } from '@/lib/logger';
 import { OCR_RECOGNITION_PARAMETERS } from './ocr-preprocess';
 
 export type OcrLanguage = 'chi_sim' | 'eng' | 'chi_sim+eng';
 export type OcrWorker = Pick<Tesseract.Worker, 'recognize' | 'setParameters' | 'terminate'>;
 
 export const OCR_INITIALIZATION_TIMEOUT_MS = 45_000;
+
+const log = createLogger('ocr-engine');
 
 export class OcrInitializationTimeoutError extends Error {
   constructor() {
@@ -27,10 +30,26 @@ export function createOcrWorker(
   timeoutMs = OCR_INITIALIZATION_TIMEOUT_MS
 ): Promise<OcrWorker> {
   return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const assets = {
+      workerPath: getOcrAssetUrl('worker.min.js'),
+      corePath: getOcrAssetUrl('core/tesseract-core-lstm.wasm.js'),
+      langPath: getOcrAssetUrl('lang'),
+    };
+    let lastStatus = '准备初始化';
+    log.info('OCR 初始化开始', { language, timeoutMs, assets });
     let settled = false;
     const timer = window.setTimeout(() => {
       settled = true;
-      reject(new OcrInitializationTimeoutError());
+      const error = new OcrInitializationTimeoutError();
+      log.error('OCR 初始化超时', {
+        language,
+        timeoutMs,
+        elapsedMs: Date.now() - startedAt,
+        lastStatus,
+        assets,
+      });
+      reject(error);
     }, timeoutMs);
 
     Promise.resolve()
@@ -41,7 +60,10 @@ export function createOcrWorker(
           corePath: getOcrAssetUrl('core/tesseract-core-lstm.wasm.js'),
           langPath: getOcrAssetUrl('lang'),
           gzip: true,
-          logger: ({ status, progress }) => onProgress(status, progress),
+          logger: ({ status, progress }) => {
+            lastStatus = status;
+            onProgress(status, progress);
+          },
         })
       )
       .then(
@@ -61,6 +83,12 @@ export function createOcrWorker(
             settled = true;
             window.clearTimeout(timer);
             await worker.terminate().catch(() => undefined);
+            log.error('OCR 参数初始化失败', {
+              language,
+              elapsedMs: Date.now() - startedAt,
+              lastStatus,
+              error,
+            });
             reject(error);
             return;
           }
@@ -71,12 +99,24 @@ export function createOcrWorker(
           }
           settled = true;
           window.clearTimeout(timer);
+          log.info('OCR 初始化完成', {
+            language,
+            elapsedMs: Date.now() - startedAt,
+            lastStatus,
+          });
           resolve(worker);
         },
         (error: unknown) => {
           if (settled) return;
           settled = true;
           window.clearTimeout(timer);
+          log.error('OCR 本地资源加载失败', {
+            language,
+            elapsedMs: Date.now() - startedAt,
+            lastStatus,
+            assets,
+            error,
+          });
           reject(error);
         }
       );

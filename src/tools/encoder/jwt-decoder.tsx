@@ -110,8 +110,8 @@ export default function JwtDecoder() {
 
             {/* Signature */}
             <div className="rounded-lg border">
-              <div className="border-b bg-blue-500/10 px-4 py-2">
-                <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+              <div className="border-b bg-info/10 px-4 py-2">
+                <span className="text-sm font-medium text-info">
                   SIGNATURE
                 </span>
               </div>
@@ -141,7 +141,7 @@ export default function JwtDecoder() {
                   {expiration.isExpired ? (
                     <AlertTriangle className="h-5 w-5 text-destructive" />
                   ) : (
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <CheckCircle2 className="h-5 w-5 text-success" />
                   )}
                   <div>
                     <div className="text-sm text-muted-foreground">过期时间 (exp)</div>
