@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next';
 import Fuse from 'fuse.js';
 import { cn } from '@/lib/utils';
 import { getRecentToolIds, useAppStore } from '@/store/app-store';
-import { getAllTools, preloadTool } from '@/registry/tool-registry';
+import { getAllTools, getAvailableCategories, preloadTool } from '@/registry/tool-registry';
+import { buildToolSearchText, matchesSearchText } from '@/lib/pinyin-search';
+import { EmptyState } from '@/components/shared/EmptyState';
+import type { ToolCategory } from '@/types/tool';
+import zhLocale from '@/i18n/locales/zh.json';
 import { Search } from 'lucide-react';
 
 interface SearchDialogProps {
@@ -16,6 +20,7 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
   const pinnedTools = useAppStore((state) => state.pinnedTools);
   const recentToolUsage = useAppStore((state) => state.recentToolUsage);
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<ToolCategory | 'all'>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -23,28 +28,70 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const tools = useMemo(() => getAllTools(), []);
+  const categories = useMemo(() => getAvailableCategories(), []);
+
+  const searchable = useMemo(
+    () =>
+      tools.map((tool) => {
+        const localizedName = t(`tools.${tool.id}`, tool.name);
+        const categoryLabel = t(`categories.${tool.category}`);
+        const zhName = zhLocale.tools[tool.id as keyof typeof zhLocale.tools] ?? tool.name;
+        const zhCategory = zhLocale.categories[tool.category as keyof typeof zhLocale.categories] ?? '';
+        return {
+          ...tool,
+          localizedName,
+          categoryLabel,
+          searchText: buildToolSearchText([tool.id, localizedName, tool.name, zhName, tool.description, tool.keywords, categoryLabel, zhCategory]),
+        };
+      }),
+    [t, tools]
+  );
 
   const fuse = useMemo(
     () =>
-      new Fuse(tools, {
+      new Fuse(searchable, {
         keys: [
-          { name: 'name', weight: 2 },
+          { name: 'localizedName', weight: 2.5 },
+          { name: 'searchText', weight: 2 },
           { name: 'keywords', weight: 1.5 },
           { name: 'description', weight: 1 },
         ],
         threshold: 0.4,
         includeScore: true,
       }),
-    [tools]
+    [searchable]
   );
 
   const searchResults = useMemo(() => {
-    if (!query.trim()) return tools;
-    return fuse.search(query).map((r) => r.item);
-  }, [query, fuse, tools]);
+    const pool = categoryFilter === 'all' ? searchable : searchable.filter((tool) => tool.category === categoryFilter);
+    const needle = query.trim().toLowerCase();
+    if (!needle) return pool;
+    const compact = needle.replace(/\s+/g, '');
+    const direct = pool.filter(
+      (tool) =>
+        tool.searchText.includes(compact) ||
+        tool.localizedName.toLowerCase().includes(needle) ||
+        matchesSearchText(tool.searchText, needle)
+    );
+    if (direct.length > 0) return direct;
+    const fuseForPool =
+      categoryFilter === 'all'
+        ? fuse
+        : new Fuse(pool, {
+            keys: [
+              { name: 'localizedName', weight: 2.5 },
+              { name: 'searchText', weight: 2 },
+              { name: 'keywords', weight: 1.5 },
+              { name: 'description', weight: 1 },
+            ],
+            threshold: 0.4,
+            includeScore: true,
+          });
+    return fuseForPool.search(query).map((result) => result.item);
+  }, [categoryFilter, fuse, query, searchable]);
 
   const sections = useMemo(() => {
-    if (query.trim()) return [{ id: 'search-results', label: t('app.searchResults'), tools: searchResults }];
+    if (query.trim() || categoryFilter !== 'all') return [{ id: 'search-results', label: t('app.searchResults'), tools: searchResults }];
 
     const toolsById = new Map(tools.map((tool) => [tool.id, tool]));
     const pinned = pinnedTools.map((id) => toolsById.get(id)).filter((tool): tool is (typeof tools)[number] => Boolean(tool));
@@ -61,7 +108,7 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
       { id: 'recent-tools', label: t('app.recentTools'), tools: recent },
       { id: 'all-tools', label: t('app.allTools'), tools: remaining },
     ].filter((section) => section.tools.length > 0);
-  }, [pinnedTools, query, recentToolUsage, searchResults, t, tools]);
+  }, [categoryFilter, pinnedTools, query, recentToolUsage, searchResults, t, tools]);
 
   const displayedTools = useMemo(() => sections.flatMap((section) => section.tools), [sections]);
 
@@ -69,6 +116,7 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
     if (searchOpen) {
       previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setQuery('');
+      setCategoryFilter('all');
       setSelectedIndex(0);
       const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 50);
       return () => window.clearTimeout(focusTimer);
@@ -79,7 +127,7 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+  }, [query, categoryFilter]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -128,7 +176,7 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
 
   useEffect(() => {
     const selected = listRef.current?.querySelectorAll<HTMLElement>('[role="option"]')[selectedIndex];
-    selected?.scrollIntoView({ block: 'nearest' });
+    selected?.scrollIntoView?.({ block: 'nearest' });
     const selectedTool = displayedTools[selectedIndex];
     if (selectedTool) preloadTool(selectedTool.id);
   }, [displayedTools, selectedIndex]);
@@ -172,16 +220,38 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
           <kbd className="kbd" aria-label={t('app.searchClose')}>ESC</kbd>
         </div>
 
+        <div className="flex flex-wrap gap-1 border-b border-border px-3 py-2" role="toolbar" aria-label={t('app.allCategories')}>
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('all')}
+            aria-pressed={categoryFilter === 'all'}
+            className={cn(
+              'min-h-8 rounded-full px-2.5 py-1 text-[11px] transition-colors',
+              categoryFilter === 'all' ? 'bg-primary/12 text-foreground ring-1 ring-primary/25' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+            )}
+          >
+            {t('app.allCategories')}
+          </button>
+          {categories.map((category) => (
+            <button
+              key={category}
+              type="button"
+              onClick={() => setCategoryFilter(category)}
+              aria-pressed={categoryFilter === category}
+              className={cn(
+                'min-h-8 rounded-full px-2.5 py-1 text-[11px] transition-colors',
+                categoryFilter === category ? 'bg-primary/12 text-foreground ring-1 ring-primary/25' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )}
+            >
+              {t(`categories.${category}`)}
+            </button>
+          ))}
+        </div>
+
         {/* 结果列表 */}
         <div ref={listRef} id="tool-search-results" role="listbox" aria-label={t('app.searchTools')} className="max-h-80 overflow-y-auto p-2">
           {displayedTools.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <Search className="h-6 w-6 text-muted-foreground/40" />
-              <span className="text-sm text-muted-foreground">
-                {t('app.noResults', 'No matching tools found')}
-              </span>
-              <span className="text-xs text-muted-foreground/75">{t('app.noResultsHint')}</span>
-            </div>
+            <EmptyState icon={Search} title={t('app.noResults', 'No matching tools found')} description={t('app.noResultsHint')} className="py-10" />
           ) : (
             sections.map((section) => {
               const sectionStart = displayedTools.findIndex((tool) => tool.id === section.tools[0]?.id);

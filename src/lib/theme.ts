@@ -56,29 +56,29 @@ export interface SkinDefinition {
 
 // forge 保留为默认 ID，保障既有外观持久化数据兼容；视觉名称为“立春”。
 const forgeLight: ThemeTokens = {
-  background: '48 58% 97%', foreground: '21 48% 18%', card: '44 100% 99%', 'card-foreground': '21 48% 18%',
-  popover: '44 100% 99%', 'popover-foreground': '21 48% 18%', primary: '13 82% 64%', 'primary-foreground': '21 48% 18%',
-  secondary: '53 82% 93%', 'secondary-foreground': '28 39% 23%', muted: '49 44% 93%', 'muted-foreground': '25 22% 37%',
-  accent: '154 32% 88%', 'accent-foreground': '152 28% 22%', destructive: '4 73% 44%', 'destructive-foreground': '0 0% 100%',
-  success: '65 27% 35%', 'success-foreground': '44 100% 99%', warning: '50 78% 40%', 'warning-foreground': '21 48% 18%',
-  info: '198 52% 36%', 'info-foreground': '0 0% 100%', border: '38 32% 84%', input: '37 28% 78%', ring: '9 48% 49%',
-  sidebar: '48 54% 95%', 'sidebar-foreground': '21 43% 20%', 'sidebar-accent': '154 31% 88%', 'sidebar-border': '38 32% 84%',
-  'surface-raised': '44 100% 99%', 'surface-overlay': '48 58% 98%', 'ember-glow': '13 82% 64%', 'shadow-tint': '22 29% 42%',
-  'syntax-keyword': '265 49% 42%', 'syntax-string': '152 35% 30%', 'syntax-number': '11 57% 40%', 'syntax-title': '198 58% 33%',
-  'syntax-type': '65 36% 28%', 'syntax-variable': '4 62% 40%', 'syntax-regexp': '329 56% 43%', 'syntax-meta': '25 18% 40%', radius: '0.75rem',
+  background: '32 24% 95%', foreground: '22 38% 13%', card: '36 32% 99%', 'card-foreground': '22 38% 13%',
+  popover: '36 32% 99%', 'popover-foreground': '22 38% 13%', primary: '16 70% 42%', 'primary-foreground': '40 50% 98%',
+  secondary: '30 28% 92%', 'secondary-foreground': '22 32% 20%', muted: '30 18% 93%', 'muted-foreground': '24 14% 32%',
+  accent: '24 38% 92%', 'accent-foreground': '22 36% 16%', destructive: '4 72% 42%', 'destructive-foreground': '0 0% 100%',
+  success: '152 34% 28%', 'success-foreground': '0 0% 100%', warning: '36 78% 32%', 'warning-foreground': '40 50% 98%',
+  info: '198 52% 34%', 'info-foreground': '0 0% 100%', border: '30 14% 84%', input: '30 12% 76%', ring: '16 70% 42%',
+  sidebar: '32 16% 94%', 'sidebar-foreground': '22 32% 16%', 'sidebar-accent': '24 34% 90%', 'sidebar-border': '30 14% 84%',
+  'surface-raised': '36 32% 99%', 'surface-overlay': '32 24% 96%', 'ember-glow': '16 70% 42%', 'shadow-tint': '22 24% 36%',
+  'syntax-keyword': '265 49% 42%', 'syntax-string': '152 35% 30%', 'syntax-number': '16 62% 38%', 'syntax-title': '198 58% 33%',
+  'syntax-type': '65 36% 28%', 'syntax-variable': '4 62% 40%', 'syntax-regexp': '329 56% 43%', 'syntax-meta': '25 18% 40%', radius: '0.5rem',
 };
 
 const forgeDark: ThemeTokens = {
-  background: '22 36% 9%', foreground: '43 70% 94%', card: '22 29% 12%', 'card-foreground': '43 70% 94%',
-  popover: '22 32% 11%', 'popover-foreground': '43 70% 94%', primary: '11 77% 77%', 'primary-foreground': '21 48% 18%',
-  secondary: '23 19% 18%', 'secondary-foreground': '43 52% 89%', muted: '23 19% 18%', 'muted-foreground': '37 24% 70%',
-  accent: '149 17% 18%', 'accent-foreground': '154 32% 88%', destructive: '9 81% 69%', 'destructive-foreground': '12 50% 13%',
-  success: '78 33% 68%', 'success-foreground': '105 28% 13%', warning: '48 100% 72%', 'warning-foreground': '43 55% 13%',
-  info: '197 69% 78%', 'info-foreground': '199 51% 14%', border: '22 17% 24%', input: '22 17% 29%', ring: '11 77% 77%',
-  sidebar: '22 41% 7%', 'sidebar-foreground': '43 51% 89%', 'sidebar-accent': '22 24% 15%', 'sidebar-border': '22 19% 18%',
-  'surface-raised': '22 25% 15%', 'surface-overlay': '22 32% 11%', 'ember-glow': '11 77% 77%', 'shadow-tint': '20 46% 3%',
+  background: '22 28% 7%', foreground: '36 28% 94%', card: '22 22% 10%', 'card-foreground': '36 28% 94%',
+  popover: '22 24% 9%', 'popover-foreground': '36 28% 94%', primary: '18 72% 58%', 'primary-foreground': '22 40% 10%',
+  secondary: '22 16% 16%', 'secondary-foreground': '36 22% 90%', muted: '22 16% 14%', 'muted-foreground': '32 12% 70%',
+  accent: '22 20% 15%', 'accent-foreground': '32 30% 90%', destructive: '8 78% 68%', 'destructive-foreground': '12 40% 10%',
+  success: '152 36% 62%', 'success-foreground': '152 40% 10%', warning: '38 88% 68%', 'warning-foreground': '36 50% 10%',
+  info: '198 62% 72%', 'info-foreground': '198 40% 10%', border: '22 14% 20%', input: '22 14% 26%', ring: '18 72% 58%',
+  sidebar: '22 30% 6%', 'sidebar-foreground': '36 22% 90%', 'sidebar-accent': '22 20% 13%', 'sidebar-border': '22 16% 16%',
+  'surface-raised': '22 20% 13%', 'surface-overlay': '22 24% 9%', 'ember-glow': '18 72% 58%', 'shadow-tint': '20 40% 2%',
   'syntax-keyword': '267 82% 81%', 'syntax-string': '151 45% 72%', 'syntax-number': '20 91% 74%', 'syntax-title': '196 77% 76%',
-  'syntax-type': '65 65% 71%', 'syntax-variable': '5 84% 76%', 'syntax-regexp': '330 78% 79%', 'syntax-meta': '35 20% 71%', radius: '0.75rem',
+  'syntax-type': '65 65% 71%', 'syntax-variable': '5 84% 76%', 'syntax-regexp': '330 78% 79%', 'syntax-meta': '35 20% 71%', radius: '0.5rem',
 };
 
 const oceanLight: ThemeTokens = {
@@ -147,16 +147,68 @@ const monoLight: ThemeTokens = {
 };
 
 const monoDark: ThemeTokens = {
-  background: '0 0% 6%', foreground: '0 0% 94%', card: '0 0% 9%', 'card-foreground': '0 0% 94%',
+  background: '0 0% 4%', foreground: '0 0% 94%', card: '0 0% 8%', 'card-foreground': '0 0% 94%',
   popover: '0 0% 8%', 'popover-foreground': '0 0% 94%', primary: '0 0% 86%', 'primary-foreground': '0 0% 10%',
   secondary: '0 0% 15%', 'secondary-foreground': '0 0% 88%', muted: '0 0% 15%', 'muted-foreground': '0 0% 70%',
   accent: '0 0% 18%', 'accent-foreground': '0 0% 92%', destructive: '0 78% 64%', 'destructive-foreground': '0 0% 10%',
   success: '153 62% 54%', 'success-foreground': '153 35% 10%', warning: '40 95% 62%', 'warning-foreground': '40 35% 10%',
   info: '214 90% 68%', 'info-foreground': '214 40% 10%', border: '0 0% 22%', input: '0 0% 27%', ring: '0 0% 86%',
-  sidebar: '0 0% 5%', 'sidebar-foreground': '0 0% 88%', 'sidebar-accent': '0 0% 12%', 'sidebar-border': '0 0% 16%',
+  sidebar: '0 0% 3%', 'sidebar-foreground': '0 0% 88%', 'sidebar-accent': '0 0% 12%', 'sidebar-border': '0 0% 16%',
   'surface-raised': '0 0% 12%', 'surface-overlay': '0 0% 8%', 'ember-glow': '0 0% 86%', 'shadow-tint': '0 0% 2%',
   'syntax-keyword': '246 92% 80%', 'syntax-string': '144 66% 66%', 'syntax-number': '35 94% 69%', 'syntax-title': '211 94% 74%',
   'syntax-type': '46 95% 69%', 'syntax-variable': '347 87% 77%', 'syntax-regexp': '293 83% 78%', 'syntax-meta': '0 0% 72%', radius: '0.25rem',
+};
+
+const auroraLight: ThemeTokens = {
+  background: '230 35% 97%', foreground: '232 42% 16%', card: '230 40% 99%', 'card-foreground': '232 42% 16%',
+  popover: '230 40% 99%', 'popover-foreground': '232 42% 16%', primary: '262 55% 42%', 'primary-foreground': '0 0% 100%',
+  secondary: '230 28% 92%', 'secondary-foreground': '232 35% 22%', muted: '230 24% 93%', 'muted-foreground': '232 16% 36%',
+  accent: '170 35% 90%', 'accent-foreground': '232 40% 18%', destructive: '4 72% 42%', 'destructive-foreground': '0 0% 100%',
+  success: '152 34% 28%', 'success-foreground': '0 0% 100%', warning: '36 78% 32%', 'warning-foreground': '40 50% 98%',
+  info: '198 52% 34%', 'info-foreground': '0 0% 100%', border: '230 18% 84%', input: '230 16% 76%', ring: '262 55% 42%',
+  sidebar: '230 28% 94%', 'sidebar-foreground': '232 35% 18%', 'sidebar-accent': '230 30% 90%', 'sidebar-border': '230 18% 84%',
+  'surface-raised': '230 40% 99%', 'surface-overlay': '230 35% 98%', 'ember-glow': '170 70% 38%', 'shadow-tint': '232 24% 36%',
+  'syntax-keyword': '262 48% 42%', 'syntax-string': '170 42% 28%', 'syntax-number': '191 58% 36%', 'syntax-title': '230 55% 36%',
+  'syntax-type': '280 40% 38%', 'syntax-variable': '340 55% 42%', 'syntax-regexp': '200 48% 36%', 'syntax-meta': '232 12% 40%', radius: '0.75rem',
+};
+
+const auroraDark: ThemeTokens = {
+  background: '236 42% 7%', foreground: '200 30% 94%', card: '236 36% 10%', 'card-foreground': '200 30% 94%',
+  popover: '236 38% 9%', 'popover-foreground': '200 30% 94%', primary: '170 72% 62%', 'primary-foreground': '236 40% 10%',
+  secondary: '236 24% 16%', 'secondary-foreground': '200 24% 90%', muted: '236 24% 14%', 'muted-foreground': '220 16% 72%',
+  accent: '262 28% 16%', 'accent-foreground': '200 30% 92%', destructive: '8 78% 68%', 'destructive-foreground': '12 40% 10%',
+  success: '152 36% 62%', 'success-foreground': '152 40% 10%', warning: '38 88% 68%', 'warning-foreground': '36 50% 10%',
+  info: '198 62% 72%', 'info-foreground': '198 40% 10%', border: '236 20% 20%', input: '236 20% 26%', ring: '170 72% 62%',
+  sidebar: '236 44% 6%', 'sidebar-foreground': '200 24% 90%', 'sidebar-accent': '236 28% 13%', 'sidebar-border': '236 22% 16%',
+  'surface-raised': '236 32% 13%', 'surface-overlay': '236 38% 9%', 'ember-glow': '170 80% 62%', 'shadow-tint': '236 40% 3%',
+  'syntax-keyword': '262 80% 80%', 'syntax-string': '170 55% 70%', 'syntax-number': '190 75% 74%', 'syntax-title': '230 80% 78%',
+  'syntax-type': '280 70% 78%', 'syntax-variable': '339 75% 79%', 'syntax-regexp': '200 70% 76%', 'syntax-meta': '220 16% 72%', radius: '0.75rem',
+};
+
+const inkLight: ThemeTokens = {
+  background: '40 25% 96%', foreground: '30 12% 12%', card: '40 30% 99%', 'card-foreground': '30 12% 12%',
+  popover: '40 30% 99%', 'popover-foreground': '30 12% 12%', primary: '8 68% 40%', 'primary-foreground': '40 40% 98%',
+  secondary: '36 18% 92%', 'secondary-foreground': '30 12% 20%', muted: '36 14% 93%', 'muted-foreground': '30 8% 34%',
+  accent: '36 20% 91%', 'accent-foreground': '30 12% 16%', destructive: '4 72% 42%', 'destructive-foreground': '0 0% 100%',
+  success: '152 34% 28%', 'success-foreground': '0 0% 100%', warning: '36 78% 32%', 'warning-foreground': '40 50% 98%',
+  info: '198 52% 34%', 'info-foreground': '0 0% 100%', border: '36 12% 84%', input: '36 10% 76%', ring: '8 68% 40%',
+  sidebar: '40 18% 93%', 'sidebar-foreground': '30 12% 16%', 'sidebar-accent': '36 16% 90%', 'sidebar-border': '36 12% 84%',
+  'surface-raised': '40 30% 99%', 'surface-overlay': '40 25% 97%', 'ember-glow': '8 68% 40%', 'shadow-tint': '30 10% 36%',
+  'syntax-keyword': '250 35% 36%', 'syntax-string': '150 28% 28%', 'syntax-number': '8 62% 38%', 'syntax-title': '210 40% 32%',
+  'syntax-type': '40 30% 28%', 'syntax-variable': '4 55% 38%', 'syntax-regexp': '320 32% 36%', 'syntax-meta': '30 8% 38%', radius: '0.35rem',
+};
+
+const inkDark: ThemeTokens = {
+  background: '30 10% 7%', foreground: '40 18% 92%', card: '30 8% 10%', 'card-foreground': '40 18% 92%',
+  popover: '30 9% 9%', 'popover-foreground': '40 18% 92%', primary: '8 62% 64%', 'primary-foreground': '12 30% 10%',
+  secondary: '30 8% 16%', 'secondary-foreground': '40 14% 88%', muted: '30 8% 14%', 'muted-foreground': '35 8% 70%',
+  accent: '30 10% 15%', 'accent-foreground': '40 16% 90%', destructive: '8 78% 68%', 'destructive-foreground': '12 40% 10%',
+  success: '152 36% 62%', 'success-foreground': '152 40% 10%', warning: '38 88% 68%', 'warning-foreground': '36 50% 10%',
+  info: '198 62% 72%', 'info-foreground': '198 40% 10%', border: '30 8% 20%', input: '30 8% 26%', ring: '8 62% 64%',
+  sidebar: '30 12% 6%', 'sidebar-foreground': '40 14% 88%', 'sidebar-accent': '30 10% 13%', 'sidebar-border': '30 8% 16%',
+  'surface-raised': '30 8% 13%', 'surface-overlay': '30 9% 9%', 'ember-glow': '8 62% 64%', 'shadow-tint': '30 12% 3%',
+  'syntax-keyword': '250 70% 78%', 'syntax-string': '150 40% 68%', 'syntax-number': '20 80% 72%', 'syntax-title': '210 70% 74%',
+  'syntax-type': '45 50% 68%', 'syntax-variable': '5 75% 74%', 'syntax-regexp': '320 60% 76%', 'syntax-meta': '35 10% 70%', radius: '0.35rem',
 };
 
 export const SKINS: Record<SkinId, SkinDefinition> = {
@@ -164,13 +216,19 @@ export const SKINS: Record<SkinId, SkinDefinition> = {
   ocean: { id: 'ocean', light: oceanLight, dark: oceanDark },
   forest: { id: 'forest', light: forestLight, dark: forestDark },
   mono: { id: 'mono', light: monoLight, dark: monoDark },
+  aurora: { id: 'aurora', light: auroraLight, dark: auroraDark },
+  ink: { id: 'ink', light: inkLight, dark: inkDark },
 };
 
-export const SKIN_IDS: SkinId[] = ['forge', 'ocean', 'forest', 'mono'];
+export const SKIN_IDS: SkinId[] = ['forge', 'ocean', 'forest', 'mono', 'aurora', 'ink'];
 export const DEFAULT_SKIN: SkinId = 'forge';
 
+export function isSkinId(value: unknown): value is SkinId {
+  return SKIN_IDS.includes(value as SkinId);
+}
+
 export function getThemeTokens(skin: SkinId, scheme: ThemeScheme): ThemeTokens {
-  return SKINS[skin][scheme];
+  return SKINS[skin]?.[scheme] ?? SKINS[DEFAULT_SKIN][scheme];
 }
 
 export function applyThemeTokens(root: HTMLElement, tokens: ThemeTokens) {
@@ -188,7 +246,7 @@ function hslToRgb(hsl: string): [number, number, number] {
   return [r, g, b].map((value) => Math.round((value + m) * 255)) as [number, number, number];
 }
 
-function toHex(hsl: string): string {
+export function toHex(hsl: string): string {
   return `#${hslToRgb(hsl).map((value) => value.toString(16).padStart(2, '0')).join('')}`;
 }
 

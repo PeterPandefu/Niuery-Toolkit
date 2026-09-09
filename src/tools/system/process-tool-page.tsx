@@ -168,7 +168,7 @@ export function ProcessToolPage({ kind }: { kind: ToolKind }) {
         </section>
 
         {error && <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
-        {notice && <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{notice}</p>}
+        {notice && <p className="mt-4 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</p>}
 
         {owners.length === 0 && !loading && !error && !notice && <p className="mt-5 text-sm text-muted-foreground">{value ? '未找到占用该目标的本地进程。' : '输入目标后可查询占用进程。'}</p>}
 
@@ -184,7 +184,7 @@ export function ProcessToolPage({ kind }: { kind: ToolKind }) {
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><strong className="text-sm">{owner.name}</strong><span className="font-mono text-xs text-muted-foreground">PID {owner.target.pid}</span></div>
                   {owner.executablePath && <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{owner.executablePath}</p>}
                   {owner.endpoints.map((endpoint, index) => <p key={`${endpoint.protocol}-${index}`} className="mt-1 font-mono text-xs text-muted-foreground">{endpoint.protocol.toUpperCase()} · {endpoint.localAddress}{endpoint.state ? ` · ${endpoint.state}` : ''}</p>)}
-                  {owner.target.creationTime === 0 && <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">无法安全验证该进程，不能执行结束操作。</p>}
+                  {owner.target.creationTime === 0 && <p className="mt-2 text-xs text-warning">无法安全验证该进程，不能执行结束操作。</p>}
                 </li>
               ))}
             </ul>

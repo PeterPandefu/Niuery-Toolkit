@@ -129,3 +129,5 @@ export function ImageFileDropzone({ files, onChange, multiple = false, accept = 
     </>
   );
 }
+
+ImageFileDropzone.displayName = 'ImageFileDropzone';

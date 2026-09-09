@@ -107,9 +107,9 @@ function formatRelativeTime(ts: number): string {
 }
 
 const TYPE_CONFIG = {
-  text: { icon: Type, label: '文本', color: 'text-blue-500' },
-  image: { icon: Image, label: '图片', color: 'text-emerald-500' },
-  files: { icon: FileText, label: '文件', color: 'text-amber-500' },
+  text: { icon: Type, label: '文本', color: 'text-info' },
+  image: { icon: Image, label: '图片', color: 'text-success' },
+  files: { icon: FileText, label: '文件', color: 'text-warning' },
 } as const;
 
 export default function ClipboardHistory() {
@@ -394,7 +394,7 @@ export default function ClipboardHistory() {
                       title="复制"
                     >
                       {isCopied ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        <Check className="h-3.5 w-3.5 text-success" />
                       ) : (
                         <Copy className="h-3.5 w-3.5" />
                       )}

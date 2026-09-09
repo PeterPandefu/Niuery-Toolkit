@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const skins = ['forge', 'ocean', 'forest', 'mono'] as const;
+const skins = ['forge', 'ocean', 'forest', 'mono', 'aurora', 'ink'] as const;
 const modes = ['light', 'dark'] as const;
 
 for (const skin of skins) {

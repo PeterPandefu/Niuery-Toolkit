@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { File as FileIcon, Plus, ShieldCheck, X } from 'lucide-react';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { File as FileIcon, Plus, ShieldCheck, Upload, X } from 'lucide-react';
 import { formatBytes } from '@/lib/utils';
 
 interface FileDropzoneProps {
@@ -43,18 +44,24 @@ export function FileDropzone({ files, onChange, multiple = false, accept = '.pdf
           addFiles(e.dataTransfer.files);
         }}
       >
-        <p className="text-sm text-muted-foreground">拖入文件到这里</p>
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            inputRef.current?.click();
-          }}
-        >
-          <Plus />
-          选择文件
-        </Button>
-        {hint && <p className="text-xs text-muted-foreground/70">{hint}</p>}
+        <EmptyState
+          icon={Upload}
+          title="拖入文件到这里"
+          description={hint ?? '也可以点击下方按钮选择文件'}
+          action={
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                inputRef.current?.click();
+              }}
+            >
+              <Plus />
+              选择文件
+            </Button>
+          }
+          className="py-2"
+        />
       </div>
 
       {files.length > 0 && (
@@ -87,7 +94,7 @@ export function FileDropzone({ files, onChange, multiple = false, accept = '.pdf
 export function PrivacyNote() {
   return (
     <div className="flex items-center justify-center gap-1.5 pt-2 text-xs text-muted-foreground">
-      <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+      <ShieldCheck className="h-3.5 w-3.5 text-success" />
       全程本地处理，文件不离开设备
     </div>
   );
@@ -102,3 +109,5 @@ export function OptionRow({ label, children }: { label: string; children: React.
     </div>
   );
 }
+
+FileDropzone.displayName = 'FileDropzone';

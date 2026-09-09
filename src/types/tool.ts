@@ -53,7 +53,7 @@ export const CATEGORY_NAMES: Record<ToolCategory, string> = {
   canvas: '图表与画布',
   capture: '截图与录制',
   network: '接口与网络',
-  system: '系统与剪贴板',
+  system: '系统工具',
   language: '语言翻译',
 };
 
@@ -118,12 +118,16 @@ export interface ToolState {
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 /** 内置视觉皮肤 */
-export type SkinId = 'forge' | 'ocean' | 'forest' | 'mono';
+export type SkinId = 'forge' | 'ocean' | 'forest' | 'mono' | 'aurora' | 'ink';
+
+/** 皮肤氛围强度：关 / 低 / 高 */
+export type AtmosphereIntensity = 'off' | 'low' | 'high';
 
 /** 全局应用状态 */
 export interface AppState {
   theme: ThemeMode;
   skin: SkinId;
+  atmosphere: AtmosphereIntensity;
   activeCategory: ToolCategory | null;
   activeToolId: string | null;
 }

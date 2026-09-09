@@ -15,13 +15,22 @@ const CAPABILITY_KEYS = {
   localNetwork: 'localNetwork',
 } as const;
 
-export function ToolCapabilityNotice({ tool }: { tool: ToolDefinition }) {
+export function ToolCapabilityNotice({ tool, compact = false }: { tool: ToolDefinition; compact?: boolean }) {
   const { t } = useTranslation();
   const platform = useMemo(() => detectPlatformCapabilities(), []);
   const missing = missingToolCapabilities(tool.capabilities, platform);
   const desktopUnavailable = tool.capabilities.desktopOnly && platform.runtime !== 'tauri';
   const networkLabel = t(`capabilities.network.${tool.capabilities.network}`);
   const NetworkIcon = tool.capabilities.network === 'offline' ? WifiOff : tool.capabilities.network === 'network' ? Wifi : Cloud;
+
+  if (compact) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground" aria-label={t('capabilities.summary')} title={networkLabel}>
+        <NetworkIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="hidden lg:inline">{networkLabel}</span>
+      </span>
+    );
+  }
 
   return (
     <div className="mt-2 flex min-h-6 flex-wrap items-center gap-1.5" aria-label={t('capabilities.summary')}>

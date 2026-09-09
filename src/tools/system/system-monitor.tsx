@@ -68,11 +68,11 @@ function Sparkline({ samples, color, valueKey }: { samples: Sample[]; color: str
   );
 }
 
-function Metric({ icon: Icon, label, value, detail, tone = 'primary' }: { icon: typeof Cpu; label: string; value: string; detail: string; tone?: 'primary' | 'blue' | 'green' }) {
+function Metric({ icon: Icon, label, value, detail, tone = 'primary' }: { icon: typeof Cpu; label: string; value: string; detail: string; tone?: 'primary' | 'info' | 'success' }) {
   const toneClass = {
     primary: 'bg-primary/10 text-primary',
-    blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-    green: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    info: 'bg-info/10 text-info',
+    success: 'bg-success/10 text-success',
   }[tone];
 
   return (
@@ -157,8 +157,8 @@ export default function SystemMonitor() {
             <p className="mt-1 text-sm text-muted-foreground">实时查看当前设备的 CPU、内存与网络活动。</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className={cn('flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', running ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'border-border bg-muted text-muted-foreground')}>
-              <span className={cn('h-1.5 w-1.5 rounded-full', running ? 'bg-emerald-500 animate-glow-pulse' : 'bg-muted-foreground/50')} />
+            <span className={cn('flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium', running ? 'border-success/30 bg-success/10 text-success' : 'border-border bg-muted text-muted-foreground')}>
+              <span className={cn('h-1.5 w-1.5 rounded-full', running ? 'bg-success animate-glow-pulse' : 'bg-muted-foreground/50')} />
               {running ? '实时采集中' : '已暂停'}
             </span>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleManualSample} title="立即刷新" aria-label="立即刷新"><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} /></Button>
@@ -169,12 +169,12 @@ export default function SystemMonitor() {
           </div>
         </header>
 
-        {error && <div className="mt-4 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{error}</div>}
+        {error && <div className="mt-4 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">{error}</div>}
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           <Metric icon={Cpu} label="CPU 使用率" value={`${stats.cpu_usage.toFixed(1)}%`} detail={`${stats.cpu_count || '—'} 个逻辑核心`} />
-          <Metric icon={MemoryStick} label="内存占用" value={`${memoryPercent.toFixed(1)}%`} detail={`${formatBytes(stats.memory_used_bytes)} / ${formatBytes(stats.memory_total_bytes)}`} tone="blue" />
-          <Metric icon={Wifi} label="网络吞吐" value={formatBytes(networkTotal) + '/s'} detail={`↓ ${formatBytes(stats.network_received_bytes_per_sec)} · ↑ ${formatBytes(stats.network_transmitted_bytes_per_sec)}`} tone="green" />
+          <Metric icon={MemoryStick} label="内存占用" value={`${memoryPercent.toFixed(1)}%`} detail={`${formatBytes(stats.memory_used_bytes)} / ${formatBytes(stats.memory_total_bytes)}`} tone="info" />
+          <Metric icon={Wifi} label="网络吞吐" value={formatBytes(networkTotal) + '/s'} detail={`↓ ${formatBytes(stats.network_received_bytes_per_sec)} · ↑ ${formatBytes(stats.network_transmitted_bytes_per_sec)}`} tone="success" />
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[1.4fr_1fr]">
@@ -190,8 +190,8 @@ export default function SystemMonitor() {
           <section className="panel-raised p-4">
             <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-foreground">内存与网络</h3><p className="mt-1 text-xs text-muted-foreground">当前资源快照</p></div><HardDrive className="h-4 w-4 text-muted-foreground/50" /></div>
             <div className="mt-5 space-y-4">
-              <div><div className="mb-1.5 flex justify-between text-xs"><span className="text-muted-foreground">内存</span><span className="font-mono text-foreground">{memoryPercent.toFixed(1)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-blue-500 transition-[width] duration-500" style={{ width: `${Math.min(memoryPercent, 100)}%` }} /></div></div>
-              <div><div className="mb-1.5 flex justify-between text-xs"><span className="text-muted-foreground">网络</span><span className="font-mono text-foreground">{formatBytes(networkTotal)}/s</span></div><div className="flex h-8 items-end gap-1">{chartSamples.slice(-24).map((item, index) => <span key={`${item.at}-${index}`} className="min-w-0 flex-1 rounded-sm bg-emerald-500/60 transition-all" style={{ height: `${Math.max(10, Math.min(100, (item.network_received_bytes_per_sec + item.network_transmitted_bytes_per_sec) / Math.max(...chartSamples.map((value) => value.network_received_bytes_per_sec + value.network_transmitted_bytes_per_sec), 1) * 100))}%` }} />)}</div></div>
+              <div><div className="mb-1.5 flex justify-between text-xs"><span className="text-muted-foreground">内存</span><span className="font-mono text-foreground">{memoryPercent.toFixed(1)}%</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-info transition-[width] duration-500" style={{ width: `${Math.min(memoryPercent, 100)}%` }} /></div></div>
+              <div><div className="mb-1.5 flex justify-between text-xs"><span className="text-muted-foreground">网络</span><span className="font-mono text-foreground">{formatBytes(networkTotal)}/s</span></div><div className="flex h-8 items-end gap-1">{chartSamples.slice(-24).map((item, index) => <span key={`${item.at}-${index}`} className="min-w-0 flex-1 rounded-sm bg-success/60 transition-all" style={{ height: `${Math.max(10, Math.min(100, (item.network_received_bytes_per_sec + item.network_transmitted_bytes_per_sec) / Math.max(...chartSamples.map((value) => value.network_received_bytes_per_sec + value.network_transmitted_bytes_per_sec), 1) * 100))}%` }} />)}</div></div>
             </div>
           </section>
         </div>

@@ -17,10 +17,10 @@ interface ResponsePanelProps {
 type TabId = 'body' | 'headers' | 'logs';
 
 function statusColor(status: number): string {
-  if (status >= 200 && status < 300) return 'text-green-600 dark:text-green-400';
-  if (status >= 300 && status < 400) return 'text-blue-600 dark:text-blue-400';
-  if (status >= 400 && status < 500) return 'text-orange-600 dark:text-orange-400';
-  return 'text-red-600 dark:text-red-400';
+  if (status >= 200 && status < 300) return 'text-success';
+  if (status >= 300 && status < 400) return 'text-info';
+  if (status >= 400 && status < 500) return 'text-warning';
+  return 'text-destructive';
 }
 
 export function ResponsePanel({ response, loading, scriptLogs }: ResponsePanelProps) {
@@ -103,7 +103,7 @@ export function ResponsePanel({ response, loading, scriptLogs }: ResponsePanelPr
             </Button>
           )}
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
-            {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
           </Button>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleDownload}>
             <Download className="h-3.5 w-3.5" />
@@ -179,8 +179,8 @@ export function ResponsePanel({ response, loading, scriptLogs }: ResponsePanelPr
                   className={cn(
                     'rounded px-2 py-1 font-mono text-xs',
                     log.type === 'error' && 'bg-destructive/10 text-destructive',
-                    log.type === 'assert-pass' && 'bg-green-500/10 text-green-600 dark:text-green-400',
-                    log.type === 'assert-fail' && 'bg-red-500/10 text-red-600 dark:text-red-400',
+                    log.type === 'assert-pass' && 'bg-success/10 text-success',
+                    log.type === 'assert-fail' && 'bg-destructive/10 text-destructive',
                     log.type === 'info' && 'text-muted-foreground'
                   )}
                 >

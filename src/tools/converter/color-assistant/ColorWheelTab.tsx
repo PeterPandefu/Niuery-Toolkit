@@ -284,7 +284,7 @@ export default function ColorWheelTab({ onAddFavorite, removeHash = false }: Col
                 onClick={() => handleCopy(fmt.value, idx)}
                 className="flex h-8 w-8 items-center justify-center rounded border text-muted-foreground hover:bg-muted"
               >
-                {copiedIdx === idx ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                {copiedIdx === idx ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
               </button>
             </div>
           ))}

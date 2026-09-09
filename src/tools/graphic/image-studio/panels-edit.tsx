@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { WorkbenchSplit } from '@/components/shared/WorkbenchSplit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -102,7 +103,7 @@ export function CompressPanel() {
     }, '压缩结果.zip', '压缩');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`压缩质量 ${quality}`}>
@@ -130,7 +131,7 @@ export function CompressPanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -156,7 +157,7 @@ export function ConvertPanel() {
     }, '转换结果.zip', '格式转换');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label="输出格式">
@@ -181,7 +182,7 @@ export function ConvertPanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -226,7 +227,7 @@ export function ResizePanel() {
     }, '缩放结果.zip', '修改尺寸');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <div className="grid grid-cols-2 gap-3">
@@ -248,7 +249,7 @@ export function ResizePanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -307,7 +308,7 @@ export function WatermarkPanel() {
     }, '水印结果.zip', '水印');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label="水印文字">
@@ -342,7 +343,7 @@ export function WatermarkPanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -370,7 +371,7 @@ export function RoundedPanel() {
     }, '圆角结果.zip', '圆角');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`圆角半径 ${radius}px`}>
@@ -381,7 +382,7 @@ export function RoundedPanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -406,7 +407,7 @@ export function PaddingPanel() {
     }, '补边结果.zip', '补边留白');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`边宽 ${padding}px`}>
@@ -420,7 +421,7 @@ export function PaddingPanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -448,7 +449,7 @@ export function CropPanel() {
     }, '裁剪结果.zip', '裁剪');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label="裁剪比例">
@@ -476,7 +477,7 @@ export function CropPanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -505,7 +506,7 @@ export function RotatePanel() {
     }, '旋转结果.zip', '旋转');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`旋转角度 ${angle}°`}>
@@ -516,7 +517,7 @@ export function RotatePanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }
 
@@ -538,7 +539,7 @@ export function FlipPanel() {
     }, '翻转结果.zip', '翻转');
 
   return (
-    <div className="space-y-4">
+    <WorkbenchSplit>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <div className="flex gap-4 text-xs text-muted-foreground">
@@ -556,6 +557,6 @@ export function FlipPanel() {
       </RunButton>
       <ProgressText text={progress} />
       <ProcessingResultPreview sourceFiles={files} result={result} />
-    </div>
+    </WorkbenchSplit>
   );
 }

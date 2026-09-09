@@ -76,7 +76,7 @@ export function EnvironmentDialog({ open, onClose }: EnvironmentDialogProps) {
                 >
                   {env.name}
                   {activeEnvId === env.id && (
-                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-green-500" />
+                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-success" />
                   )}
                 </button>
                 <button

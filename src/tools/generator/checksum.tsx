@@ -219,11 +219,11 @@ export default function ChecksumTool() {
                   <span className="text-xs text-muted-foreground">({formatSize(result.fileSize)})</span>
                   {verified !== null && (
                     verified ? (
-                      <span className="flex items-center gap-1 text-xs text-green-500 ml-auto">
+                      <span className="flex items-center gap-1 text-xs text-success ml-auto">
                         <CheckCircle2 className="h-3.5 w-3.5" /> 匹配
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1 text-xs text-red-500 ml-auto">
+                      <span className="flex items-center gap-1 text-xs text-destructive ml-auto">
                         <XCircle className="h-3.5 w-3.5" /> 不匹配
                       </span>
                     )

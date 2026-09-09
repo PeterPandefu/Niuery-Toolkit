@@ -165,7 +165,7 @@ export default function GzipTool() {
               <span>原始: {stats.original} bytes</span>
               <span>结果: {mode === 'compress' ? stats.compressed : stats.compressed} bytes</span>
               {mode === 'compress' && (
-                <span className={ratio > 0 ? 'text-green-500' : 'text-red-500'}>
+                <span className={ratio > 0 ? 'text-success' : 'text-destructive'}>
                   压缩率: {ratio > 0 ? `-${ratio}%` : `+${Math.abs(ratio)}%`}
                 </span>
               )}

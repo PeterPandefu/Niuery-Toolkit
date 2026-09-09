@@ -9,6 +9,7 @@ pub mod recorder;
 mod screenshot;
 mod sticky_note;
 mod system_monitor;
+mod window_chrome;
 mod ws_server;
 
 /// 开发模式专用：独立启动（如开机自启动）时自动拉起前端 dev 服务
@@ -386,6 +387,7 @@ pub fn run() {
             file_saver::list_recovery_snapshots,
             file_saver::discard_recovery_snapshot,
             plantuml::render_plantuml,
+            window_chrome::set_window_chrome,
         ])
         .setup(move |app| {
             // 开发模式下：开机自启动等独立启动场景自动拉起前端 dev 服务
