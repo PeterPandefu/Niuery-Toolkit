@@ -528,76 +528,55 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   {/* 工具行 */}
                   <div className="space-y-0.5">
                     {tools.map((tool) => {
-                      if (tab === 'alwaysOn') {
-                        const isOn = alwaysOnTools.includes(tool.id);
-                        const isRunning = activeTools.includes(tool.id);
-                        return (
-                          <div
-                            key={tool.id}
+                      const isAlwaysOnTab = tab === 'alwaysOn';
+                      const isSelected = isAlwaysOnTab
+                        ? alwaysOnTools.includes(tool.id)
+                        : pinnedTools.includes(tool.id);
+                      const isRunning = activeTools.includes(tool.id);
+                      const selectedRowClass = isAlwaysOnTab ? 'bg-success/[0.06]' : 'bg-warning/[0.06]';
+                      const selectedIconBackgroundClass = isAlwaysOnTab ? 'bg-success/15' : 'bg-warning/15';
+                      const selectedIconColorClass = isAlwaysOnTab ? 'text-success' : 'text-warning';
+
+                      return (
+                        <div
+                          key={tool.id}
+                          className={cn(
+                            'flex items-center gap-3 rounded-lg px-2.5 py-2',
+                            isSelected ? selectedRowClass : 'hover:bg-accent/50'
+                          )}
+                        >
+                          <span
                             className={cn(
-                              'flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors duration-150',
-                              isOn ? 'bg-success/[0.06]' : 'hover:bg-accent/50'
+                              'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+                              isSelected ? selectedIconBackgroundClass : 'bg-muted/70'
                             )}
                           >
-                            <span
+                            <tool.icon
                               className={cn(
-                                'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
-                                isOn ? 'bg-success/15' : 'bg-muted/70'
+                                'h-3.5 w-3.5',
+                                isSelected ? selectedIconColorClass : 'text-muted-foreground'
                               )}
-                            >
-                              <tool.icon
-                                className={cn('h-3.5 w-3.5', isOn ? 'text-success' : 'text-muted-foreground')}
-                              />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="truncate text-[13px] font-medium text-foreground">
-                                  {t(`tools.${tool.id}`, tool.name)}
-                                </span>
-                                {isRunning && !isOn && (
-                                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success animate-glow-pulse" />
-                                )}
-                              </div>
-                              <span className="block truncate text-[11px] text-muted-foreground">
-                                {tool.description}
-                              </span>
-                            </div>
-                            <Toggle checked={isOn} onChange={(v) => setAlwaysOn(tool.id, v)} />
-                          </div>
-                        );
-                      } else {
-                        // 快捷栏 tab
-                        const isPinned = pinnedTools.includes(tool.id);
-                        return (
-                          <div
-                            key={tool.id}
-                            className={cn(
-                              'flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors duration-150',
-                              isPinned ? 'bg-warning/[0.06]' : 'hover:bg-accent/50'
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                'flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
-                                isPinned ? 'bg-warning/15' : 'bg-muted/70'
-                              )}
-                            >
-                              <tool.icon
-                                className={cn('h-3.5 w-3.5', isPinned ? 'text-warning' : 'text-muted-foreground')}
-                              />
-                            </span>
-                            <div className="min-w-0 flex-1">
+                            />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
                               <span className="truncate text-[13px] font-medium text-foreground">
                                 {t(`tools.${tool.id}`, tool.name)}
                               </span>
-                              <span className="block truncate text-[11px] text-muted-foreground">
-                                {tool.description}
-                              </span>
+                              {isAlwaysOnTab && isRunning && !isSelected && (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success animate-glow-pulse" />
+                              )}
                             </div>
-                            <Toggle checked={isPinned} onChange={() => togglePinnedTool(tool.id)} />
+                            <span className="block truncate text-[11px] text-muted-foreground">
+                              {tool.description}
+                            </span>
                           </div>
-                        );
-                      }
+                          <Toggle
+                            checked={isSelected}
+                            onChange={isAlwaysOnTab ? (value) => setAlwaysOn(tool.id, value) : () => togglePinnedTool(tool.id)}
+                          />
+                        </div>
+                      );
                     })}
                   </div>
                 </div>

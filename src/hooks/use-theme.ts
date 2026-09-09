@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { applyThemeTokens, getMonacoThemeName, getThemeTokens, toHex, type ThemeScheme } from '@/lib/theme';
+import { DEFAULT_ATMOSPHERE } from '@/lib/atmosphere';
 import { isTauri } from '@/lib/api-client';
 import { useAppStore } from '@/store/app-store';
 
@@ -36,7 +37,7 @@ export function useApplyTheme() {
     const root = document.documentElement;
     const tokens = getThemeTokens(skin, scheme);
     root.dataset.skin = skin;
-    root.dataset.atmosphere = atmosphere ?? 'low';
+    root.dataset.atmosphere = atmosphere ?? DEFAULT_ATMOSPHERE;
     root.classList.toggle('dark', scheme === 'dark');
     applyThemeTokens(root, tokens);
 

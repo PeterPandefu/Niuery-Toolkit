@@ -14,8 +14,16 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@/lib/api-client', () => ({ isTauri: true }));
 vi.mock('@/registry/tool-registry', () => ({
-  getAvailableCategories: () => [],
-  getToolsByCategory: () => [],
+  getAvailableCategories: () => ['data'],
+  getToolsByCategory: () => [
+    {
+      id: 'json-tool',
+      name: 'JSON Tool',
+      description: '用于处理 JSON 数据',
+      keywords: ['json'],
+      icon: () => <svg aria-hidden="true" />,
+    },
+  ],
 }));
 vi.mock('@/store/tool-lifecycle-store', () => ({
   useToolLifecycleStore: (selector: (state: Record<string, unknown>) => unknown) =>
@@ -90,5 +98,22 @@ describe('SettingsDialog hotkey reset', () => {
     expect(setSkinMock).toHaveBeenCalledWith('ocean');
     expect(setThemeMock).toHaveBeenCalledWith('dark');
     expect(resetAppearanceMock).toHaveBeenCalledOnce();
+  });
+
+  it('常驻工具和快捷栏使用相同的工具行文本布局，避免切换时行高跳变', async () => {
+    invokeMock.mockResolvedValue({});
+    render(<SettingsDialog open onClose={vi.fn()} />);
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('get_hotkeys'));
+
+    const getTextContainer = () => screen.getByText('tools.json-tool').parentElement?.parentElement;
+    const getRow = () => getTextContainer()?.parentElement;
+
+    expect(getTextContainer()).toHaveClass('min-w-0', 'flex-1');
+    expect(getRow()).not.toHaveClass('transition-colors');
+
+    fireEvent.click(screen.getByText('app.pinnedBar'));
+
+    expect(getTextContainer()).toHaveClass('min-w-0', 'flex-1');
+    expect(getRow()).not.toHaveClass('transition-colors');
   });
 });
