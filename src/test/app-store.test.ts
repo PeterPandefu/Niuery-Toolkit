@@ -6,7 +6,7 @@ describe('useAppStore', () => {
     useAppStore.setState({
       theme: 'system',
       skin: 'forge',
-      atmosphere: 'low',
+      atmosphere: 'high',
       activeCategory: null,
       activeToolId: null,
       searchOpen: false,
@@ -41,11 +41,11 @@ describe('useAppStore', () => {
       useAppStore.getState().resetAppearance();
       expect(useAppStore.getState().skin).toBe('forge');
       expect(useAppStore.getState().theme).toBe('system');
-      expect(useAppStore.getState().atmosphere).toBe('low');
+      expect(useAppStore.getState().atmosphere).toBe('high');
     });
 
-    it('defaults atmosphere to low and persists it', () => {
-      expect(useAppStore.getState().atmosphere).toBe('low');
+    it('defaults atmosphere to high and persists it', () => {
+      expect(useAppStore.getState().atmosphere).toBe('high');
       useAppStore.getState().setAtmosphere('off');
       const persisted = useAppStore.persist.getOptions().partialize?.(useAppStore.getState());
       expect(persisted).toMatchObject({ atmosphere: 'off' });

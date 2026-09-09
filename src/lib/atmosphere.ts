@@ -1,7 +1,7 @@
 import type { AtmosphereIntensity, SkinId } from '@/types/tool';
 
 export const ATMOSPHERE_IDS: AtmosphereIntensity[] = ['off', 'low', 'high'];
-export const DEFAULT_ATMOSPHERE: AtmosphereIntensity = 'low';
+export const DEFAULT_ATMOSPHERE: AtmosphereIntensity = 'high';
 
 export function isAtmosphereIntensity(value: unknown): value is AtmosphereIntensity {
   return ATMOSPHERE_IDS.includes(value as AtmosphereIntensity);
