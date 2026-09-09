@@ -120,14 +120,18 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 /** 内置视觉皮肤 */
 export type SkinId = 'forge' | 'ocean' | 'forest' | 'mono' | 'aurora' | 'ink';
 
-/** 皮肤氛围强度：关 / 低 / 高 */
-export type AtmosphereIntensity = 'off' | 'low' | 'high';
+/** 皮肤氛围：关 / 开 */
+export type AtmosphereIntensity = 'off' | 'on';
+
+/** 指针装饰：关 / 流苏 / 光晕 */
+export type PointerEffect = 'off' | 'tassel' | 'glow';
 
 /** 全局应用状态 */
 export interface AppState {
   theme: ThemeMode;
   skin: SkinId;
   atmosphere: AtmosphereIntensity;
+  pointerEffect: PointerEffect;
   activeCategory: ToolCategory | null;
   activeToolId: string | null;
 }

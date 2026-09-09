@@ -91,13 +91,14 @@ author:
       inputTitle={direction === 'json-to-yaml' ? 'JSON' : 'YAML'}
       outputTitle={direction === 'json-to-yaml' ? 'YAML' : 'JSON'}
       outputValue={output}
+      flush
       onClear={() => {
         setInput('');
         log.info('清空输入');
       }}
       onSwap={handleSwap}
       inputActions={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Select
             value={direction}
             onChange={(e) => {
@@ -108,7 +109,7 @@ author:
               { value: 'json-to-yaml', label: 'JSON → YAML' },
               { value: 'yaml-to-json', label: 'YAML → JSON' },
             ]}
-            className="h-8 w-32 text-xs"
+            className="h-8 w-[8.75rem] shrink-0 text-xs"
           />
           <Select
             value={indent}
@@ -117,11 +118,13 @@ author:
               { value: '2', label: '2 空格' },
               { value: '4', label: '4 空格' },
             ]}
-            className="h-8 w-20 text-xs"
+            className="h-8 w-[4.75rem] shrink-0 text-xs"
           />
+          <span className="mx-0.5 hidden h-4 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
           <Button
             variant="ghost"
             size="sm"
+            className="h-8 shrink-0 px-2.5"
             onClick={() => setInput(direction === 'json-to-yaml' ? sampleJson : sampleYaml)}
           >
             示例
@@ -129,7 +132,7 @@ author:
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8 shrink-0"
             onClick={() => {
               void inputEditorRef.current?.foldAll();
               void outputEditorRef.current?.foldAll();
@@ -143,7 +146,7 @@ author:
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7"
+            className="h-8 w-8 shrink-0"
             onClick={unfoldAll}
             disabled={!hasFoldableContent}
             title="全部展开"
@@ -161,14 +164,15 @@ author:
           language={inputLanguage}
           placeholder={direction === 'json-to-yaml' ? '输入 JSON...' : '输入 YAML...'}
           tabSize={parseInt(indent)}
+          framed={false}
         />
       }
       output={
-        <div className="relative h-full">
+        <div className="relative h-full min-h-0">
           {error ? (
-            <div className="flex h-full items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-4">
+            <div className="flex h-full items-start gap-2 bg-destructive/10 p-4">
               <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
-              <div>
+              <div className="min-w-0">
                 <p className="font-medium text-destructive">解析错误</p>
                 <p className="mt-1 text-sm text-muted-foreground">{error}</p>
               </div>
@@ -181,6 +185,7 @@ author:
               language={outputLanguage}
               placeholder="转换结果..."
               tabSize={parseInt(indent)}
+              framed={false}
             />
           )}
         </div>

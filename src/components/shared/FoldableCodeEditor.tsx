@@ -3,6 +3,7 @@ import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { useTheme } from '@/hooks/use-theme';
+import { cn } from '@/lib/utils';
 import type { StructuredLanguage } from '@/lib/structured-editor-folding';
 
 export type { StructuredLanguage } from '@/lib/structured-editor-folding';
@@ -19,6 +20,8 @@ interface FoldableCodeEditorProps {
   readOnly?: boolean;
   placeholder?: string;
   tabSize?: number;
+  framed?: boolean;
+  className?: string;
 }
 
 function runEditorAction(instance: editor.IStandaloneCodeEditor | null, actionId: string): Promise<void> {
@@ -26,7 +29,7 @@ function runEditorAction(instance: editor.IStandaloneCodeEditor | null, actionId
 }
 
 export const FoldableCodeEditor = forwardRef<FoldableCodeEditorHandle, FoldableCodeEditorProps>(function FoldableCodeEditor(
-  { value, language, onChange, readOnly = false, placeholder, tabSize = 2 },
+  { value, language, onChange, readOnly = false, placeholder, tabSize = 2, framed = true, className },
   ref,
 ) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -42,7 +45,7 @@ export const FoldableCodeEditor = forwardRef<FoldableCodeEditorHandle, FoldableC
   }, []);
 
   return (
-    <div className="h-full overflow-hidden rounded-md border">
+    <div className={cn('h-full min-h-0 overflow-hidden', framed && 'rounded-md border', className)}>
       <Editor
         height="100%"
         language={language}

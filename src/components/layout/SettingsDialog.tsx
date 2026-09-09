@@ -9,8 +9,8 @@ import { emitHotkeysChanged } from '@/lib/hotkeys';
 import { CATEGORY_ICONS } from '@/types/tool';
 import { Check, Contrast, Feather, Keyboard, Monitor, Moon, Palette, Pin, Power, RotateCcw, Search, Sparkles, Sunrise, Sun, Trees, Waves, X, Zap } from 'lucide-react';
 import { getThemeTokens, SKIN_IDS } from '@/lib/theme';
-import { ATMOSPHERE_IDS } from '@/lib/atmosphere';
-import type { SkinId } from '@/types/tool';
+import { DEFAULT_POINTER_EFFECT } from '@/lib/pointer-effect';
+import type { PointerEffect, SkinId } from '@/types/tool';
 import { useTheme } from '@/hooks/use-theme';
 
 interface SettingsDialogProps {
@@ -153,13 +153,16 @@ function HotkeyRecorder({
 
 function AppearanceSettings() {
   const { t } = useTranslation();
-  const { theme, setTheme, skin, setSkin, atmosphere, setAtmosphere, resetAppearance, scheme } = useTheme();
+  const { theme, setTheme, skin, setSkin, atmosphere, setAtmosphere, pointerEffect: storedPointerEffect, setPointerEffect, resetAppearance, scheme } = useTheme();
+  const pointerEffect: PointerEffect = storedPointerEffect === 'off' || storedPointerEffect === 'tassel' || storedPointerEffect === 'glow'
+    ? storedPointerEffect
+    : DEFAULT_POINTER_EFFECT;
+  const resolvedScheme = scheme === 'dark' ? 'dark' : 'light';
   const modes = [
     { id: 'light' as const, icon: Sun },
     { id: 'dark' as const, icon: Moon },
     { id: 'system' as const, icon: Monitor },
   ];
-
   return (
     <div className="space-y-5 px-2 py-1">
       <div>
@@ -202,7 +205,7 @@ function AppearanceSettings() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           {SKIN_IDS.map((skinId) => {
-            const tokens = getThemeTokens(skinId, scheme);
+            const tokens = getThemeTokens(skinId, resolvedScheme);
             const selected = skin === skinId;
             const SkinIcon = SKIN_ICONS[skinId];
             return (
@@ -234,24 +237,33 @@ function AppearanceSettings() {
         </div>
       </div>
 
-      <div>
-        <div className="mb-2">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-foreground">{t('theme.atmosphere')}</h3>
           <p className="mt-0.5 text-[11px] text-muted-foreground">{t('theme.atmosphereDesc')}</p>
         </div>
+        <Toggle checked={atmosphere === 'on'} onChange={(enabled) => setAtmosphere(enabled ? 'on' : 'off')} />
+      </div>
+
+      <div>
+        <div className="mb-2">
+          <h3 className="text-sm font-semibold text-foreground">{t('theme.pointerEffect')}</h3>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{t('theme.pointerEffectDesc')}</p>
+        </div>
         <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1">
-          {ATMOSPHERE_IDS.map((id) => (
+          {POINTER_EFFECTS.map(({ id, icon: Icon }) => (
             <button
               key={id}
               type="button"
-              onClick={() => setAtmosphere(id)}
-              aria-pressed={atmosphere === id}
+              onClick={() => setPointerEffect?.(id)}
+              aria-pressed={pointerEffect === id}
               className={cn(
-                'rounded-md px-2 py-1.5 text-[11px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                atmosphere === id ? 'bg-card text-foreground shadow-tinted-sm' : 'text-muted-foreground hover:text-foreground'
+                'flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                pointerEffect === id ? 'bg-card text-foreground shadow-tinted-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              {t(`theme.atmosphere${id[0].toUpperCase()}${id.slice(1)}`)}
+              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+              {t(`theme.pointerEffect${id[0].toUpperCase()}${id.slice(1)}`)}
             </button>
           ))}
         </div>
@@ -259,6 +271,12 @@ function AppearanceSettings() {
     </div>
   );
 }
+
+const POINTER_EFFECTS = [
+  { id: 'off' as const, icon: Power },
+  { id: 'tassel' as const, icon: Feather },
+  { id: 'glow' as const, icon: Sparkles },
+] satisfies { id: PointerEffect; icon: typeof Power }[];
 
 const SKIN_ICONS = {
   forge: Sunrise,
@@ -359,7 +377,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     .filter((c) => c.tools.length > 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center pt-[10vh]" data-atmosphere-exclude>
       {/* 背景幕 */}
       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
 

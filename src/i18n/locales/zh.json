@@ -258,10 +258,12 @@
     "ink": "墨白",
     "inkDesc": "宣纸颗粒与朱砂印记，几乎无动效",
     "atmosphere": "氛围",
-    "atmosphereDesc": "控制光效与粒子强度，不影响编辑器内容",
-    "atmosphereOff": "关",
-    "atmosphereLow": "低",
-    "atmosphereHigh": "高"
+    "atmosphereDesc": "开启后显示侧栏与首页的粒子氛围，不影响编辑器内容",
+    "pointerEffect": "指针特效",
+    "pointerEffectDesc": "跟随鼠标的装饰，编辑器内自动隐藏",
+    "pointerEffectOff": "关",
+    "pointerEffectTassel": "流苏",
+    "pointerEffectGlow": "光晕"
   },
   "language": {
     "zh": "中文",
