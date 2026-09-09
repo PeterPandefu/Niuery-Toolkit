@@ -56,7 +56,15 @@
     "toolErrorRetry": "重新加载工具",
     "toolErrorCopyDetails": "复制错误详情",
     "toolErrorCopied": "错误详情已复制",
-    "toolErrorCopyFailed": "复制失败，请手动查看日志"
+    "toolErrorCopyFailed": "复制失败，请手动查看日志",
+    "collapseSidebar": "折叠侧栏",
+    "expandSidebar": "展开侧栏",
+    "categoryNavigation": "分类导航",
+    "pinnedEmpty": "在设置中把常用工具钉到这里。",
+    "windowMinimize": "最小化",
+    "windowMaximize": "最大化",
+    "windowRestore": "还原",
+    "windowClose": "关闭"
   },
   "capabilities": {
     "summary": "工具能力与环境要求",
@@ -96,20 +104,20 @@
     "footerHint": "全局快捷键在任何程序运行时均可触发"
   },
   "stickyNoteLauncher": {
-    "description": "\u5728\u684c\u9762\u4e0a\u4fdd\u7559\u4e00\u5f20\u8f7b\u91cf\u4fbf\u7b7e\uff0c\u968f\u65f6\u5199\u4e0b\u5f85\u529e\u4e0e\u60f3\u6cd5\u3002",
-    "open": "\u6253\u5f00\u60ac\u6d6e\u4fbf\u7b7e",
-    "desktopOnly": "\u60ac\u6d6e\u4fbf\u7b7e\u4ec5\u53ef\u5728\u684c\u9762\u7aef\u4f7f\u7528\u3002",
-    "openFailed": "\u65e0\u6cd5\u6253\u5f00\u60ac\u6d6e\u4fbf\u7b7e\uff0c\u8bf7\u91cd\u8bd5\u3002"
+    "description": "在桌面上保留一张轻量便签，随时写下待办与想法。",
+    "open": "打开悬浮便签",
+    "desktopOnly": "悬浮便签仅可在桌面端使用。",
+    "openFailed": "无法打开悬浮便签，请重试。"
   },
   "stickyNote": {
-    "add": "\u65b0\u589e\u4fbf\u7b7e",
+    "add": "新增便签",
     "addTimelineEntry": "新增时间轴记录",
     "deleteTimelineEntry": "删除时间轴记录",
     "delete": "删除便签",
     "noteMenu": "便签操作",
     "keepOne": "至少保留一张便签",
     "all": "全部",
-    "noteList": "\u4fbf\u7b7e\u5217\u8868",
+    "noteList": "便签列表",
     "search": "搜索便签",
     "searchPlaceholder": "搜索标题或内容",
     "toggleMode": "切换普通便签/时间轴",
@@ -154,7 +162,7 @@
     "canvas": "图表与画布",
     "capture": "截图与录制",
     "network": "接口与网络",
-    "system": "系统与剪贴板",
+    "system": "系统工具",
     "language": "语言翻译"
   },
   "tools": {
@@ -235,16 +243,25 @@
     "appearance": "外观",
     "appearanceDesc": "主题会立即应用并自动保存",
     "skin": "皮肤",
-    "skinDesc": "选择适合当前工作环境的视觉风格",
+    "skinDesc": "选择适合当前工作环境的视觉风格，氛围特效只出现在侧栏和首页",
     "restoreDefault": "恢复默认外观",
     "forge": "立春",
-    "forgeDesc": "缙云暖霞与天缥纸纹",
+    "forgeDesc": "暖纸锻铜，余烬沿侧栏轻轻呼吸",
     "ocean": "海雾",
-    "oceanDesc": "清透蓝青与雾白层次",
+    "oceanDesc": "玻璃海雾，焦散光在侧栏缓慢游走",
     "forest": "暮山",
-    "forestDesc": "低饱和松绿与岩灰",
+    "forestDesc": "苔绿雾面，林间尘点稀疏下落",
     "mono": "Mono",
-    "monoDesc": "中性高对比"
+    "monoDesc": "OLED 高对比，零装饰纯工作台",
+    "aurora": "极光",
+    "auroraDesc": "暗夜青紫流光，适合深夜编码",
+    "ink": "墨白",
+    "inkDesc": "宣纸颗粒与朱砂印记，几乎无动效",
+    "atmosphere": "氛围",
+    "atmosphereDesc": "控制光效与粒子强度，不影响编辑器内容",
+    "atmosphereOff": "关",
+    "atmosphereLow": "低",
+    "atmosphereHigh": "高"
   },
   "language": {
     "zh": "中文",

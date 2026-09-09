@@ -10,8 +10,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        heading: ['"Space Grotesk Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        sans: ['"IBM Plex Sans Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        heading: ['"Space Grotesk Variable"', '"Noto Sans SC"', '"Source Han Sans SC"', '"PingFang SC"', '"Microsoft YaHei"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['"IBM Plex Sans Variable"', '"Noto Sans SC"', '"Source Han Sans SC"', '"PingFang SC"', '"Microsoft YaHei"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono Variable"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
@@ -71,6 +71,10 @@ export default {
           overlay: "hsl(var(--surface-overlay))",
         },
         ember: "hsl(var(--ember-glow))",
+      },
+      opacity: {
+        8: '0.08',
+        12: '0.12',
       },
       borderRadius: {
         lg: "var(--radius)",

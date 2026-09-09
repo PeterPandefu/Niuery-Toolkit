@@ -132,3 +132,5 @@ export function ProcessingResultPreview({ sourceFiles, result }: { sourceFiles: 
     </section>
   );
 }
+
+ProcessingResultPreview.displayName = 'ProcessingResultPreview';

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { WorkbenchSplit } from '@/components/shared/WorkbenchSplit';
 import { Check, Clipboard, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveBytesWithFeedback } from '@/lib/file-save';
@@ -115,21 +116,32 @@ export function OcrPanel() {
   };
 
   return (
-    <div className="space-y-4">
-      <ImageFileDropzone files={files} onChange={setFiles} accept="image/png,image/jpeg,image/webp,image/bmp" hint="支持 PNG、JPEG、WebP、BMP；单次识别一张图片" />
-      <ImagePreview files={files} />
-      <OptionRow label="识别语言">
-        <Select value={language} onChange={(event) => setLanguage(event.target.value as OcrLanguage)} options={LANGUAGE_OPTIONS} className="h-8" />
-      </OptionRow>
-      <Button onClick={handleRecognize} disabled={busy || files.length === 0}>
-        {busy ? <Loader2 className="animate-spin" /> : <Check />}
-        开始识别
-      </Button>
-      {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
-      {result && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">识别结果</span>
+    <WorkbenchSplit
+      preview={
+        <>
+          <ImageFileDropzone files={files} onChange={setFiles} accept="image/png,image/jpeg,image/webp,image/bmp" hint="支持 PNG、JPEG、WebP、BMP；单次识别一张图片" />
+          <ImagePreview files={files} />
+          {result ? (
+            <textarea
+              value={result}
+              onChange={(event) => setResult(event.target.value)}
+              className="min-h-64 w-full resize-y rounded-md border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus:ring-1 focus:ring-ring"
+              aria-label="识别结果"
+            />
+          ) : null}
+        </>
+      }
+      properties={
+        <>
+          <OptionRow label="识别语言">
+            <Select value={language} onChange={(event) => setLanguage(event.target.value as OcrLanguage)} options={LANGUAGE_OPTIONS} className="h-8" />
+          </OptionRow>
+          <Button onClick={handleRecognize} disabled={busy || files.length === 0}>
+            {busy ? <Loader2 className="animate-spin" /> : <Check />}
+            开始识别
+          </Button>
+          {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
+          {result ? (
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleCopy}>
                 <Clipboard className="h-3.5 w-3.5" />
@@ -140,15 +152,9 @@ export function OcrPanel() {
                 导出文本
               </Button>
             </div>
-          </div>
-          <textarea
-            value={result}
-            onChange={(event) => setResult(event.target.value)}
-            className="min-h-64 w-full resize-y rounded-md border border-input bg-background p-3 font-mono text-sm leading-6 outline-none focus:ring-1 focus:ring-ring"
-            aria-label="识别结果"
-          />
-        </div>
-      )}
-    </div>
+          ) : null}
+        </>
+      }
+    />
   );
 }

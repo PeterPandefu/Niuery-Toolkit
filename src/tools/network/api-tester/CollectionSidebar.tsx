@@ -28,9 +28,9 @@ interface CollectionSidebarProps {
 }
 
 const METHOD_COLORS: Record<HttpMethod, string> = {
-  GET: 'text-green-600 dark:text-green-400',
+  GET: 'text-success',
   POST: 'text-yellow-600 dark:text-yellow-400',
-  PUT: 'text-blue-600 dark:text-blue-400',
+  PUT: 'text-info',
   PATCH: 'text-purple-600 dark:text-purple-400',
   DELETE: 'text-red-600 dark:text-red-400',
   HEAD: 'text-cyan-600 dark:text-cyan-400',
@@ -258,7 +258,7 @@ export function CollectionSidebar({ onLoadRequest }: CollectionSidebarProps) {
                   <span
                     className={cn(
                       'text-[10px] font-medium',
-                      entry.response.status < 400 ? 'text-green-500' : 'text-red-500'
+                      entry.response.status < 400 ? 'text-success' : 'text-destructive'
                     )}
                   >
                     {entry.response.status}

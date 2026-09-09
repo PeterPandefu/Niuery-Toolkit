@@ -266,7 +266,7 @@ export default function ScreenRecorder() {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-8 text-center shadow-tinted">
-          <span className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${state.status === 'recording' ? 'bg-red-500/15 text-red-500 animate-glow-pulse' : 'bg-amber-500/15 text-amber-500'}`}>
+          <span className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${state.status === 'recording' ? 'bg-destructive/15 text-destructive animate-glow-pulse' : 'bg-warning/15 text-warning'}`}>
             <Video className="h-7 w-7" />
           </span>
           <h2 className="mt-4 font-heading text-xl font-bold">{state.status === 'paused' ? '录制已暂停' : state.status === 'stopping' ? '正在生成预览…' : '正在录制'}</h2>
@@ -322,7 +322,7 @@ export default function ScreenRecorder() {
       <div className="mx-auto max-w-5xl">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/10 text-red-500"><Video className="h-5 w-5" /></span><h2 className="font-heading text-xl font-bold">屏幕录制</h2></div>
+            <div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive"><Video className="h-5 w-5" /></span><h2 className="font-heading text-xl font-bold">屏幕录制</h2></div>
             <p className="mt-2 text-sm text-muted-foreground">在屏幕上拖拽框选需要录制的区域；停止后可导出 MP4 或制作 GIF。</p>
           </div>
           <div className="flex gap-2">
@@ -331,7 +331,7 @@ export default function ScreenRecorder() {
           </div>
         </div>
 
-        {!isTauri && <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">录制依赖 Windows 桌面版。你仍可使用右上角的 GIF 编辑器。</div>}
+        {!isTauri && <div className="mb-5 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">录制依赖 Windows 桌面版。你仍可使用右上角的 GIF 编辑器。</div>}
         {(state.error || recorder.error) && <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{state.error ?? recorder.error}</div>}
 
         <div className="grid gap-5 lg:grid-cols-[1.25fr_.75fr]">

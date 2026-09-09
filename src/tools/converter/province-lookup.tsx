@@ -192,7 +192,7 @@ export default function ProvinceLookup() {
             <p className="text-sm text-muted-foreground">请输入有效的数字经纬度。</p>
           )}
           {result.type === 'oor' && (
-            <p className="text-sm text-amber-600 dark:text-amber-400">
+            <p className="text-sm text-warning">
               坐标 ({result.lng}, {result.lat}) 超出中国常用范围，请检查输入。
             </p>
           )}

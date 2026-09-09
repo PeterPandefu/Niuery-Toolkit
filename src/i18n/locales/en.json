@@ -56,7 +56,15 @@
     "toolErrorRetry": "Reload tool",
     "toolErrorCopyDetails": "Copy error details",
     "toolErrorCopied": "Error details copied",
-    "toolErrorCopyFailed": "Copy failed; inspect the logs manually"
+    "toolErrorCopyFailed": "Copy failed; inspect the logs manually",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "categoryNavigation": "Category navigation",
+    "pinnedEmpty": "Pin frequent tools in Settings.",
+    "windowMinimize": "Minimize",
+    "windowMaximize": "Maximize",
+    "windowRestore": "Restore",
+    "windowClose": "Close"
   },
   "capabilities": {
     "summary": "Tool capabilities and environment requirements",
@@ -154,7 +162,7 @@
     "canvas": "Diagram & Canvas",
     "capture": "Capture & Recording",
     "network": "API & Network",
-    "system": "System & Clipboard",
+    "system": "System Tools",
     "language": "Language Translation"
   },
   "tools": {
@@ -235,16 +243,25 @@
     "appearance": "Appearance",
     "appearanceDesc": "Changes apply and save immediately",
     "skin": "Skin",
-    "skinDesc": "Choose a visual style for your workspace",
+    "skinDesc": "Pick a workspace look. Atmosphere effects stay on the sidebar and home screen",
     "restoreDefault": "Restore default appearance",
     "forge": "Spring Dawn",
-    "forgeDesc": "Jinyun coral with sky-cyan paper texture",
+    "forgeDesc": "Warm paper and forged copper with a quiet ember glow",
     "ocean": "Sea Mist",
-    "oceanDesc": "Clear blue-green with misty white layers",
+    "oceanDesc": "Sea-glass layers with slow caustic light",
     "forest": "Dusk Mountain",
-    "forestDesc": "Muted pine green and stone gray",
+    "forestDesc": "Moss and mist with sparse drifting motes",
     "mono": "Mono",
-    "monoDesc": "Neutral high contrast"
+    "monoDesc": "OLED high contrast with no decoration",
+    "aurora": "Aurora",
+    "auroraDesc": "Night indigo with cyan-violet curtains",
+    "ink": "Ink",
+    "inkDesc": "Xuan paper grain and cinnabar seals, almost still",
+    "atmosphere": "Atmosphere",
+    "atmosphereDesc": "Controls glow and particles without touching editors",
+    "atmosphereOff": "Off",
+    "atmosphereLow": "Low",
+    "atmosphereHigh": "High"
   },
   "language": {
     "zh": "中文",

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { SkinId, ThemeMode, ToolCategory } from '@/types/tool';
-import { DEFAULT_SKIN } from '@/lib/theme';
+import { AtmosphereIntensity, SkinId, ThemeMode, ToolCategory } from '@/types/tool';
+import { DEFAULT_SKIN, isSkinId } from '@/lib/theme';
+import { DEFAULT_ATMOSPHERE, isAtmosphereIntensity } from '@/lib/atmosphere';
 
 export interface RecentToolUsage {
   count: number;
@@ -23,6 +24,8 @@ interface AppStore {
   setTheme: (theme: ThemeMode) => void;
   skin: SkinId;
   setSkin: (skin: SkinId) => void;
+  atmosphere: AtmosphereIntensity;
+  setAtmosphere: (atmosphere: AtmosphereIntensity) => void;
   resetAppearance: () => void;
 
   // 当前展开的分类面板
@@ -47,6 +50,11 @@ interface AppStore {
   pinnedTools: string[];
   setPinnedTools: (tools: string[]) => void;
   togglePinnedTool: (toolId: string) => void;
+
+  // 侧栏折叠
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebarCollapsed: () => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -57,7 +65,9 @@ export const useAppStore = create<AppStore>()(
       setTheme: (theme) => set({ theme }),
       skin: DEFAULT_SKIN,
       setSkin: (skin) => set({ skin }),
-      resetAppearance: () => set({ theme: 'system', skin: DEFAULT_SKIN }),
+      atmosphere: DEFAULT_ATMOSPHERE,
+      setAtmosphere: (atmosphere) => set({ atmosphere }),
+      resetAppearance: () => set({ theme: 'system', skin: DEFAULT_SKIN, atmosphere: DEFAULT_ATMOSPHERE }),
 
       // 分类面板
       activeCategory: null,
@@ -103,21 +113,29 @@ export const useAppStore = create<AppStore>()(
               : [...state.pinnedTools, toolId],
           };
         }),
+
+      sidebarCollapsed: false,
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
     }),
     {
       name: 'niuery-toolkit-store',
       partialize: (state) => ({
         theme: state.theme,
         skin: state.skin,
+        atmosphere: state.atmosphere,
         pinnedTools: state.pinnedTools,
+        sidebarCollapsed: state.sidebarCollapsed,
       }),
-      version: 2,
+      version: 4,
       migrate: (persistedState) => {
-        const persisted = persistedState as Partial<Pick<AppStore, 'theme' | 'skin' | 'pinnedTools'>>;
+        const persisted = persistedState as Partial<Pick<AppStore, 'theme' | 'skin' | 'atmosphere' | 'pinnedTools' | 'sidebarCollapsed'>>;
         return {
           theme: persisted.theme ?? 'system',
-          skin: persisted.skin ?? DEFAULT_SKIN,
+          skin: isSkinId(persisted.skin) ? persisted.skin : DEFAULT_SKIN,
+          atmosphere: isAtmosphereIntensity(persisted.atmosphere) ? persisted.atmosphere : DEFAULT_ATMOSPHERE,
           pinnedTools: persisted.pinnedTools ?? ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'qrcode', 'text-diff'],
+          sidebarCollapsed: persisted.sidebarCollapsed ?? false,
         };
       },
     }

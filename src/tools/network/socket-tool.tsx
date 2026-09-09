@@ -30,10 +30,10 @@ const serverLog = createLogger('socket-tool:server');
 function StatusBadge({ status, t }: { status: WsStatus; t: (key: string) => string }) {
   const config: Record<WsStatus, { color: string; label: string }> = {
     idle: { color: 'bg-gray-400', label: t('socketTool.idle') },
-    connecting: { color: 'bg-yellow-400 animate-pulse', label: t('socketTool.connecting') },
-    connected: { color: 'bg-green-500', label: t('socketTool.connected') },
-    disconnected: { color: 'bg-orange-400', label: t('socketTool.disconnected') },
-    error: { color: 'bg-red-500', label: t('socketTool.error') },
+    connecting: { color: 'bg-warning animate-pulse', label: t('socketTool.connecting') },
+    connected: { color: 'bg-success', label: t('socketTool.connected') },
+    disconnected: { color: 'bg-warning', label: t('socketTool.disconnected') },
+    error: { color: 'bg-destructive', label: t('socketTool.error') },
   };
   const { color, label } = config[status];
   return (
@@ -164,14 +164,14 @@ function ClientPanel() {
                   {new Date(msg.timestamp).toLocaleTimeString()}
                 </span>
                 {msg.direction === 'sent' ? (
-                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-blue-500 mt-0.5" />
+                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-info mt-0.5" />
                 ) : (
-                  <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-green-500 mt-0.5" />
+                  <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-success mt-0.5" />
                 )}
                 <span
                   className={cn(
                     'break-all whitespace-pre-wrap',
-                    msg.direction === 'sent' ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'
+                    msg.direction === 'sent' ? 'text-info' : 'text-success'
                   )}
                 >
                   {msg.content}
@@ -413,7 +413,7 @@ function ServerPanel() {
             {clients.map((c) => (
               <span
                 key={c.id}
-                className="inline-flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 text-xs font-mono text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                className="inline-flex items-center gap-1 rounded bg-success/10 px-2 py-0.5 text-xs font-mono text-success"
               >
                 <Circle className="h-1.5 w-1.5 fill-current" />
                 {c.id}
@@ -437,17 +437,17 @@ function ServerPanel() {
                   {new Date(msg.timestamp).toLocaleTimeString()}
                 </span>
                 {msg.direction === 'sent' ? (
-                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-blue-500 mt-0.5" />
+                  <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-info mt-0.5" />
                 ) : (
-                  <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-green-500 mt-0.5" />
+                  <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-success mt-0.5" />
                 )}
                 <span className="shrink-0 text-[10px] text-muted-foreground pt-0.5">[{msg.clientId}]</span>
                 <span
                   className={cn(
                     'break-all whitespace-pre-wrap',
                     msg.direction === 'sent'
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-green-600 dark:text-green-400'
+                      ? 'text-info'
+                      : 'text-success'
                   )}
                 >
                   {msg.content}

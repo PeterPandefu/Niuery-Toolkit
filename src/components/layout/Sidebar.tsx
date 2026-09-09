@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { AtmosphereLayer } from '@/components/layout/SkinAtmosphere';
 import { useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { getAvailableCategories, getToolsByCategory, preloadTool } from '@/registry/tool-registry';
 import { CATEGORY_ICONS } from '@/types/tool';
-import { ChevronDown, Home, Pin, Search, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Home, Pin, Search } from 'lucide-react';
 import { BrandMark } from '@/components/shared/BrandMark';
 
 interface SidebarProps {
@@ -21,15 +22,17 @@ function ToolItem({
   onClick,
   onPointerEnter,
   onFocus,
+  compact,
 }: {
   active: boolean;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   running?: boolean;
   alwaysOn?: boolean;
   onClick: () => void;
   onPointerEnter?: () => void;
   onFocus?: () => void;
+  compact?: boolean;
 }) {
   return (
     <button
@@ -39,18 +42,25 @@ function ToolItem({
       aria-current={active ? 'page' : undefined}
       title={label}
       className={cn(
-        'group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] transition-colors duration-150',
+        'nav-item group',
+        compact && 'px-2',
         active
-          ? 'bg-primary text-primary-foreground'
+          ? 'bg-primary/12 text-foreground'
           : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
       )}
     >
-      <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-primary')} />
+      <span
+        className={cn(
+          'absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-opacity',
+          active ? 'opacity-100' : 'opacity-0'
+        )}
+      />
+      <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-muted-foreground group-hover:text-primary')} />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {alwaysOn ? (
-        <Pin className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-primary-foreground/85' : 'text-warning')} aria-label="常驻工具" />
+        <Pin className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-primary' : 'text-warning')} aria-label="常驻工具" />
       ) : running ? (
-        <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-primary-foreground' : 'bg-success')} aria-label="正在运行" />
+        <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-primary' : 'bg-success')} aria-label="正在运行" />
       ) : null}
     </button>
   );
@@ -58,10 +68,11 @@ function ToolItem({
 
 export function Sidebar({ onSelectTool }: SidebarProps) {
   const { t } = useTranslation();
-  const { activeToolId, setSearchOpen, setActiveTool, activeCategory, setActiveCategory } = useAppStore();
+  const { activeToolId, setSearchOpen, setActiveTool, activeCategory, setActiveCategory, sidebarCollapsed, toggleSidebarCollapsed } = useAppStore();
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
   const categories = getAvailableCategories();
+  const flyoutRef = useRef<HTMLDivElement>(null);
 
   const categoryTools = useMemo(
     () => (activeCategory ? getToolsByCategory(activeCategory) : []),
@@ -73,68 +84,139 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
     setActiveCategory(null);
   };
 
+  useEffect(() => {
+    if (!sidebarCollapsed || !activeCategory) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (flyoutRef.current && !flyoutRef.current.contains(event.target as Node)) {
+        setActiveCategory(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveCategory(null);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [sidebarCollapsed, activeCategory, setActiveCategory]);
+
   return (
-    <aside className="app-sidebar flex h-full w-[clamp(13.5rem,18vw,17rem)] shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-3" aria-label="工具导航">
-      <div className="flex items-center gap-3 px-2 py-2">
-        <button onClick={handleHome} className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={t('app.home', '首页')}>
-          <BrandMark size={34} className="brand-mark" />
+    <aside
+      className={cn(
+        'app-sidebar app-sidebar-panel relative z-20 flex h-full shrink-0 flex-col bg-sidebar p-2',
+        sidebarCollapsed ? 'is-collapsed overflow-visible' : 'overflow-hidden'
+      )}
+      aria-label="工具导航"
+    >
+      <AtmosphereLayer density="narrow" />
+      <div className={cn('flex h-10 shrink-0 items-center', sidebarCollapsed ? 'justify-center' : 'gap-2')}>
+        <button
+          type="button"
+          onClick={toggleSidebarCollapsed}
+          className="shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-expanded={!sidebarCollapsed}
+          aria-label={sidebarCollapsed ? t('app.expandSidebar') : t('app.collapseSidebar')}
+          title={sidebarCollapsed ? t('app.expandSidebar') : t('app.collapseSidebar')}
+        >
+          <BrandMark size={28} className="brand-mark" />
         </button>
-        <div className="min-w-0">
-          <p className="font-heading text-[15px] font-semibold leading-none tracking-tight text-sidebar-foreground">Niuery Toolkit</p>
-          <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">{t('app.offlineWorkspace')}</p>
-        </div>
+        {!sidebarCollapsed && (
+          <div className="min-w-0 flex-1 overflow-hidden" data-tauri-drag-region>
+            <p className="truncate font-heading text-[13px] font-semibold leading-5 tracking-tight text-sidebar-foreground">Niuery Toolkit</p>
+            <p className="truncate text-[11px] leading-4 text-muted-foreground">{t('app.offlineWorkspace')}</p>
+          </div>
+        )}
       </div>
 
       <button
         onClick={() => setSearchOpen(true)}
-        className="mt-4 flex h-10 w-full items-center gap-2.5 rounded-lg border border-sidebar-border bg-background/60 px-3 text-left text-[13px] text-muted-foreground transition-colors hover:border-primary/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        title={t('app.searchTools')}
+        aria-label={t('app.searchTools')}
+        className={cn(
+          'mt-3 flex h-9 w-full items-center rounded-lg border border-sidebar-border bg-background/70 text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          sidebarCollapsed ? 'justify-center px-0' : 'gap-2.5 px-2.5 text-left text-[13px]'
+        )}
       >
-        <Search className="h-4 w-4 text-primary" />
-        <span className="flex-1">{t('app.searchTools')}</span>
-        <kbd className="kbd">Ctrl K</kbd>
+        <Search className="h-4 w-4 shrink-0 text-primary" />
+        {!sidebarCollapsed && (
+          <>
+            <span className="min-w-0 flex-1 truncate">{t('app.searchTools')}</span>
+            <kbd className="kbd shrink-0">Ctrl K</kbd>
+          </>
+        )}
       </button>
 
-      <nav className="mt-5 min-h-0 flex-1 overflow-y-auto pr-1" aria-label="工具分类">
-        <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{t('app.workspace')}</p>
+      <nav className="mt-4 min-h-0 flex-1 overflow-y-auto pr-0.5" aria-label="Category navigation">
+        {!sidebarCollapsed && (
+          <p className="px-2.5 pb-1.5 text-[11px] font-medium text-muted-foreground">{t('app.workspace')}</p>
+        )}
         <button
           onClick={handleHome}
           aria-current={!activeToolId && !activeCategory ? 'page' : undefined}
+          title={t('app.home', '首页')}
           className={cn(
-            'mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'nav-item mb-1 font-medium',
+            sidebarCollapsed && 'justify-center px-0',
             !activeToolId && !activeCategory ? 'bg-sidebar-accent text-sidebar-foreground' : 'text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground'
           )}
         >
-          <Home className={cn('h-4 w-4', !activeToolId && !activeCategory ? 'text-primary' : 'text-muted-foreground')} />
-          {t('app.home', '首页')}
+          <Home className={cn('h-4 w-4 shrink-0', !activeToolId && !activeCategory ? 'text-primary' : 'text-muted-foreground')} />
+          {!sidebarCollapsed && <span className="min-w-0 flex-1 truncate">{t('app.home')}</span>}
         </button>
 
-        <p className="px-3 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{t('app.allCategories')}</p>
-        <div className="space-y-1">
+        {!sidebarCollapsed && (
+          <p className="px-2.5 pb-1.5 pt-3 text-[11px] font-medium text-muted-foreground">{t('app.allCategories')}</p>
+        )}
+        <div className="space-y-0.5">
           {categories.map((category) => {
             const CategoryIcon = CATEGORY_ICONS[category] || Search;
             const isOpen = activeCategory === category;
             const hasActiveTool = activeToolId != null && getToolsByCategory(category).some((tool) => tool.id === activeToolId);
             const tools = isOpen ? categoryTools : [];
+            const label = t(`categories.${category}`);
             return (
-              <div key={category}>
+              <div key={category} className="relative" ref={isOpen && sidebarCollapsed ? flyoutRef : undefined}>
                 <button
                   onClick={() => setActiveCategory(isOpen ? null : category)}
                   aria-expanded={isOpen}
+                  title={label}
                   className={cn(
-                    'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    isOpen ? 'bg-sidebar-accent text-sidebar-foreground' : 'text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                    'nav-item',
+                    sidebarCollapsed && 'justify-center px-0',
+                    isOpen || hasActiveTool ? 'bg-sidebar-accent text-sidebar-foreground' : 'text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                   )}
                 >
-                  <CategoryIcon className={cn('h-4 w-4', isOpen || hasActiveTool ? 'text-primary' : 'text-muted-foreground')} />
-                  <span className="flex-1">{t(`categories.${category}`)}</span>
-                  <span className="font-mono text-[10px] text-muted-foreground">{getToolsByCategory(category).length}</span>
-                  <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform duration-150', isOpen && 'rotate-180')} />
+                  <CategoryIcon className={cn('h-4 w-4 shrink-0', isOpen || hasActiveTool ? 'text-primary' : 'text-muted-foreground')} />
+                  {!sidebarCollapsed && <span className="min-w-0 flex-1 truncate">{label}</span>}
+                  {!sidebarCollapsed && <span className="font-mono text-[10px] text-muted-foreground">{getToolsByCategory(category).length}</span>}
+                  {!sidebarCollapsed && <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-150', isOpen && 'rotate-180')} />}
                 </button>
-                {isOpen && (
-                  <div className="space-y-0.5 border-l border-sidebar-border py-1 pl-3" role="list">
+                {isOpen && !sidebarCollapsed && (
+                  <div className="space-y-0.5 border-l border-sidebar-border py-1 pl-2.5" role="list">
                     {tools.map((tool) => (
                       <ToolItem
                         key={tool.id}
+                        active={activeToolId === tool.id}
+                        icon={tool.icon}
+                        label={t(`tools.${tool.id}`, tool.name)}
+                        running={activeTools.includes(tool.id)}
+                        alwaysOn={alwaysOnTools.includes(tool.id)}
+                        onClick={() => onSelectTool(tool.id)}
+                        onPointerEnter={() => preloadTool(tool.id)}
+                        onFocus={() => preloadTool(tool.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+                {isOpen && sidebarCollapsed && (
+                  <div className="absolute left-full top-0 z-40 ml-2 max-h-[min(24rem,calc(100vh-6rem))] w-56 overflow-y-auto rounded-lg border border-border bg-popover p-2 shadow-tinted-lg" role="list">
+                    <p className="px-2 pb-1.5 text-[11px] font-medium text-muted-foreground">{label}</p>
+                    {tools.map((tool) => (
+                      <ToolItem
+                        key={tool.id}
+                        compact
                         active={activeToolId === tool.id}
                         icon={tool.icon}
                         label={t(`tools.${tool.id}`, tool.name)}
@@ -152,11 +234,6 @@ export function Sidebar({ onSelectTool }: SidebarProps) {
           })}
         </div>
       </nav>
-
-      <div className="mt-3 flex items-center justify-between border-t border-sidebar-border px-2 pt-3 text-[10px] text-muted-foreground">
-        <span className="flex items-center gap-1.5"><ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden="true" />{t('app.offlineMode')}</span>
-        <span className="font-mono">v{__APP_VERSION__}</span>
-      </div>
     </aside>
   );
 }

@@ -41,6 +41,17 @@ describe('工具搜索命令面板', () => {
     expect(screen.getByText(/Try a tool name|尝试搜索工具名称/)).toBeInTheDocument();
   });
 
+  it('支持拼音全拼和分类筛选', () => {
+    render(<SearchDialog onSelectTool={() => undefined} />);
+    act(() => useAppStore.getState().setSearchOpen(true));
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'geshihua' } });
+    expect(screen.getByRole('option', { name: /JSON Formatter|JSON 格式化/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Language Translation|语言翻译/ }));
+    expect(screen.queryByRole('option', { name: /JSON Formatter|JSON 格式化/ })).not.toBeInTheDocument();
+  });
+
   it('空查询时按快捷栏、最近使用和全部工具分组', () => {
     render(<SearchDialog onSelectTool={() => undefined} />);
     act(() => useAppStore.getState().setSearchOpen(true));

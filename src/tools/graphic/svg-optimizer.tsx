@@ -153,10 +153,10 @@ export default function SvgOptimizer() {
               <div
                 className={cn(
                   'rounded-md border p-2 text-center',
-                  stats.savings > 0 && 'border-green-500/50 bg-green-500/10'
+                  stats.savings > 0 && 'border-success/50 bg-success/10'
                 )}
               >
-                <div className="text-sm font-medium text-green-500">-{stats.savings}%</div>
+                <div className="text-sm font-medium text-success">-{stats.savings}%</div>
                 <div className="text-xs text-muted-foreground">节省</div>
               </div>
             </div>
