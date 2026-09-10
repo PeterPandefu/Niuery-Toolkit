@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { ToolLayout } from '@/components/shared/ToolLayout';
 import {
@@ -79,10 +79,6 @@ export default function XmlJsonConverter() {
     void inputEditorRef.current?.unfoldAll();
     void outputEditorRef.current?.unfoldAll();
   };
-
-  useEffect(() => {
-    unfoldAll();
-  }, [input, output, direction, ignoreAttrs]);
 
   return (
     <ToolLayout
