@@ -318,6 +318,12 @@
   @apply h-full w-full overflow-hidden rounded-md border;
 }
 
+/* 折叠箭头使用 Codicon 私用区字形；避免继承 body 的 sans 字体后显示成「?」 */
+.monaco-editor .codicon[class*='codicon-'],
+.monaco-editor .codicon[class*='codicon-']::before {
+  font-family: codicon !important;
+}
+
 /* Markdown 预览 - 代码样式
  * 排版插件会为 pre 设置浅色代码文本，而此处使用的是浅色背景。
  * 显式使用主题前景色，避免代码块和行内代码出现低对比度或异常配色。

@@ -18,6 +18,7 @@ import cpp from 'highlight.js/lib/languages/cpp';
 import taskLists from 'markdown-it-task-list';
 import { useTranslation } from 'react-i18next';
 import { useResolvedTheme } from '@/hooks/use-theme';
+import { getMermaid } from '@/lib/mermaid';
 import { getThemeTokens } from '@/lib/theme';
 import { useAppStore } from '@/store/app-store';
 
@@ -67,7 +68,6 @@ interface MermaidLabels {
   error: string;
 }
 
-let mermaidPromise: Promise<typeof import('mermaid').default> | null = null;
 let diagramSequence = 0;
 
 function getMermaidLabels(locale?: string): MermaidLabels {
@@ -82,11 +82,6 @@ function createMermaidPlaceholder(source: string): string {
   // `<pre><code class="language-mermaid">`。显式返回一个可控的代码块，
   // 这样 Mermaid 预览不会继承普通代码块的深色背景和内边距。
   return `<pre class="mermaid-block"><code><section class="mermaid-diagram" data-mermaid-source="${escapeHtml(source)}" aria-busy="true"><span class="text-sm text-muted-foreground">正在渲染 Mermaid 图表…</span></section></code></pre>`;
-}
-
-async function getMermaid() {
-  mermaidPromise ??= import('mermaid').then(({ default: mermaid }) => mermaid);
-  return mermaidPromise;
 }
 
 function readThemeColor(variable: string, fallback: string): string {

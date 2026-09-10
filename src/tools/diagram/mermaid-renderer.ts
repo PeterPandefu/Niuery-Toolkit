@@ -1,12 +1,7 @@
+import { getMermaid } from '@/lib/mermaid';
 import type { DiagramRenderResult } from './diagram-editor';
 
-let mermaidPromise: Promise<typeof import('mermaid').default> | null = null;
 let renderSequence = 0;
-
-async function getMermaid() {
-  mermaidPromise ??= import('mermaid').then(({ default: mermaid }) => mermaid);
-  return mermaidPromise;
-}
 
 export async function renderMermaidDiagram(
   source: string,

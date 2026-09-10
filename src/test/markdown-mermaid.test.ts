@@ -5,9 +5,14 @@ import { generateExportHtml } from '@/lib/markdown-utils';
 
 const initialize = vi.fn();
 const render = vi.fn();
+const registerExternalDiagrams = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('mermaid', () => ({
-  default: { initialize, render },
+  default: { initialize, render, registerExternalDiagrams },
+}));
+
+vi.mock('@mermaid-js/mermaid-zenuml', () => ({
+  default: { id: 'zenuml' },
 }));
 
 import { Preview, renderMarkdown } from '@/components/markdown/Preview';
@@ -30,6 +35,7 @@ describe('Mermaid Markdown 渲染', () => {
       theme: 'dark',
       themeVariables: expect.objectContaining({ background: expect.any(String), textColor: expect.any(String) }),
     }));
+    expect(registerExternalDiagrams).toHaveBeenCalledWith([{ id: 'zenuml' }]);
     expect(render).toHaveBeenCalledWith(expect.stringMatching(/^niuery-mermaid-\d+$/), 'flowchart TD\n  A --> B\n', expect.any(HTMLElement));
     expect(html).toContain('<svg data-mermaid="flowchart"');
     expect(html).toContain('<pre class="mermaid-block"><code>');

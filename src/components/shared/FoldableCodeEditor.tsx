@@ -64,7 +64,11 @@ export const FoldableCodeEditor = forwardRef<FoldableCodeEditorHandle, FoldableC
           automaticLayout: true,
           tabSize,
           folding: true,
+          foldingStrategy: 'auto',
           showFoldingControls: 'always',
+          unfoldOnClickAfterEndOfLine: true,
+          guides: { indentation: true, bracketPairs: true },
+          bracketPairColorization: { enabled: true },
           placeholder,
         }}
       />

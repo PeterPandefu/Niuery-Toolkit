@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import yaml from 'js-yaml';
 import { ToolLayout } from '@/components/shared/ToolLayout';
 import {
@@ -81,10 +81,6 @@ author:
     void inputEditorRef.current?.unfoldAll();
     void outputEditorRef.current?.unfoldAll();
   };
-
-  useEffect(() => {
-    unfoldAll();
-  }, [input, output, direction, indent]);
 
   return (
     <ToolLayout
