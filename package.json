@@ -14,10 +14,11 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "prepare": "husky",
+    "postinstall": "node scripts/prepare-chromium.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "prepare:chromium": "powershell -ExecutionPolicy Bypass -File scripts/prepare-chromium.ps1"
+    "prepare:chromium": "node scripts/prepare-chromium.mjs --required"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
