@@ -161,6 +161,8 @@ git clone <repo-url> && cd Niuery-Toolkit
 npm install
 ```
 
+HTML / Markdown 导出依赖本地 Chromium Headless Shell（约 270MB，不纳入 Git）。`npm install`、`npm run tauri:dev` 和 `npm run tauri:build` 都会自动准备；也可手动执行 `npm run prepare:chromium`。仅跑前端、不需要这份资源时，可设置 `NIUERY_SKIP_CHROMIUM=1`。
+
 ### 开发
 
 ```bash
