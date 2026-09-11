@@ -73,8 +73,9 @@ export function AtmosphereLayer({ density = 'full', pointerGlow = false }: Atmos
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      // 减少动态效果只停用动画；静态粒子仍应保留氛围反馈。
       const count = enableParticles
-        ? Math.round(atmosphereParticleCount(skin, atmosphere, reducedMotion) * particleScale)
+        ? Math.round(atmosphereParticleCount(skin, atmosphere, false) * particleScale)
         : 0;
       particles = createAtmosphereParticles(skin, width, height, count);
     };
@@ -124,6 +125,7 @@ export function AtmosphereLayer({ density = 'full', pointerGlow = false }: Atmos
         frame = window.requestAnimationFrame(tick);
       } else {
         context.clearRect(0, 0, width, height);
+        if (enableParticles) drawAtmosphereParticles(context, particles, skin);
       }
     };
 
