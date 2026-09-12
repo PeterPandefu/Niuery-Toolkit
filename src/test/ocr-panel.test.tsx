@@ -52,6 +52,14 @@ describe('OcrPanel', () => {
     vi.unstubAllGlobals();
   });
 
+  it('空态只提供选择文件和语言，不展示开始识别', () => {
+    render(<OcrPanel />);
+
+    expect(screen.getByRole('button', { name: '选择文件' })).toBeInTheDocument();
+    expect(screen.getByLabelText('识别语言')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '开始识别' })).not.toBeInTheDocument();
+  });
+
   it('选择图片后显示预览，并在移除图片时释放对象 URL', async () => {
     const createObjectURL = vi.fn().mockReturnValue('blob:ocr-preview');
     const revokeObjectURL = vi.fn();

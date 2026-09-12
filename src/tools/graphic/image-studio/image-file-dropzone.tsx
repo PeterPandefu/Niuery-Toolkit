@@ -75,20 +75,24 @@ export function ImageFileDropzone({ files, onChange, multiple = false, accept = 
     }
   };
 
+  const importActions = (
+    <>
+      <Button size="sm" variant="outline" onClick={importLatest} disabled={!isTauri || busy} title={isTauri ? '导入最新图片历史记录' : '仅桌面端可用'}>
+        {busy ? <Loader2 className="animate-spin" /> : <Clipboard />}
+        导入最新图片
+      </Button>
+      <Button size="sm" variant="ghost" onClick={openHistory} disabled={!isTauri || busy} title={isTauri ? '选择最近的图片历史记录' : '仅桌面端可用'}>
+        <History />
+        历史图片
+      </Button>
+      {!isTauri && <span className="text-xs text-muted-foreground">剪贴板历史仅桌面端可用</span>}
+    </>
+  );
+
   return (
     <>
-      <FileDropzone files={files} onChange={onChange} multiple={multiple} accept={accept} hint={hint} />
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" onClick={importLatest} disabled={!isTauri || busy} title={isTauri ? '导入最新图片历史记录' : '仅桌面端可用'}>
-          {busy ? <Loader2 className="animate-spin" /> : <Clipboard />}
-          导入最新图片
-        </Button>
-        <Button size="sm" variant="ghost" onClick={openHistory} disabled={!isTauri || busy} title={isTauri ? '选择最近的图片历史记录' : '仅桌面端可用'}>
-          <History />
-          历史图片
-        </Button>
-        {!isTauri && <span className="text-xs text-muted-foreground">剪贴板历史仅桌面端可用</span>}
-      </div>
+      <FileDropzone files={files} onChange={onChange} multiple={multiple} accept={accept} hint={hint} footer={files.length === 0 ? importActions : undefined} />
+      {files.length > 0 ? <div className="flex flex-wrap items-center gap-2">{importActions}</div> : null}
 
       {historyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="选择历史图片">

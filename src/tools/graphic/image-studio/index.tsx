@@ -51,32 +51,38 @@ type FeatureId =
 interface Feature {
   id: FeatureId;
   name: string;
+  shortName?: string;
   icon: ComponentType<{ className?: string }>;
   desc: string;
 }
 
 const EDIT_FEATURES: Feature[] = [
-  { id: 'compress', name: '图片压缩', icon: Minimize2, desc: '调整质量与目标体积，支持批量' },
-  { id: 'convert', name: '格式转换', icon: Repeat, desc: 'PNG / JPEG / WebP 互转' },
-  { id: 'resize', name: '修改尺寸', icon: Maximize2, desc: '按宽高缩放，可锁定比例' },
-  { id: 'watermark', name: '添加水印', icon: Stamp, desc: '文字水印，支持平铺与旋转' },
-  { id: 'rounded', name: '添加圆角', icon: Radius, desc: '为图片四角添加圆角' },
-  { id: 'padding', name: '补边留白', icon: Expand, desc: '四周添加留白背景' },
+  { id: 'compress', name: '图片压缩', shortName: '压缩', icon: Minimize2, desc: '调整质量与目标体积，支持批量' },
+  { id: 'convert', name: '格式转换', shortName: '转换', icon: Repeat, desc: 'PNG / JPEG / WebP 互转' },
+  { id: 'resize', name: '修改尺寸', shortName: '尺寸', icon: Maximize2, desc: '按宽高缩放，可锁定比例' },
+  { id: 'watermark', name: '添加水印', shortName: '水印', icon: Stamp, desc: '文字水印，支持平铺与旋转' },
+  { id: 'rounded', name: '添加圆角', shortName: '圆角', icon: Radius, desc: '为图片四角添加圆角' },
+  { id: 'padding', name: '补边留白', shortName: '留白', icon: Expand, desc: '四周添加留白背景' },
   { id: 'crop', name: '裁剪', icon: Crop, desc: '按比例或自定义尺寸居中裁剪' },
   { id: 'rotate', name: '旋转', icon: RotateCw, desc: '任意角度旋转' },
   { id: 'flip', name: '翻转', icon: FlipHorizontal, desc: '水平 / 垂直翻转' },
-  { id: 'ocr', name: '图片 OCR', icon: ScanText, desc: '本地识别图片中的简体中文和英文文字' },
 ];
 
 const MERGE_FEATURES: Feature[] = [
-  { id: 'merge-image', name: '合并为图片', icon: Layers, desc: '多张图片拼接为一张' },
-  { id: 'merge-pdf', name: '合并为 PDF', icon: FileStack, desc: '每张图片作为 PDF 的一页' },
-  { id: 'merge-gif', name: '合并为 GIF', icon: Film, desc: '多张图片合成动图' },
+  { id: 'merge-image', name: '合并为图片', shortName: '图片', icon: Layers, desc: '多张图片拼接为一张' },
+  { id: 'merge-pdf', name: '合并为 PDF', shortName: 'PDF', icon: FileStack, desc: '每张图片作为 PDF 的一页' },
+  { id: 'merge-gif', name: '合并为 GIF', shortName: 'GIF', icon: Film, desc: '多张图片合成动图' },
 ];
 
 const CUTOUT_FEATURES: Feature[] = [
   { id: 'cutout', name: '手动裁剪', icon: Eraser, desc: '画笔涂抹抠图，输出透明背景 PNG' },
 ];
+
+const OCR_FEATURES: Feature[] = [
+  { id: 'ocr', name: '图片 OCR', icon: ScanText, desc: '本地识别图片中的简体中文和英文文字' },
+];
+
+const ALL_FEATURES = [...EDIT_FEATURES, ...MERGE_FEATURES, ...CUTOUT_FEATURES, ...OCR_FEATURES];
 
 const PANELS: Record<FeatureId, ComponentType> = {
   compress: CompressPanel,
@@ -95,11 +101,11 @@ const PANELS: Record<FeatureId, ComponentType> = {
   cutout: CutoutPanel,
 };
 
-/** 图片处理工具箱：顶部功能分段 + 预览/属性工作台 */
+/** 图片处理工具箱：分类页签 + 预览/属性工作台 */
 export default function ImageStudio() {
   const log = useToolLogger('image-studio');
   const [active, setActive] = useState<FeatureId>('compress');
-  const activeFeature = [...EDIT_FEATURES, ...MERGE_FEATURES, ...CUTOUT_FEATURES].find((f) => f.id === active)!;
+  const activeFeature = ALL_FEATURES.find((f) => f.id === active)!;
 
   const handleSelect = (id: FeatureId) => {
     if (id === active) return;
@@ -111,25 +117,31 @@ export default function ImageStudio() {
     <div className="flex h-full min-h-0 flex-col">
       <FeatureRail
         ariaLabel="图片操作"
+        layout="categories"
         active={active}
         onSelect={handleSelect}
         groups={[
-          { title: '图片编辑', features: EDIT_FEATURES },
-          { title: '图片合并', features: MERGE_FEATURES },
+          { title: '编辑', features: EDIT_FEATURES },
+          { title: '合并', features: MERGE_FEATURES },
           { title: '抠图', features: CUTOUT_FEATURES },
+          { title: '识别', features: OCR_FEATURES },
         ]}
       />
       <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
-        <header className="mb-4">
-          <h2 className="text-base font-semibold">{activeFeature.name}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">{activeFeature.desc}</p>
-        </header>
-        {Object.entries(PANELS).map(([id, Panel]) => (
-          <div key={id} className={id === active ? 'block' : 'hidden'} aria-hidden={id !== active}>
-            <Panel />
+        <div className="flex min-h-full flex-col">
+          <header className="mb-4">
+            <h2 className="text-base font-semibold">{activeFeature.name}</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">{activeFeature.desc}</p>
+          </header>
+          {Object.entries(PANELS).map(([id, Panel]) => (
+            <div key={id} className={id === active ? 'block' : 'hidden'} aria-hidden={id !== active}>
+              <Panel />
+            </div>
+          ))}
+          <div className="mt-auto pt-6">
+            <PrivacyNote />
           </div>
-        ))}
-        <PrivacyNote />
+        </div>
       </main>
     </div>
   );
