@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { File as FileIcon, Plus, ShieldCheck, Upload, X } from 'lucide-react';
@@ -10,10 +10,11 @@ interface FileDropzoneProps {
   multiple?: boolean;
   accept?: string;
   hint?: string;
+  footer?: ReactNode;
 }
 
 /** 虚线拖放区：点击选择 + 拖入文件，附已选文件列表 */
-export function FileDropzone({ files, onChange, multiple = false, accept = '.pdf', hint }: FileDropzoneProps) {
+export function FileDropzone({ files, onChange, multiple = false, accept = '.pdf', hint, footer }: FileDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = (list: FileList | null) => {
@@ -36,6 +37,7 @@ export function FileDropzone({ files, onChange, multiple = false, accept = '.pdf
         }}
       />
       <div
+        data-dropzone
         className="flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border p-6 text-center transition-colors hover:border-primary/50 hover:bg-muted/40"
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
@@ -62,6 +64,15 @@ export function FileDropzone({ files, onChange, multiple = false, accept = '.pdf
           }
           className="py-2"
         />
+        {footer ? (
+          <div
+            className="flex flex-wrap items-center justify-center gap-2"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+          >
+            {footer}
+          </div>
+        ) : null}
       </div>
 
       {files.length > 0 && (
@@ -101,7 +112,7 @@ export function PrivacyNote() {
 }
 
 /** 选项行：左标签右控件 */
-export function OptionRow({ label, children }: { label: string; children: React.ReactNode }) {
+export function OptionRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[90px_1fr] items-center gap-3">
       <span className="text-xs text-muted-foreground">{label}</span>

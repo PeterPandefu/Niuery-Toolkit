@@ -115,8 +115,19 @@ export function OcrPanel() {
     log.info('OCR 结果已导出', { textLength: result.length });
   };
 
+  const languageSelect = (
+    <Select aria-label="识别语言" value={language} onChange={(event) => setLanguage(event.target.value as OcrLanguage)} options={LANGUAGE_OPTIONS} className="h-8" />
+  );
+
   return (
     <WorkbenchSplit
+      empty={files.length === 0}
+      emptyFooter={
+        <>
+          <span className="text-xs text-muted-foreground">识别语言</span>
+          <div className="w-[11.5rem]">{languageSelect}</div>
+        </>
+      }
       preview={
         <>
           <ImageFileDropzone files={files} onChange={setFiles} accept="image/png,image/jpeg,image/webp,image/bmp" hint="支持 PNG、JPEG、WebP、BMP；单次识别一张图片" />
@@ -133,9 +144,7 @@ export function OcrPanel() {
       }
       properties={
         <>
-          <OptionRow label="识别语言">
-            <Select value={language} onChange={(event) => setLanguage(event.target.value as OcrLanguage)} options={LANGUAGE_OPTIONS} className="h-8" />
-          </OptionRow>
+          <OptionRow label="识别语言">{languageSelect}</OptionRow>
           <Button onClick={handleRecognize} disabled={busy || files.length === 0}>
             {busy ? <Loader2 className="animate-spin" /> : <Check />}
             开始识别
