@@ -132,6 +132,7 @@ export interface AppState {
   skin: SkinId;
   atmosphere: AtmosphereIntensity;
   pointerEffect: PointerEffect;
+  mascotEnabled: boolean;
   activeCategory: ToolCategory | null;
   activeToolId: string | null;
 }

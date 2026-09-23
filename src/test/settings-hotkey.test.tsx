@@ -44,6 +44,8 @@ vi.mock('@/hooks/use-theme', () => ({
     setAtmosphere: vi.fn(),
     pointerEffect: 'glow',
     setPointerEffect: vi.fn(),
+    mascotEnabled: true,
+    setMascotEnabled: vi.fn(),
     scheme: 'light',
     monacoTheme: 'niuery-forge-light',
   }),

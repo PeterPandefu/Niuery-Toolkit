@@ -23,15 +23,18 @@ function Toggle({
   checked,
   onChange,
   disabled,
+  label,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  label?: string;
 }) {
   return (
     <button
       role="switch"
       aria-checked={checked}
+      aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
@@ -153,7 +156,7 @@ function HotkeyRecorder({
 
 function AppearanceSettings() {
   const { t } = useTranslation();
-  const { theme, setTheme, skin, setSkin, atmosphere, setAtmosphere, pointerEffect: storedPointerEffect, setPointerEffect, resetAppearance, scheme } = useTheme();
+  const { theme, setTheme, skin, setSkin, atmosphere, setAtmosphere, pointerEffect: storedPointerEffect, setPointerEffect, mascotEnabled, setMascotEnabled, resetAppearance, scheme } = useTheme();
   const pointerEffect: PointerEffect = storedPointerEffect === 'off' || storedPointerEffect === 'tassel' || storedPointerEffect === 'glow'
     ? storedPointerEffect
     : DEFAULT_POINTER_EFFECT;
@@ -242,7 +245,15 @@ function AppearanceSettings() {
           <h3 className="text-sm font-semibold text-foreground">{t('theme.atmosphere')}</h3>
           <p className="mt-0.5 text-[11px] text-muted-foreground">{t('theme.atmosphereDesc')}</p>
         </div>
-        <Toggle checked={atmosphere === 'on'} onChange={(enabled) => setAtmosphere(enabled ? 'on' : 'off')} />
+        <Toggle checked={atmosphere === 'on'} onChange={(enabled) => setAtmosphere(enabled ? 'on' : 'off')} label={t('theme.atmosphere')} />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-foreground">{t('theme.mascot')}</h3>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{t('theme.mascotDesc')}</p>
+        </div>
+        <Toggle checked={mascotEnabled} onChange={setMascotEnabled} label={t('theme.mascot')} />
       </div>
 
       <div>

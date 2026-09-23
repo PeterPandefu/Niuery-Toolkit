@@ -24,6 +24,7 @@ describe('外观设置', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /外观|Appearance/ }));
     expect(screen.getByText(/指针特效|Pointer effect/)).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: /吉祥物|Mascot/ })).toBeChecked();
     expect(screen.getByText(/流苏|Tassel/)).toBeInTheDocument();
     expect(screen.getByText(/光晕|Glow/)).toBeInTheDocument();
   });

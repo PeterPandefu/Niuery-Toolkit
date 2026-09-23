@@ -37,15 +37,18 @@ describe('useAppStore', () => {
       useAppStore.getState().setTheme('dark');
       useAppStore.getState().setAtmosphere('on');
       useAppStore.getState().setPointerEffect('tassel');
+      useAppStore.getState().setMascotEnabled(false);
       expect(useAppStore.getState().skin).toBe('ocean');
       expect(useAppStore.getState().atmosphere).toBe('on');
       expect(useAppStore.getState().pointerEffect).toBe('tassel');
+      expect(useAppStore.getState().mascotEnabled).toBe(false);
 
       useAppStore.getState().resetAppearance();
       expect(useAppStore.getState().skin).toBe('forge');
       expect(useAppStore.getState().theme).toBe('system');
       expect(useAppStore.getState().atmosphere).toBe('on');
       expect(useAppStore.getState().pointerEffect).toBe('glow');
+      expect(useAppStore.getState().mascotEnabled).toBe(true);
     });
 
     it('defaults atmosphere to on and persists it', () => {

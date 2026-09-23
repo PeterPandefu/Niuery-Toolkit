@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { getAllTools, getAvailableCategories, getToolById, getToolsByCategory } from '@/registry/tool-registry';
+import { getAllTools, getToolById } from '@/registry/tool-registry';
 import { getRecentToolIds, useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useTheme } from '@/hooks/use-theme';
@@ -11,10 +11,11 @@ import { LocalizedToolErrorBoundary } from '@/components/shared/ToolErrorBoundar
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ToolCapabilityNotice } from '@/components/shared/ToolCapabilityNotice';
 import { openTool } from '@/lib/tool-navigation';
-import { Activity, ArrowUpRight, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, ShieldCheck, Sun } from 'lucide-react';
+import { ArrowUpRight, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, Sun } from 'lucide-react';
 import { markPerformance, measurePerformance } from '@/lib/performance-diagnostics';
 import { AtmosphereLayer } from '@/components/layout/SkinAtmosphere';
 import { WindowControls } from '@/components/layout/AppTitleBar';
+import { Mascot } from '@/components/mascot/Mascot';
 
 interface ToolPanelProps {
   toolId: string | null;
@@ -42,11 +43,10 @@ function ToolLoadTelemetry({ toolId }: { toolId: string }) {
 function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void }) {
   const { t } = useTranslation();
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
-  const setActiveCategory = useAppStore((s) => s.setActiveCategory);
   const pinnedTools = useAppStore((s) => s.pinnedTools);
   const recentToolUsage = useAppStore((s) => s.recentToolUsage);
+  const mascotEnabled = useAppStore((s) => s.mascotEnabled) !== false;
   const allTools = useMemo(() => getAllTools(), []);
-  const categories = useMemo(() => getAvailableCategories(), []);
 
   const recentTools = useMemo(
     () => getRecentToolIds(recentToolUsage, 6).map((id) => allTools.find((tool) => tool.id === id)).filter(Boolean),
@@ -59,9 +59,9 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
   );
 
   return (
-    <div className="app-workbench relative h-full overflow-y-auto">
-      <div className="mx-auto grid w-full max-w-6xl gap-6 px-5 py-6 xl:grid-cols-[minmax(0,1fr)_240px] xl:px-8 xl:py-8">
-        <div>
+    <div className="app-workbench relative h-full overflow-hidden">
+      <div className={cn('mx-auto grid h-full w-full max-w-6xl', mascotEnabled && 'lg:grid-cols-[minmax(0,1fr)_15.5rem] lg:gap-x-8 xl:grid-cols-[minmax(0,1fr)_18rem]')}>
+        <div className="min-h-0 overflow-y-auto px-5 py-6 xl:px-8 xl:py-8">
           <section className="border-b border-border pb-6">
             <h1 className="max-w-2xl font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">
               {t('app.welcome')}
@@ -69,7 +69,7 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
             <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">{t('app.welcomeDesc')}</p>
             <button
               onClick={() => setSearchOpen(true)}
-              className="group mt-5 flex min-h-11 w-full max-w-xl items-center gap-3 rounded-lg border border-border bg-card px-3.5 text-left shadow-tinted-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="group mt-5 flex min-h-11 w-full max-w-xl cursor-pointer items-center gap-3 rounded-lg border border-border bg-card px-3.5 text-left shadow-tinted-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/12 text-primary"><Search className="h-4 w-4" /></span>
               <span className="flex-1 text-sm text-muted-foreground">{t('app.searchHint', { count: allTools.length })}</span>
@@ -131,23 +131,11 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
             )}
           </section>
         </div>
-
-        <aside className="self-start rounded-lg border border-border bg-card p-4 shadow-tinted-sm xl:sticky xl:top-4" aria-label="工具概览">
-          <div className="flex items-center gap-2 text-primary"><Activity className="h-4 w-4" /><span className="text-sm font-medium">{t('app.workspaceOverview')}</span></div>
-          <div className="mt-4 border-y border-border py-4">
-            <p className="font-heading text-3xl font-semibold tracking-tight text-foreground">{allTools.length}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{t('app.offlineTools')}</p>
-          </div>
-          <div className="mt-3 space-y-0.5">
-            {categories.map((category) => (
-              <button key={category} onClick={() => setActiveCategory(category)} className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                <span>{t(`categories.${category}`)}</span>
-                <span className="font-mono text-[11px] text-primary">{getToolsByCategory(category).length}</span>
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 flex items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" aria-hidden="true" /> {t('app.localProcessing')}</div>
-        </aside>
+        {mascotEnabled && (
+          <aside className="relative hidden min-h-0 lg:block" aria-label={t('theme.mascot')}>
+            <Mascot className="absolute inset-y-6 right-5 left-0 xl:inset-y-8 xl:right-8" />
+          </aside>
+        )}
       </div>
     </div>
   );
