@@ -169,4 +169,12 @@ describe('欢迎页吉祥物', () => {
     renderWelcome();
     expect(screen.queryByRole('button', { name: '逗一逗牛儿' })).not.toBeInTheDocument();
   });
+
+  it('欢迎页活动区随窗口伸展，而不是锁在固定列宽里', () => {
+    renderWelcome();
+    const grid = document.querySelector('[data-welcome-grid]');
+    expect(grid?.className).toContain('grid-rows-[minmax(0,1fr)]');
+    expect(grid?.className).toContain('minmax(18rem,1fr)');
+    expect(grid?.className).toContain('lg:max-w-none');
+  });
 });
