@@ -1,5 +1,6 @@
 use base64::Engine;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -228,6 +229,10 @@ pub struct ClipboardHistoryState {
     pub config_dir: Mutex<PathBuf>,
     /// 用于防止监控线程与手动复制操作冲突
     pub clipboard_lock: Mutex<()>,
+    /// 本进程刚写入剪贴板。下一次监控只更新基准，避免把这次复制再记成一条新记录。
+    ignore_own_write: Mutex<bool>,
+    /// 图片文件内容哈希，避免重复复制时反复读取大图。
+    image_hashes: Mutex<HashMap<String, String>>,
 }
 
 impl Default for ClipboardHistoryState {
@@ -236,6 +241,8 @@ impl Default for ClipboardHistoryState {
             entries: Mutex::new(Vec::new()),
             config_dir: Mutex::new(PathBuf::from(".")),
             clipboard_lock: Mutex::new(()),
+            ignore_own_write: Mutex::new(false),
+            image_hashes: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -402,6 +409,10 @@ pub fn start_clipboard_monitor(app: AppHandle) {
 
             let state = app.state::<ClipboardHistoryState>();
             let _guard = state.clipboard_lock.lock().unwrap();
+            let ignore_own_write = {
+                let mut flag = state.ignore_own_write.lock().unwrap();
+                std::mem::take(&mut *flag)
+            };
 
             let config_dir = state.config_dir.lock().unwrap().clone();
 
@@ -418,8 +429,11 @@ pub fn start_clipboard_monitor(app: AppHandle) {
                         let hash = hash_str(&joined);
 
                         if last_files_hash.as_deref() != Some(&hash) {
-                            last_files_hash = Some(hash.clone());
+                            last_files_hash = Some(hash);
                             last_text_hash = None;
+                            if ignore_own_write {
+                                continue;
+                            }
 
                             let preview = if paths.len() == 1 {
                                 paths[0].clone()
@@ -455,17 +469,11 @@ pub fn start_clipboard_monitor(app: AppHandle) {
                     let hash = hash_str(&text);
                     if last_text_hash.as_deref() != Some(&hash) {
                         last_text_hash = Some(hash);
+                        if ignore_own_write {
+                            continue;
+                        }
 
-                        let truncated = if text.len() > MAX_TEXT_SIZE {
-                            let mut end = MAX_TEXT_SIZE;
-                            while !text.is_char_boundary(end) {
-                                end -= 1;
-                            }
-                            text[..end].to_string()
-                        } else {
-                            text.clone()
-                        };
-
+                        let truncated = truncate_clipboard_text(&text);
                         let preview: String = text.chars().take(100).collect();
 
                         let entry = ClipboardEntry {
@@ -489,6 +497,9 @@ pub fn start_clipboard_monitor(app: AppHandle) {
                 let hash = hash_bytes(&img.bytes);
                 if last_image_hash.as_deref() != Some(&hash) {
                     last_image_hash = Some(hash);
+                    if ignore_own_write {
+                        continue;
+                    }
 
                     let filename = save_image(&config_dir, &img.bytes, img.width, img.height);
 
@@ -544,32 +555,167 @@ pub fn record_startup_clipboard_image(app: &AppHandle) {
     add_entry(app, &config_dir, entry);
 }
 
-/// 添加条目到历史并持久化 + 发送事件
+fn truncate_clipboard_text(text: &str) -> String {
+    if text.len() <= MAX_TEXT_SIZE {
+        return text.to_string();
+    }
+    let mut end = MAX_TEXT_SIZE;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text[..end].to_string()
+}
+
+fn mark_own_write(state: &ClipboardHistoryState) {
+    *state.ignore_own_write.lock().unwrap() = true;
+}
+
+fn cached_image_hash(
+    config_dir: &PathBuf,
+    cache: &mut HashMap<String, String>,
+    filename: &str,
+) -> Option<String> {
+    if let Some(hash) = cache.get(filename) {
+        return Some(hash.clone());
+    }
+    let bytes = std::fs::read(images_dir(config_dir).join(filename)).ok()?;
+    let hash = hash_bytes(&bytes);
+    cache.insert(filename.to_string(), hash.clone());
+    Some(hash)
+}
+
+fn images_match(
+    config_dir: &PathBuf,
+    cache: &mut HashMap<String, String>,
+    left: Option<&str>,
+    right: Option<&str>,
+) -> bool {
+    let (Some(left), Some(right)) = (left, right) else {
+        return false;
+    };
+    if left == right {
+        return true;
+    }
+    let dir = images_dir(config_dir);
+    let left_len = std::fs::metadata(dir.join(left))
+        .ok()
+        .map(|meta| meta.len());
+    let right_len = std::fs::metadata(dir.join(right))
+        .ok()
+        .map(|meta| meta.len());
+    if left_len.is_none() || left_len != right_len {
+        return false;
+    }
+    match (
+        cached_image_hash(config_dir, cache, left),
+        cached_image_hash(config_dir, cache, right),
+    ) {
+        (Some(left_hash), Some(right_hash)) => left_hash == right_hash,
+        _ => false,
+    }
+}
+
+fn same_recorded_content(
+    config_dir: &PathBuf,
+    cache: &mut HashMap<String, String>,
+    existing: &ClipboardEntry,
+    incoming: &ClipboardEntry,
+) -> bool {
+    if existing.content_type != incoming.content_type {
+        return false;
+    }
+    match existing.content_type {
+        ClipboardContentType::Text => existing.text == incoming.text,
+        ClipboardContentType::Files => existing.file_paths == incoming.file_paths,
+        ClipboardContentType::Image => images_match(
+            config_dir,
+            cache,
+            existing.image_filename.as_deref(),
+            incoming.image_filename.as_deref(),
+        ),
+    }
+}
+
+/// 相同内容已存在时，把原记录移到顶部并沿用其 id；否则插入新记录。
+/// 返回应通知前端的记录，以及不再需要的重复图片文件名。
+fn place_clipboard_entry(
+    entries: &mut Vec<ClipboardEntry>,
+    config_dir: &PathBuf,
+    cache: &mut HashMap<String, String>,
+    incoming: ClipboardEntry,
+) -> (ClipboardEntry, Option<String>) {
+    if let Some(index) = entries
+        .iter()
+        .position(|existing| same_recorded_content(config_dir, cache, existing, &incoming))
+    {
+        let mut existing = entries.remove(index);
+        let discarded = incoming
+            .image_filename
+            .filter(|filename| existing.image_filename.as_deref() != Some(filename.as_str()));
+        existing.timestamp = incoming.timestamp;
+        entries.insert(0, existing.clone());
+        return (existing, discarded);
+    }
+
+    entries.insert(0, incoming.clone());
+    (incoming, None)
+}
+
+fn publish_entries(
+    app: &AppHandle,
+    config_dir: &PathBuf,
+    entries: &[ClipboardEntry],
+    entry: &ClipboardEntry,
+) {
+    save_history(config_dir, entries);
+    let view = entry_to_event_view(entry, config_dir);
+    let _ = app.emit("clipboard-new-entry", view);
+}
+
+fn remove_image_file(config_dir: &PathBuf, cache: &mut HashMap<String, String>, filename: &str) {
+    let path = images_dir(config_dir).join(filename);
+    let _ = std::fs::remove_file(path);
+    cache.remove(filename);
+}
+
+/// 添加条目到历史并持久化 + 发送事件。内容已存在时只把原记录移到顶部。
 fn add_entry(app: &AppHandle, config_dir: &PathBuf, entry: ClipboardEntry) {
     let state = app.state::<ClipboardHistoryState>();
     let mut entries = state.entries.lock().unwrap();
+    let mut image_hashes = state.image_hashes.lock().unwrap();
 
-    // 插入到头部
-    entries.insert(0, entry.clone());
+    let (recorded, discarded_image) =
+        place_clipboard_entry(&mut entries, config_dir, &mut image_hashes, entry);
+    if let Some(filename) = &discarded_image {
+        remove_image_file(config_dir, &mut image_hashes, filename);
+    }
 
-    // 超出限制时清理最旧的
     if entries.len() > MAX_ENTRIES {
         let removed = entries.split_off(MAX_ENTRIES);
-        // 删除旧图片文件
         for old_entry in &removed {
             if let Some(filename) = &old_entry.image_filename {
-                let path = images_dir(config_dir).join(filename);
-                let _ = std::fs::remove_file(path);
+                remove_image_file(config_dir, &mut image_hashes, filename);
             }
         }
     }
 
-    // 持久化
-    save_history(config_dir, &entries);
+    drop(image_hashes);
+    publish_entries(app, config_dir, &entries, &recorded);
+}
 
-    // 发送事件到前端
-    let view = entry_to_event_view(&entry, config_dir);
-    let _ = app.emit("clipboard-new-entry", view);
+/// 把指定历史记录移到顶部并刷新时间。找不到时返回 false。
+fn promote_entry_by_id(app: &AppHandle, id: &str) -> bool {
+    let state = app.state::<ClipboardHistoryState>();
+    let mut entries = state.entries.lock().unwrap();
+    let Some(index) = entries.iter().position(|entry| entry.id == id) else {
+        return false;
+    };
+    let config_dir = state.config_dir.lock().unwrap().clone();
+    let mut entry = entries.remove(index);
+    entry.timestamp = now_ms();
+    entries.insert(0, entry.clone());
+    publish_entries(app, &config_dir, &entries, &entry);
+    true
 }
 
 // ==================== Tauri Commands ====================
@@ -654,16 +800,28 @@ pub fn get_clipboard_image(app: AppHandle, id: String) -> Result<String, String>
     Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
-/// 复制文本到剪贴板
+/// 复制文本到剪贴板。传入历史 id 时把该条移到顶部，不新建记录。
 #[tauri::command]
-pub fn copy_text_to_clipboard(app: AppHandle, text: String) -> Result<(), String> {
+pub fn copy_text_to_clipboard(
+    app: AppHandle,
+    text: String,
+    id: Option<String>,
+) -> Result<(), String> {
     let state = app.state::<ClipboardHistoryState>();
-    let _guard = state.clipboard_lock.lock().unwrap();
+    {
+        let _guard = state.clipboard_lock.lock().unwrap();
 
-    let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("打开剪贴板失败: {e}"))?;
-    clipboard
-        .set_text(&text)
-        .map_err(|e| format!("写入剪贴板失败: {e}"))?;
+        let mut clipboard =
+            arboard::Clipboard::new().map_err(|e| format!("打开剪贴板失败: {e}"))?;
+        clipboard
+            .set_text(&text)
+            .map_err(|e| format!("写入剪贴板失败: {e}"))?;
+        mark_own_write(&state);
+    }
+
+    if let Some(id) = id.as_deref() {
+        promote_entry_by_id(&app, id);
+    }
     Ok(())
 }
 
@@ -699,33 +857,49 @@ pub fn copy_image_from_history(app: AppHandle, id: String) -> Result<(), String>
         width: w as usize,
         height: h as usize,
     };
-
-    let _guard = state.clipboard_lock.lock().unwrap();
-    let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("打开剪贴板失败: {e}"))?;
-    clipboard
-        .set_image(img_data)
-        .map_err(|e| format!("写入剪贴板失败: {e}"))?;
+    {
+        let _guard = state.clipboard_lock.lock().unwrap();
+        let mut clipboard =
+            arboard::Clipboard::new().map_err(|e| format!("打开剪贴板失败: {e}"))?;
+        clipboard
+            .set_image(img_data)
+            .map_err(|e| format!("写入剪贴板失败: {e}"))?;
+        mark_own_write(&state);
+    }
+    promote_entry_by_id(&app, &id);
 
     Ok(())
 }
 
-/// 复制文件列表到剪贴板
+/// 复制文件列表到剪贴板。传入历史 id 时把该条移到顶部，不新建记录。
 #[tauri::command]
-pub fn copy_files_to_clipboard(app: AppHandle, paths: Vec<String>) -> Result<(), String> {
+pub fn copy_files_to_clipboard(
+    app: AppHandle,
+    paths: Vec<String>,
+    id: Option<String>,
+) -> Result<(), String> {
     let state = app.state::<ClipboardHistoryState>();
-    let _guard = state.clipboard_lock.lock().unwrap();
-
-    #[cfg(target_os = "windows")]
     {
-        let file_paths: Vec<std::path::PathBuf> = paths.iter().map(PathBuf::from).collect();
-        win_clipboard::set_clipboard_files(&file_paths)
+        let _guard = state.clipboard_lock.lock().unwrap();
+
+        #[cfg(target_os = "windows")]
+        {
+            let file_paths: Vec<std::path::PathBuf> = paths.iter().map(PathBuf::from).collect();
+            win_clipboard::set_clipboard_files(&file_paths)?;
+            mark_own_write(&state);
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = (&app, paths);
+            return Err("文件复制仅支持 Windows 平台".to_string());
+        }
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = paths;
-        Err("文件复制仅支持 Windows 平台".to_string())
+    if let Some(id) = id.as_deref() {
+        promote_entry_by_id(&app, id);
     }
+    Ok(())
 }
 
 /// 删除单条历史记录
@@ -794,6 +968,159 @@ mod tests {
 
         let view = entry_to_view(&entry);
         assert!(view.image_thumbnail.is_none());
+
+        let _ = std::fs::remove_dir_all(config_dir);
+    }
+
+    fn text_entry(id: &str, text: &str, timestamp: u64) -> ClipboardEntry {
+        ClipboardEntry {
+            id: id.to_string(),
+            content_type: ClipboardContentType::Text,
+            text: Some(text.to_string()),
+            file_paths: None,
+            image_filename: None,
+            preview: text.to_string(),
+            timestamp,
+        }
+    }
+
+    fn files_entry(id: &str, paths: &[&str], timestamp: u64) -> ClipboardEntry {
+        ClipboardEntry {
+            id: id.to_string(),
+            content_type: ClipboardContentType::Files,
+            text: None,
+            file_paths: Some(paths.iter().map(|path| path.to_string()).collect()),
+            image_filename: None,
+            preview: paths.join("\n"),
+            timestamp,
+        }
+    }
+
+    #[test]
+    fn repeated_text_moves_existing_entry_instead_of_duplicating() {
+        let config_dir = PathBuf::from(".");
+        let mut cache = HashMap::new();
+        let mut entries = vec![
+            text_entry("newer", "beta", 20),
+            text_entry("older", "alpha", 10),
+        ];
+
+        let (placed, discarded) = place_clipboard_entry(
+            &mut entries,
+            &config_dir,
+            &mut cache,
+            text_entry("fresh", "alpha", 30),
+        );
+
+        assert!(discarded.is_none());
+        assert_eq!(entries.len(), 2);
+        assert_eq!(placed.id, "older");
+        assert_eq!(entries[0].id, "older");
+        assert_eq!(entries[0].timestamp, 30);
+        assert_eq!(entries[1].id, "newer");
+    }
+
+    #[test]
+    fn new_text_is_inserted_at_front() {
+        let config_dir = PathBuf::from(".");
+        let mut cache = HashMap::new();
+        let mut entries = vec![text_entry("older", "alpha", 10)];
+
+        let (placed, _) = place_clipboard_entry(
+            &mut entries,
+            &config_dir,
+            &mut cache,
+            text_entry("fresh", "gamma", 30),
+        );
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(placed.id, "fresh");
+        assert_eq!(entries[0].id, "fresh");
+    }
+
+    #[test]
+    fn repeated_files_move_existing_entry() {
+        let config_dir = PathBuf::from(".");
+        let mut cache = HashMap::new();
+        let mut entries = vec![
+            files_entry("newer", &["C:\\other.txt"], 20),
+            files_entry("older", &["C:\\a.txt", "C:\\b.txt"], 10),
+        ];
+
+        let (placed, _) = place_clipboard_entry(
+            &mut entries,
+            &config_dir,
+            &mut cache,
+            files_entry("fresh", &["C:\\a.txt", "C:\\b.txt"], 40),
+        );
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(placed.id, "older");
+        assert_eq!(entries[0].timestamp, 40);
+    }
+
+    #[test]
+    fn repeated_image_reuses_existing_record_and_discards_new_file() {
+        let config_dir =
+            std::env::temp_dir().join(format!("niuery-clipboard-dedup-{}", nanoid::nanoid!(8)));
+        let rgba = image::RgbaImage::from_pixel(8, 8, image::Rgba([9, 8, 7, 255])).into_raw();
+        let original = save_image(&config_dir, &rgba, 8, 8).expect("保存原图失败");
+        let duplicate = save_image(&config_dir, &rgba, 8, 8).expect("保存重复图失败");
+        let different = image::RgbaImage::from_pixel(8, 8, image::Rgba([1, 1, 1, 255])).into_raw();
+        let other = save_image(&config_dir, &different, 8, 8).expect("保存不同图失败");
+
+        let mut cache = HashMap::new();
+        let mut entries = vec![ClipboardEntry {
+            id: "img-old".to_string(),
+            content_type: ClipboardContentType::Image,
+            text: None,
+            file_paths: None,
+            image_filename: Some(original.clone()),
+            preview: "图片 8x8".to_string(),
+            timestamp: 10,
+        }];
+
+        let (placed, discarded) = place_clipboard_entry(
+            &mut entries,
+            &config_dir,
+            &mut cache,
+            ClipboardEntry {
+                id: "img-new".to_string(),
+                content_type: ClipboardContentType::Image,
+                text: None,
+                file_paths: None,
+                image_filename: Some(duplicate.clone()),
+                preview: "图片 8x8".to_string(),
+                timestamp: 50,
+            },
+        );
+
+        assert_eq!(placed.id, "img-old");
+        assert_eq!(discarded.as_deref(), Some(duplicate.as_str()));
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].timestamp, 50);
+        assert_eq!(
+            entries[0].image_filename.as_deref(),
+            Some(original.as_str())
+        );
+
+        let (placed, discarded) = place_clipboard_entry(
+            &mut entries,
+            &config_dir,
+            &mut cache,
+            ClipboardEntry {
+                id: "img-other".to_string(),
+                content_type: ClipboardContentType::Image,
+                text: None,
+                file_paths: None,
+                image_filename: Some(other),
+                preview: "图片 8x8".to_string(),
+                timestamp: 60,
+            },
+        );
+        assert_eq!(placed.id, "img-other");
+        assert!(discarded.is_none());
+        assert_eq!(entries.len(), 2);
 
         let _ = std::fs::remove_dir_all(config_dir);
     }
