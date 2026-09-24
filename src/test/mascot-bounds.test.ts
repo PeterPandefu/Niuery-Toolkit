@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveMascotDrag } from '@/lib/mascot-bounds';
+import { followMascotBounds, mascotHomeX, REST_MASCOT_PLACEMENT, resolveMascotDrag } from '@/lib/mascot-bounds';
 
 const room = { maxX: 68, maxY: 90 };
 
@@ -47,5 +47,28 @@ describe('吉祥物拖动边界', () => {
   it('松手后即使贴着墙也恢复原始宽高', () => {
     const released = resolveMascotDrag(180, 240, room, false);
     expect(released).toMatchObject({ x: 68, y: 90, scaleX: 1, scaleY: 1 });
+  });
+
+  it('窄活动区的休息点仍在中心，变宽后留在右侧车道', () => {
+    expect(mascotHomeX(256, 144)).toBe(0);
+    expect(mascotHomeX(712, 144)).toBe(212);
+  });
+
+  it('活动区变大时保持离右墙和地板的距离', () => {
+    const next = followMascotBounds(
+      { ...REST_MASCOT_PLACEMENT, x: 20, y: 40 },
+      { maxX: 68, maxY: 90 },
+      { maxX: 200, maxY: 240 },
+    );
+    expect(next).toMatchObject({ x: 152, y: 190, scaleX: 1, scaleY: 1 });
+  });
+
+  it('活动区变小时把已经越界的位置夹回来', () => {
+    const next = followMascotBounds(
+      { ...REST_MASCOT_PLACEMENT, x: -60, y: -80 },
+      { maxX: 68, maxY: 90 },
+      { maxX: 20, maxY: 30 },
+    );
+    expect(next).toMatchObject({ x: -20, y: -30 });
   });
 });

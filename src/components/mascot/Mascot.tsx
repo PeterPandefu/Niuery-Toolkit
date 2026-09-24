@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { MascotCorner } from '@/components/mascot/MascotCorner';
 import { MascotRace } from '@/components/mascot/MascotRace';
 import { resolveBubbleShift } from '@/lib/mascot-bubble';
-import { REST_MASCOT_PLACEMENT, resolveMascotDrag, type MascotPlacement } from '@/lib/mascot-bounds';
+import { followMascotBounds, MASCOT_EDGE_INSET, mascotHomeX, REST_MASCOT_PLACEMENT, resolveMascotDrag, type MascotBounds, type MascotPlacement } from '@/lib/mascot-bounds';
 import { mascotCornerVisible } from '@/lib/mascot-corner';
 import { MASCOT_BUBBLE_MS, MASCOT_LINE_KEYS, MASCOT_PLAY_LINE, pickMascotLine } from '@/lib/mascot-lines';
 import { MASCOT_IDLE_MS, driftDuration, stepDrift, stepFall, stepFloat } from '@/lib/mascot-motion';
@@ -40,6 +40,8 @@ export function Mascot({ className }: { className?: string }) {
   const dragStartRef = useRef({ px: 0, py: 0, x: 0, y: 0 });
   const hideTipRef = useRef(0);
   const draggedRef = useRef(false);
+  const userPlacedRef = useRef(false);
+  const boundsRef = useRef<MascotBounds | null>(null);
   const pettingRef = useRef(false);
   const pointerNearRef = useRef(false);
   const [pose, setPose] = useState<Pose>('idle');
@@ -290,10 +292,9 @@ export function Mascot({ className }: { className?: string }) {
     const arena = arenaRef.current;
     const figure = buttonRef.current;
     if (!arena || !figure) return { maxX: 0, maxY: 0 };
-    const inset = 6;
     return {
-      maxX: Math.max(0, (arena.clientWidth - figure.offsetWidth) / 2 - inset),
-      maxY: Math.max(0, (arena.clientHeight - figure.offsetHeight) / 2 - inset),
+      maxX: Math.max(0, (arena.clientWidth - figure.offsetWidth) / 2 - MASCOT_EDGE_INSET),
+      maxY: Math.max(0, (arena.clientHeight - figure.offsetHeight) / 2 - MASCOT_EDGE_INSET),
     };
   };
 
@@ -318,13 +319,31 @@ export function Mascot({ className }: { className?: string }) {
   useEffect(() => {
     const arena = arenaRef.current;
     if (!arena) return;
-    const measure = () => setArenaHeight(arena.clientHeight);
-    measure();
+    const syncArena = () => {
+      setArenaHeight(arena.clientHeight);
+      const figure = buttonRef.current;
+      if (!figure || arena.clientWidth < 16 || arena.clientHeight < 16) return;
+      if (motion !== 'rest' || pettingRef.current) return;
+      const next = readBounds();
+      const previous = boundsRef.current;
+      boundsRef.current = next;
+      const homeX = mascotHomeX(arena.clientWidth, figure.offsetWidth);
+      setPlacement((current) => {
+        const followed = previous ? followMascotBounds(current, previous, next) : current;
+        const x = userPlacedRef.current ? followed.x : homeX;
+        const y = previous ? followed.y : current.y;
+        if (current.x === x && current.y === y) return current;
+        const nextPlacement = { ...current, x, y };
+        placementRef.current = nextPlacement;
+        return nextPlacement;
+      });
+    };
+    syncArena();
     if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(syncArena);
     observer.observe(arena);
     return () => observer.disconnect();
-  }, [playing]);
+  }, [playing, motion]);
 
   useLayoutEffect(() => {
     const arena = arenaRef.current;
@@ -423,7 +442,10 @@ export function Mascot({ className }: { className?: string }) {
           const desiredX = dragStartRef.current.x + event.clientX - dragStartRef.current.px;
           const desiredY = dragStartRef.current.y + event.clientY - dragStartRef.current.py;
           const traveled = Math.hypot(desiredX - dragStartRef.current.x, desiredY - dragStartRef.current.y);
-          if (traveled > 3 || Math.hypot(event.movementX, event.movementY) > 3) draggedRef.current = true;
+          if (traveled > 3 || Math.hypot(event.movementX, event.movementY) > 3) {
+            draggedRef.current = true;
+            userPlacedRef.current = true;
+          }
           setPlacement(resolveMascotDrag(desiredX, desiredY, readBounds()));
         }}
         onPointerUp={() => {

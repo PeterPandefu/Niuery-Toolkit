@@ -32,7 +32,7 @@ export function MascotCorner({ visible }: { visible: boolean }) {
       data-visible={visible ? 'true' : 'false'}
       aria-hidden={visible ? undefined : true}
       className={cn(
-        'pointer-events-none absolute inset-x-0 top-0 z-0 flex flex-col items-center px-4 pt-4 transition-opacity duration-200',
+        'pointer-events-none absolute right-0 top-0 z-0 flex w-full max-w-[18rem] flex-col items-center px-4 pt-4 transition-opacity duration-200',
         visible ? 'opacity-100' : 'opacity-0'
       )}
     >

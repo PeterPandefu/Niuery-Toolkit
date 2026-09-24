@@ -60,8 +60,16 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
 
   return (
     <div className="app-workbench relative h-full overflow-hidden">
-      <div className={cn('mx-auto grid h-full w-full max-w-6xl', mascotEnabled && 'lg:grid-cols-[minmax(0,1fr)_15.5rem] lg:gap-x-8 xl:grid-cols-[minmax(0,1fr)_18rem]')}>
-        <div className="min-h-0 overflow-y-auto px-5 py-6 xl:px-8 xl:py-8">
+      <div
+        data-welcome-grid=""
+        className={cn(
+          'grid h-full min-h-0 w-full grid-rows-[minmax(0,1fr)]',
+          mascotEnabled
+            ? 'mx-auto max-w-6xl lg:mx-0 lg:max-w-none lg:grid-cols-[minmax(0,54.5rem)_minmax(15.5rem,1fr)] lg:gap-x-8 xl:grid-cols-[minmax(0,52rem)_minmax(18rem,1fr)]'
+            : 'mx-auto max-w-6xl',
+        )}
+      >
+        <div className="min-h-0 min-w-0 overflow-y-auto px-5 py-6 xl:px-8 xl:py-8">
           <section className="border-b border-border pb-6">
             <h1 className="max-w-2xl font-heading text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">
               {t('app.welcome')}
@@ -132,7 +140,7 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
           </section>
         </div>
         {mascotEnabled && (
-          <aside className="relative hidden min-h-0 lg:block" aria-label={t('theme.mascot')}>
+          <aside className="relative hidden h-full min-h-0 lg:block" aria-label={t('theme.mascot')}>
             <Mascot className="absolute inset-y-6 right-5 left-0 xl:inset-y-8 xl:right-8" />
           </aside>
         )}
