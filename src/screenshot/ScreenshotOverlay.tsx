@@ -49,6 +49,7 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
   const [ocrImageDataUrl, setOcrImageDataUrl] = useState('');
   const [ocrText, setOcrText] = useState('');
   const [ocrAutoTranslate, setOcrAutoTranslate] = useState(false);
+  const [editToolbarSize, setEditToolbarSize] = useState<{ width: number; height: number } | null>(null);
   /** 长截图捕获间隔（框选阶段配置，确认后锁定） */
   const [longshotIntervalMs, setLongshotIntervalMs] = useState(1000);
   /** 长截图滚动模式：自动滚动（默认）/ 手动滚动，框选阶段配置，确认后锁定 */
@@ -268,6 +269,12 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
   const confirmFreehandRef = useRef(confirmFreehand);
   confirmFreehandRef.current = confirmFreehand;
 
+  const handleEditToolbarSizeChange = useCallback((size: { width: number; height: number }) => {
+    setEditToolbarSize((current) => (
+      current?.width === size.width && current.height === size.height ? current : size
+    ));
+  }, []);
+
   // ── 初始框选 / 手绘（idle 阶段）──────────────────────────
   const handleBgMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -420,12 +427,20 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
   // ── 工具栏位置（选区下方，空间不足则上方）────────────────
   const toolbarPos = useMemo(() => {
     if (!selection) return { x: 0, y: 0 };
-    const TW = longshotMode ? 570 : 530, TH = 42;
-    const tx = Math.max(4, Math.min(selection.x + selection.width / 2 - TW / 2, screenW - TW - 4));
+    const margin = 4;
+    const viewportWidth = Math.min(screenW, window.innerWidth || screenW);
+    const viewportHeight = Math.min(screenH, window.innerHeight || screenH);
+    const estimatedWidth = longshotMode ? 570 : 650;
+    const toolbarWidth = Math.min(editToolbarSize?.width ?? estimatedWidth, viewportWidth - margin * 2);
+    const toolbarHeight = editToolbarSize?.height ?? 42;
+    const maxX = Math.max(margin, viewportWidth - toolbarWidth - margin);
+    const tx = Math.max(margin, Math.min(selection.x + selection.width / 2 - toolbarWidth / 2, maxX));
     const below = selection.y + selection.height + 8;
-    const ty = below + TH < screenH ? below : Math.max(4, selection.y - TH - 8);
+    const maxY = Math.max(margin, viewportHeight - toolbarHeight - margin);
+    const above = selection.y - toolbarHeight - 8;
+    const ty = below <= maxY ? below : above >= margin ? above : Math.max(margin, Math.min(below, maxY));
     return { x: tx, y: ty };
-  }, [selection, screenW, screenH, longshotMode]);
+  }, [editToolbarSize, selection, screenW, screenH, longshotMode]);
 
   const handleSelectionChange = useCallback((nextSelection: SelectionRect) => {
     setSelection(nextSelection);
@@ -598,6 +613,7 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
               <EditToolbar
                 x={toolbarPos.x}
                 y={toolbarPos.y}
+                onSizeChange={handleEditToolbarSizeChange}
                 tool={tool}
                 color={color}
                 strokeWidth={strokeWidth}
