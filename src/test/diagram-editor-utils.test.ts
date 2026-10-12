@@ -15,10 +15,10 @@ describe('diagram editor helpers', () => {
     expect(getDiagramDefaultSource('plantuml')).toContain('@enduml');
   });
 
-  it('clamps preview zoom to the supported 25 to 400 percent range', () => {
+  it('allows unbounded preview zoom while enforcing the 25 percent minimum', () => {
     expect(clampDiagramZoom(0.1)).toBe(0.25);
     expect(clampDiagramZoom(1.5)).toBe(1.5);
-    expect(clampDiagramZoom(8)).toBe(4);
+    expect(clampDiagramZoom(8)).toBe(8);
   });
 
   it('uses the diagram-specific source extensions and MIME types', () => {
