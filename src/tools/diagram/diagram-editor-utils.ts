@@ -2,7 +2,7 @@ export type DiagramKind = 'mermaid' | 'plantuml';
 export type DiagramExportFormat = 'source' | 'svg' | 'png' | 'pdf';
 
 export const DIAGRAM_MIN_ZOOM = 0.25;
-export const DIAGRAM_MAX_ZOOM = 4;
+export const DIAGRAM_MAX_ZOOM = Number.POSITIVE_INFINITY;
 export const DIAGRAM_ZOOM_STEP = 0.25;
 
 const DEFAULT_SOURCES: Record<DiagramKind, string> = {
