@@ -316,7 +316,7 @@ export function Mascot({ className }: { className?: string }) {
     return () => window.clearTimeout(bubbleTimerRef.current);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const arena = arenaRef.current;
     if (!arena) return;
     const syncArena = () => {
@@ -331,7 +331,7 @@ export function Mascot({ className }: { className?: string }) {
       setPlacement((current) => {
         const followed = previous ? followMascotBounds(current, previous, next) : current;
         const x = userPlacedRef.current ? followed.x : homeX;
-        const y = previous ? followed.y : current.y;
+        const y = previous ? followed.y : next.maxY;
         if (current.x === x && current.y === y) return current;
         const nextPlacement = { ...current, x, y };
         placementRef.current = nextPlacement;
