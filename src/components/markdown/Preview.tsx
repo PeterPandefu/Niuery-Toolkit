@@ -1,4 +1,4 @@
-import { memo, useMemo, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { memo, useMemo, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
@@ -21,6 +21,7 @@ import { useResolvedTheme } from '@/hooks/use-theme';
 import { getMermaid } from '@/lib/mermaid';
 import { getThemeTokens } from '@/lib/theme';
 import { useAppStore } from '@/store/app-store';
+import { ImageViewer } from '@/components/media/image-viewer';
 
 // 注册常用语言
 hljs.registerLanguage('javascript', javascript);
@@ -59,6 +60,7 @@ interface MermaidRenderOptions {
   scheme?: ColorScheme;
   locale?: string;
   preserveSourceAttribute?: boolean;
+  interactivePreview?: boolean;
   background?: string;
   foreground?: string;
 }
@@ -66,15 +68,47 @@ interface MermaidRenderOptions {
 interface MermaidLabels {
   diagram: string;
   error: string;
+  previewAction: string;
 }
+
+const MERMAID_PREVIEW_TRIGGER_CLASSES = [
+  'cursor-zoom-in',
+  'focus-visible:outline-none',
+  'focus-visible:ring-2',
+  'focus-visible:ring-ring',
+  'focus-visible:ring-offset-2',
+] as const;
 
 let diagramSequence = 0;
 
 function getMermaidLabels(locale?: string): MermaidLabels {
   if (locale?.toLowerCase().startsWith('zh')) {
-    return { diagram: 'Mermaid 图表', error: 'Mermaid 图表语法错误' };
+    return {
+      diagram: 'Mermaid 图表',
+      error: 'Mermaid 图表语法错误',
+      previewAction: '放大查看 Mermaid 图表',
+    };
   }
-  return { diagram: 'Mermaid diagram', error: 'Mermaid diagram syntax error' };
+  return {
+    diagram: 'Mermaid diagram',
+    error: 'Mermaid diagram syntax error',
+    previewAction: 'Open enlarged Mermaid diagram preview',
+  };
+}
+
+function setMermaidPreviewAction(diagram: HTMLElement, label?: string) {
+  if (!label) {
+    diagram.removeAttribute('role');
+    diagram.removeAttribute('tabindex');
+    diagram.removeAttribute('aria-label');
+    diagram.classList.remove(...MERMAID_PREVIEW_TRIGGER_CLASSES);
+    return;
+  }
+
+  diagram.setAttribute('role', 'button');
+  diagram.tabIndex = 0;
+  diagram.setAttribute('aria-label', label);
+  diagram.classList.add(...MERMAID_PREVIEW_TRIGGER_CLASSES);
 }
 
 function createMermaidPlaceholder(source: string): string {
@@ -153,6 +187,7 @@ export async function renderMermaidInElement(
     scheme = 'light',
     locale,
     preserveSourceAttribute = false,
+    interactivePreview = false,
     background,
     foreground,
   }: MermaidRenderOptions = {},
@@ -174,6 +209,8 @@ export async function renderMermaidInElement(
       diagram.dataset.mermaidRenderedSource === source &&
       (!hasExplicitTheme || diagram.dataset.mermaidRenderedKey === renderKey)
     ) {
+      const hasRenderedSvg = diagram.querySelector('.mermaid-svg svg');
+      setMermaidPreviewAction(diagram, interactivePreview && hasRenderedSvg ? labels.previewAction : undefined);
       continue;
     }
 
@@ -186,6 +223,7 @@ export async function renderMermaidInElement(
       );
       if (isCancelled()) return;
       diagram.innerHTML = `<div class="mermaid-svg" role="img" aria-label="${labels.diagram}">${normalizeMermaidSvg(svg, resolvedBackground)}</div>`;
+      setMermaidPreviewAction(diagram, interactivePreview ? labels.previewAction : undefined);
       diagram.dataset.mermaidRenderedSource = source;
       diagram.dataset.mermaidRenderedKey = renderKey;
       if (!preserveSourceAttribute) diagram.removeAttribute('data-mermaid-source');
@@ -198,6 +236,7 @@ export async function renderMermaidInElement(
       if (isCancelled()) return;
       const message = error instanceof Error ? error.message : String(error);
       diagram.innerHTML = `<div class="mermaid-error" role="alert"><strong>${labels.error}</strong><pre>${escapeHtml(message)}</pre></div>`;
+      setMermaidPreviewAction(diagram);
       diagram.dataset.mermaidRenderedSource = source;
       diagram.dataset.mermaidRenderedKey = renderKey;
       if (!preserveSourceAttribute) diagram.removeAttribute('data-mermaid-source');
@@ -264,10 +303,13 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const markupRef = useRef<HTMLDivElement>(null);
     const isSyncScrolling = useRef(false);
+    const [mermaidPreview, setMermaidPreview] = useState<Blob | null>(null);
     const scheme = useResolvedTheme();
     const skin = useAppStore((state) => state.skin);
     const themeTokens = getThemeTokens(skin, scheme);
     const { i18n } = useTranslation();
+    const locale = i18n.resolvedLanguage ?? i18n.language;
+    const mermaidLabels = getMermaidLabels(locale);
 
     const html = useMemo(() => {
       if (!source.trim()) return '';
@@ -310,13 +352,41 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
     useEffect(() => {
       const el = markupRef.current;
       if (!el) return;
+      const openDiagramPreview = (diagram: HTMLElement | null) => {
+        const svg = diagram?.querySelector('.mermaid-svg svg');
+        if (!svg) return;
+        setMermaidPreview(new Blob([svg.outerHTML], { type: 'image/svg+xml;charset=utf-8' }));
+      };
+      const handleClick = (event: MouseEvent) => {
+        if (!(event.target instanceof Element) || event.target.closest('a')) return;
+        const diagram = event.target.closest<HTMLElement>('.mermaid-diagram[role="button"]');
+        if (diagram && el.contains(diagram)) openDiagramPreview(diagram);
+      };
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        if (!(event.target instanceof HTMLElement) || !event.target.matches('.mermaid-diagram[role="button"]')) return;
+        event.preventDefault();
+        openDiagramPreview(event.target);
+      };
+      el.addEventListener('click', handleClick);
+      el.addEventListener('keydown', handleKeyDown);
+      return () => {
+        el.removeEventListener('click', handleClick);
+        el.removeEventListener('keydown', handleKeyDown);
+      };
+    }, []);
+
+    useEffect(() => {
+      const el = markupRef.current;
+      if (!el) return;
       let cancelled = false;
       void renderMermaidInElement(
         el,
         {
           scheme,
-          locale: i18n.resolvedLanguage ?? i18n.language,
+          locale,
           preserveSourceAttribute: true,
+          interactivePreview: true,
           // 直接使用当前皮肤令牌，避免根节点主题副作用尚未完成时读到旧 CSS 变量。
           background: `hsl(${themeTokens.background})`,
           foreground: `hsl(${themeTokens.foreground})`,
@@ -326,7 +396,7 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
       return () => {
         cancelled = true;
       };
-    }, [html, i18n.language, i18n.resolvedLanguage, scheme, skin, themeTokens.background, themeTokens.foreground]);
+    }, [html, locale, scheme, skin, themeTokens.background, themeTokens.foreground]);
 
     const handleScroll = () => {
       if (isSyncScrolling.current || !onScroll) return;
@@ -342,6 +412,16 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
         onScroll={handleScroll}
       >
         <MarkdownMarkup ref={markupRef} html={html} />
+        {mermaidPreview && (
+          <ImageViewer
+            source={mermaidPreview}
+            alt={mermaidLabels.diagram}
+            title={mermaidLabels.diagram}
+            mode="dialog"
+            wheelZoom="always"
+            onClose={() => setMermaidPreview(null)}
+          />
+        )}
       </div>
     );
   }

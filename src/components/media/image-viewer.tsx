@@ -157,6 +157,7 @@ export function ImageViewer({
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(fullscreen);
   const [dragging, setDragging] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; x: number; y: number; offset: Offset } | null>(null);
 
   const resetViewport = useCallback((fit: boolean) => {
@@ -220,11 +221,22 @@ export function ImageViewer({
     }
   };
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (wheelZoom === 'ctrl' && !event.ctrlKey) return;
-    event.preventDefault();
-    changeZoom(event.deltaY < 0 ? IMAGE_VIEWER_ZOOM_STEP : -IMAGE_VIEWER_ZOOM_STEP);
-  };
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (wheelZoom === 'ctrl' && !event.ctrlKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      changeZoom(event.deltaY < 0 ? IMAGE_VIEWER_ZOOM_STEP : -IMAGE_VIEWER_ZOOM_STEP);
+    };
+
+    // React delegates wheel events with passive listeners, so preventDefault in
+    // a React onWheel handler cannot stop the containing Markdown pane scrolling.
+    viewport.addEventListener('wheel', handleWheel, { passive: false });
+    return () => viewport.removeEventListener('wheel', handleWheel);
+  }, [changeZoom, wheelZoom]);
 
   const background = controlledBackground ?? selectedBackground;
   const customBackgroundColor = controlledCustomBackgroundColor ?? selectedCustomBackgroundColor;
@@ -248,6 +260,7 @@ export function ImageViewer({
 
   const viewport = (
     <div
+      ref={viewportRef}
       role="region"
       aria-label="图片预览区域"
       className={`relative min-h-0 min-w-0 flex-1 overflow-hidden p-4 ${className ?? ''}`}
@@ -255,7 +268,6 @@ export function ImageViewer({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      onWheel={handleWheel}
       style={{ backgroundColor, cursor: dragging ? 'grabbing' : 'grab' }}
     >
       {url ? (
