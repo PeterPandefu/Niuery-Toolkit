@@ -33,11 +33,11 @@ async function openMarkdownEditor(page: Page, content: string) {
     localStorage.setItem('niuery-markdown-editor-draft', draft);
   }, content);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('nav[aria-label="工具分类"]')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: /工具分类|Category navigation/ })).toBeVisible();
   await page.keyboard.press('Control+k');
   await page.getByPlaceholder(/Search|搜索/i).first().fill('Markdown Editor');
   await page.keyboard.press('Enter');
-  await expect(page.locator('.monaco-editor')).toBeVisible();
+  await expect(page.locator('.monaco-editor')).toBeVisible({ timeout: 60_000 });
 }
 
 test.describe('Markdown Mermaid', () => {
@@ -97,6 +97,61 @@ test.describe('Markdown Mermaid', () => {
 
     await expect(page.locator('.markdown-preview .mermaid-svg svg')).toHaveCount(2, { timeout: 15_000 });
     await expect(page.locator('.markdown-preview .mermaid-error')).toHaveCount(0);
+  });
+
+  test('减少动画时画布尺寸仍贴合流程图、状态图和 ER 图', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openMarkdownEditor(page, `${flowchart}\n\n${stateDiagram}\n\n${erDiagram}`);
+
+    const diagrams = page.locator('.markdown-preview .mermaid-svg svg');
+    await expect(diagrams).toHaveCount(3, { timeout: 15_000 });
+    await expect(page.locator('.markdown-preview .mermaid-error')).toHaveCount(0);
+    for (const diagram of await diagrams.all()) {
+      await expect.poll(() => diagram.evaluate((svg: SVGSVGElement) => {
+        const bounds = svg.getBBox();
+        return Math.max(
+          Math.abs(svg.viewBox.baseVal.width - bounds.width),
+          Math.abs(svg.viewBox.baseVal.height - bounds.height),
+        );
+      })).toBeLessThanOrEqual(20);
+    }
+  });
+
+  test('放大预览的 SVG 使用图表固有尺寸，支持状态图、ER 图和流程图', async ({ page }) => {
+    await openMarkdownEditor(page, `${stateDiagram}\n\n${erDiagram}\n\n${flowchart}`);
+
+    const diagrams = page.locator('.markdown-preview .mermaid-diagram[role="button"]');
+    await expect(diagrams).toHaveCount(3, { timeout: 15_000 });
+
+    for (let index = 0; index < 3; index++) {
+      const viewBox = await diagrams.nth(index).locator('svg').evaluate((svg: SVGSVGElement) => ({
+        width: svg.viewBox.baseVal.width,
+        height: svg.viewBox.baseVal.height,
+      }));
+      if (index === 1) {
+        await diagrams.nth(index).focus();
+        await page.keyboard.press('Enter');
+      } else {
+        await diagrams.nth(index).click();
+      }
+
+      const image = page.getByRole('dialog', { name: '图片预览', exact: true }).locator('img');
+      await expect(image).toBeVisible();
+      await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+      const dimensions = await image.evaluate((img: HTMLImageElement) => ({
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      }));
+      expect(Math.abs(dimensions.width - viewBox.width)).toBeLessThanOrEqual(1);
+      expect(Math.abs(dimensions.height - viewBox.height)).toBeLessThanOrEqual(1);
+
+      await page.getByRole('button', { name: '适应窗口', exact: true }).click();
+      await page.getByRole('button', { name: '原始大小', exact: true }).click();
+      await page.getByRole('button', { name: '全屏预览', exact: true }).click();
+      await expect(image).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog', { name: '图片预览', exact: true })).toHaveCount(0);
+    }
   });
 
   test('工具栏插入 Mermaid 模板', async ({ page }) => {

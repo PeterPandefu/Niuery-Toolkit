@@ -18,7 +18,7 @@ import cpp from 'highlight.js/lib/languages/cpp';
 import taskLists from 'markdown-it-task-list';
 import { useTranslation } from 'react-i18next';
 import { useResolvedTheme } from '@/hooks/use-theme';
-import { getMermaid } from '@/lib/mermaid';
+import { ensureIntrinsicSvgDimensions, getMermaid } from '@/lib/mermaid';
 import { getThemeTokens } from '@/lib/theme';
 import { useAppStore } from '@/store/app-store';
 import { ImageViewer } from '@/components/media/image-viewer';
@@ -355,7 +355,9 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
       const openDiagramPreview = (diagram: HTMLElement | null) => {
         const svg = diagram?.querySelector('.mermaid-svg svg');
         if (!svg) return;
-        setMermaidPreview(new Blob([svg.outerHTML], { type: 'image/svg+xml;charset=utf-8' }));
+        // 内联 SVG 的百分比尺寸不能直接用于 WebView2 的图片预览。
+        const previewSvg = ensureIntrinsicSvgDimensions(svg.outerHTML);
+        setMermaidPreview(new Blob([previewSvg], { type: 'image/svg+xml;charset=utf-8' }));
       };
       const handleClick = (event: MouseEvent) => {
         if (!(event.target instanceof Element) || event.target.closest('a')) return;
