@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Expand, Maximize, Minimize, Minus, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -286,7 +287,7 @@ export function ImageViewer({
   );
 
   if (mode === 'dialog') {
-    return (
+    return createPortal(
       <div className={`fixed inset-0 z-50 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-4'}`} role="dialog" aria-modal="true" aria-label="图片预览">
         <button className="absolute inset-0 bg-black/75 backdrop-blur-sm" aria-label="关闭预览" onClick={close} />
         <section className={`relative flex h-full w-full flex-col overflow-hidden bg-popover ${isFullscreen ? 'max-h-none max-w-none rounded-none border-0' : 'max-h-[90vh] max-w-6xl rounded-xl border border-border shadow-tinted-lg'}`}>
@@ -311,7 +312,8 @@ export function ImageViewer({
           {viewport}
           <footer className="border-t border-border px-4 py-2 text-center text-xs text-muted-foreground">拖动平移 · 滚轮缩放 · Esc 关闭</footer>
         </section>
-      </div>
+      </div>,
+      document.body
     );
   }
 
