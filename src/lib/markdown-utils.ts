@@ -382,7 +382,8 @@ export function getDocStats(text: string): DocStats {
  */
 export function extractOutline(text: string): OutlineItem[] {
   const items: OutlineItem[] = [];
-  const lines = text.split('\n');
+  // 兼容导入文件和 Monaco 返回的换行格式，避免行尾 CR 使标题匹配失败。
+  const lines = text.split(/\r\n|\n|\r/);
   let inCodeBlock = false;
 
   for (let i = 0; i < lines.length; i++) {

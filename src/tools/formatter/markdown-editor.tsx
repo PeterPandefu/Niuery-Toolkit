@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import '@/lib/monaco-setup';
 import Editor, { OnMount } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
+import { editor } from 'monaco-editor/esm/vs/editor/editor.api';
 import { useTranslation } from 'react-i18next';
 import { Toolbar, ToolbarAction } from '@/components/markdown/Toolbar';
 import type { MermaidTemplateKind } from '@/lib/markdown-utils';
-import { Preview, PreviewHandle, renderMarkdown } from '@/components/markdown/Preview';
+import { Preview, PreviewHandle, renderMarkdown, type PreviewScrollTarget } from '@/components/markdown/Preview';
 import { StatusBar } from '@/components/markdown/StatusBar';
 import { Outline } from '@/components/markdown/Outline';
 import { Button } from '@/components/ui/button';
@@ -93,6 +93,7 @@ export default function MarkdownEditor() {
   const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
   const [showOutline, setShowOutline] = useState(false);
+  const [previewScrollTarget, setPreviewScrollTarget] = useState<PreviewScrollTarget | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -474,12 +475,16 @@ export default function MarkdownEditor() {
 
   // 大纲跳转
   const handleJumpToLine = useCallback((line: number) => {
+    setPreviewScrollTarget({ line, source: content });
     const ed = editorRef.current;
-    if (!ed) return;
-    ed.revealLineInCenter(line + 1);
+    if (viewMode === 'preview' || !ed) return;
+    // 显式跳转时暂停比例同步，让预览按标题精确定位。
+    isEditorScrolling.current = true;
+    ed.revealLineInCenter(line + 1, editor.ScrollType.Immediate);
     ed.setPosition({ lineNumber: line + 1, column: 1 });
     ed.focus();
-  }, []);
+    requestAnimationFrame(() => { isEditorScrolling.current = false; });
+  }, [content, viewMode]);
 
   const showEditor = viewMode === 'split' || viewMode === 'editor';
   const showPreview = viewMode === 'split' || viewMode === 'preview';
@@ -662,7 +667,7 @@ export default function MarkdownEditor() {
         )}
         {showPreview && (
           <div className={`min-h-0 min-w-0 p-2 ${showEditor ? 'flex-1 w-full lg:w-1/2' : 'flex-1'}`}>
-            <Preview ref={previewRef} source={debouncedContent} fontSize={fontSize} />
+            <Preview ref={previewRef} source={debouncedContent} scrollTarget={previewScrollTarget} fontSize={fontSize} />
           </div>
         )}
       </div>

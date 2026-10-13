@@ -269,6 +269,20 @@ const md: MarkdownIt = new MarkdownIt({
 
 md.use(taskLists, { enabled: true });
 
+// 使用源码行定位标题，重复标题也能准确跳转；导出不携带定位属性。
+md.renderer.rules.heading_open = (tokens, index, options, env, renderer) => {
+  const token = tokens[index];
+  if (env?.includeSourceLines && token.map) {
+    token.attrSet('data-source-line', String(token.map[0]));
+  }
+  return renderer.renderToken(tokens, index, options);
+};
+
+export interface PreviewScrollTarget {
+  line: number;
+  source: string;
+}
+
 export interface PreviewHandle {
   /** 获取预览容器元素 */
   getElement: () => HTMLDivElement | null;
@@ -283,6 +297,8 @@ interface PreviewProps {
   source: string;
   /** 滚动同步回调 */
   onScroll?: (percent: number) => void;
+  /** 每次点击创建新对象，在对应版本的预览渲染后跳转。 */
+  scrollTarget?: PreviewScrollTarget | null;
   /** 预览基础字号（px），未传入时使用默认排版样式 */
   fontSize?: number;
   className?: string;
@@ -301,10 +317,11 @@ const MarkdownMarkup = memo(
 MarkdownMarkup.displayName = 'MarkdownMarkup';
 
 export const Preview = forwardRef<PreviewHandle, PreviewProps>(
-  ({ source, onScroll, fontSize, className }, ref) => {
+  ({ source, onScroll, scrollTarget, fontSize, className }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const markupRef = useRef<HTMLDivElement>(null);
     const isSyncScrolling = useRef(false);
+    const handledScrollTarget = useRef<PreviewScrollTarget | null>(null);
     const [mermaidPreview, setMermaidPreview] = useState<Blob | null>(null);
     const scheme = useResolvedTheme();
     const skin = useAppStore((state) => state.skin);
@@ -315,8 +332,25 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
 
     const html = useMemo(() => {
       if (!source.trim()) return '';
-      return md.render(source);
+      return md.render(source, { includeSourceLines: true });
     }, [source]);
+
+    useEffect(() => {
+      if (!scrollTarget || handledScrollTarget.current === scrollTarget || scrollTarget.source !== source) return;
+      const container = containerRef.current;
+      const heading = markupRef.current?.querySelector<HTMLElement>(`[data-source-line="${scrollTarget.line}"]`);
+      if (!container || !heading) return;
+
+      handledScrollTarget.current = scrollTarget;
+      isSyncScrolling.current = true;
+      const padding = parseFloat(getComputedStyle(container).paddingTop) || 0;
+      container.scrollTop += heading.getBoundingClientRect().top - container.getBoundingClientRect().top - container.clientTop - padding;
+      const frame = requestAnimationFrame(() => { isSyncScrolling.current = false; });
+      return () => {
+        cancelAnimationFrame(frame);
+        isSyncScrolling.current = false;
+      };
+    }, [html, source, scrollTarget]);
 
     useImperativeHandle(ref, () => ({
       getElement: () => containerRef.current,
