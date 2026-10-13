@@ -283,6 +283,8 @@ interface PreviewProps {
   source: string;
   /** 滚动同步回调 */
   onScroll?: (percent: number) => void;
+  /** 预览基础字号（px），未传入时使用默认排版样式 */
+  fontSize?: number;
   className?: string;
 }
 
@@ -299,7 +301,7 @@ const MarkdownMarkup = memo(
 MarkdownMarkup.displayName = 'MarkdownMarkup';
 
 export const Preview = forwardRef<PreviewHandle, PreviewProps>(
-  ({ source, onScroll, className }, ref) => {
+  ({ source, onScroll, fontSize, className }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const markupRef = useRef<HTMLDivElement>(null);
     const isSyncScrolling = useRef(false);
@@ -411,6 +413,8 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
       <div
         ref={containerRef}
         className={`markdown-preview prose prose-sm dark:prose-invert h-full max-w-none overflow-y-auto rounded-md border bg-muted/30 p-4 ${className ?? ''}`}
+        style={{ fontSize }}
+        data-font-size={fontSize}
         onScroll={handleScroll}
       >
         <MarkdownMarkup ref={markupRef} html={html} />
