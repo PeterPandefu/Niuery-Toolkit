@@ -28,6 +28,8 @@ import {
   ListTree,
   PanelLeftClose,
   Printer,
+  AArrowDown,
+  AArrowUp,
 } from 'lucide-react';
 import {
   wrapSelection,
@@ -50,6 +52,11 @@ import {
 import { copyToClipboard } from '@/lib/utils';
 
 type ViewMode = 'split' | 'editor' | 'preview';
+
+const DEFAULT_FONT_SIZE = 14;
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 32;
+const FONT_SIZE_STEP = 2;
 
 const STORAGE_KEY = 'niuery-markdown-editor-draft';
 
@@ -83,6 +90,7 @@ export default function MarkdownEditor() {
   const { t, i18n } = useTranslation();
   const [content, setContent] = useState(loadDraft);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
   const [showOutline, setShowOutline] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -480,7 +488,7 @@ export default function MarkdownEditor() {
     <div className="flex h-full min-h-0 min-w-0 flex-col" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
       {/* 顶部操作栏 */}
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b px-3 py-1">
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {/* 视图切换 */}
           <Button
             variant={viewMode === 'split' ? 'secondary' : 'ghost'}
@@ -519,6 +527,41 @@ export default function MarkdownEditor() {
           >
             {showOutline ? <PanelLeftClose className="h-3.5 w-3.5" /> : <ListTree className="h-3.5 w-3.5" />}
           </Button>
+          <div className="mx-1 h-4 w-px bg-border" />
+          <div role="group" aria-label={t('markdownEditor.fontSize')} className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setFontSize((size) => Math.max(MIN_FONT_SIZE, size - FONT_SIZE_STEP))}
+              disabled={fontSize <= MIN_FONT_SIZE}
+              title={t('markdownEditor.decreaseFontSize')}
+              aria-label={t('markdownEditor.decreaseFontSize')}
+            >
+              <AArrowDown className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 min-w-12 px-2 text-xs tabular-nums"
+              onClick={() => setFontSize(DEFAULT_FONT_SIZE)}
+              title={t('markdownEditor.resetFontSize', { size: DEFAULT_FONT_SIZE })}
+              aria-label={t('markdownEditor.resetFontSize', { size: DEFAULT_FONT_SIZE })}
+            >
+              {fontSize}px
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setFontSize((size) => Math.min(MAX_FONT_SIZE, size + FONT_SIZE_STEP))}
+              disabled={fontSize >= MAX_FONT_SIZE}
+              title={t('markdownEditor.increaseFontSize')}
+              aria-label={t('markdownEditor.increaseFontSize')}
+            >
+              <AArrowUp className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex items-center gap-1">
@@ -605,7 +648,7 @@ export default function MarkdownEditor() {
               options={{
                 wordWrap: 'on',
                 minimap: { enabled: false },
-                fontSize: 14,
+                fontSize,
                 lineNumbers: 'on',
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
@@ -619,7 +662,7 @@ export default function MarkdownEditor() {
         )}
         {showPreview && (
           <div className={`min-h-0 min-w-0 p-2 ${showEditor ? 'flex-1 w-full lg:w-1/2' : 'flex-1'}`}>
-            <Preview ref={previewRef} source={debouncedContent} />
+            <Preview ref={previewRef} source={debouncedContent} fontSize={fontSize} />
           </div>
         )}
       </div>
