@@ -154,6 +154,37 @@ test.describe('Markdown Mermaid', () => {
     }
   });
 
+  test('含 HTML 换行和实体的 Mermaid 标签可点击和键盘打开放大预览', async ({ page }) => {
+    await openMarkdownEditor(page, '```mermaid\nflowchart TD\n  A["接收结果<br/>样本标识、设备、通道、结果值"] --> B["当前配置<br>AssayId &amp; 默认项目&nbsp;D"]\n```');
+
+    const diagram = page.locator('.markdown-preview .mermaid-diagram[role="button"]');
+    await expect(diagram.locator('svg foreignObject br').first()).toBeAttached({ timeout: 15_000 });
+
+    for (const trigger of ['click', 'Space'] as const) {
+      if (trigger === 'click') {
+        await diagram.click();
+      } else {
+        await diagram.focus();
+        await page.keyboard.press(trigger);
+      }
+      const image = page.getByRole('dialog', { name: '图片预览', exact: true }).locator('img');
+      await expect(image).toBeVisible();
+      const preview = await image.evaluate(async (img: HTMLImageElement) => {
+        const svg = new DOMParser().parseFromString(await (await fetch(img.src)).text(), 'image/svg+xml');
+        return {
+          error: svg.querySelector('parsererror')?.textContent ?? null,
+          labels: [...svg.querySelectorAll('foreignObject')].map((label) => label.textContent).join(' '),
+        };
+      });
+      expect(preview.error).toBeNull();
+      expect(preview.labels).toContain('样本标识、设备、通道、结果值');
+      expect(preview.labels).toContain('AssayId & 默认项目\u00a0D');
+      await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0 && img.naturalHeight > 0)).toBe(true);
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog', { name: '图片预览', exact: true })).toHaveCount(0);
+    }
+  });
+
   test('工具栏插入 Mermaid 模板', async ({ page }) => {
     await openMarkdownEditor(page, '替换这段内容');
 
