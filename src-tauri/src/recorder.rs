@@ -5,8 +5,8 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
 use std::sync::OnceLock;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::ipc::Response;
 use tauri::{
@@ -14,6 +14,8 @@ use tauri::{
     WebviewWindow, WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+
+mod window_capture;
 
 static NEXT_GIF_EXPORT_ID: AtomicU64 = AtomicU64::new(0);
 static GIF_EXPORT_REPLACE_LOCK: Mutex<()> = Mutex::new(());
@@ -144,6 +146,7 @@ pub struct RecordingSession {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingArtifact {
+    pub warning: Option<String>,
     pub path: String,
     pub duration_ms: u64,
     /// 用户请求的最高采样帧率。实际帧率受屏幕采集和编码吞吐限制。
@@ -633,12 +636,8 @@ pub async fn start_recording(
         .active
         .lock()
         .map_err(|_| "录屏状态不可用".to_string())?;
-    // 录制线程可能已完成，但此前的停止调用在收尾超时/异常后未能及时清理活动槽位。
-    // 只有确认线程已产出结果且当前没有收尾调用时才回收，避免打断正常的停止重试。
-    let _ = take_recoverable_finished_recording(&mut active);
-    if active.is_some() {
-        return Err("已有录制任务正在进行".to_string());
-    }
+    // 捕获已结束不代表主线程清理完成；活动槽位只能由 finalizer 释放。
+    ensure_recording_slot_available(&active)?;
 
     // 将前端值规范化一次，再把同一份设置交给采样节奏和 FFmpeg，避免两端观察到
     // 不同的帧率或质量档位。
@@ -661,7 +660,6 @@ pub async fn start_recording(
     let thread_pause = Arc::clone(&pause_requested);
     let thread_cancelled = Arc::clone(&cancelled);
     let thread_elapsed_ms = Arc::clone(&elapsed_ms);
-    let thread_finished = Arc::clone(&finished);
     let thread_app = app.clone();
     let thread_id = id.clone();
     let fps = settings.fps;
@@ -682,23 +680,64 @@ pub async fn start_recording(
             thread_cancelled,
             thread_elapsed_ms,
         );
-        if let Err(error) = &result {
-            let _ = thread_app.emit(
-                "recording-status",
-                RecordingStatusEvent {
-                    session_id: thread_id.clone(),
-                    status: "error".to_string(),
-                    elapsed_ms: 0,
-                    fps,
-                    dropped_frames: 0,
-                    error: Some(error.clone()),
-                    artifact: None,
-                },
-            );
-        }
-        if let Ok(mut slot) = thread_finished.lock() {
-            *slot = Some(result);
-        }
+        // 主线程上统一发布结果，且绝不持有 active 锁调用快捷键/窗口 API。
+        // 否则主线程的 Esc 回调取 active 锁时会与同步注销快捷键形成互等。
+        let finalizer_app = thread_app.clone();
+        let _ = thread_app.run_on_main_thread(move || {
+            let thread_app = finalizer_app;
+            let state = thread_app.state::<RecorderState>();
+            let recording = state.active.lock().ok().and_then(|active| {
+                let recording = active.as_ref().filter(|item| item.id == thread_id)?;
+                // 与停止/取消在同一把锁内决定终态，防止已发布的视频再被并发取消删除。
+                let cancelled = recording.cancelled.load(Ordering::Acquire);
+                if let Ok(mut slot) = recording.finished.lock() {
+                    *slot = Some(result.clone());
+                }
+                Some((recording.clone(), cancelled))
+            });
+            if let Some((recording, cancelled)) = recording {
+                unregister_recording_esc(
+                    &thread_app,
+                    take_recording_esc_registration(&recording.recording_esc_registered),
+                );
+                if !cancelled {
+                    if let Ok(artifact) = &result {
+                        if let Ok(mut artifacts) = state.artifacts.lock() {
+                            artifacts.insert(thread_id.clone(), artifact.clone());
+                        }
+                    }
+                }
+                // 恢复窗口期间仍保留活动槽位，阻止新录制抢先开始。
+                if let Some(window) = thread_app.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                if !cancelled {
+                    let (artifact, error) = match &result {
+                        Ok(artifact) => (Some(artifact.clone()), None),
+                        Err(error) => (None, Some(error.clone())),
+                    };
+                    let _ = thread_app.emit(
+                        "recording-status",
+                        RecordingStatusEvent {
+                            session_id: thread_id.clone(),
+                            status: if error.is_some() { "error" } else { "stopped" }.to_string(),
+                            elapsed_ms: artifact.as_ref().map(|item| item.duration_ms).unwrap_or(0),
+                            fps: artifact.as_ref().map(|item| item.fps).unwrap_or(0),
+                            dropped_frames: 0,
+                            error,
+                            artifact,
+                        },
+                    );
+                }
+                if let Ok(mut active) = state.active.lock() {
+                    if active.as_ref().is_some_and(|item| item.id == thread_id) {
+                        active.take();
+                    }
+                }
+            }
+        });
     });
     *active = Some(ActiveRecording {
         id: id.clone(),
@@ -710,7 +749,6 @@ pub async fn start_recording(
         finishing,
         recording_esc_registered,
     });
-    drop(active);
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.hide();
     }
@@ -732,6 +770,7 @@ pub async fn start_recording(
             artifact: None,
         },
     );
+    drop(active);
     Ok(session)
 }
 
@@ -936,21 +975,46 @@ async fn finish_recording(
             .active
             .lock()
             .map_err(|_| "录屏状态不可用".to_string())?;
-        let recording = active
-            .as_ref()
-            .ok_or_else(|| "未找到录制任务".to_string())?;
+        let recording = active.as_ref().ok_or_else(|| "未找到录制任务".to_string());
+        let recording = match recording {
+            Ok(recording) => recording,
+            Err(error) => {
+                if cancelled {
+                    return Err("录制已结束，无法取消已保存的视频".to_string());
+                }
+                return state
+                    .artifacts
+                    .lock()
+                    .map_err(|_| "录制结果不可用".to_string())?
+                    .get(&session_id)
+                    .cloned()
+                    .ok_or(error);
+            }
+        };
         if recording.id != session_id {
             return Err("录制会话不匹配".to_string());
         }
+        if let Some(result) = recording
+            .finished
+            .lock()
+            .map_err(|_| "录屏状态不可用".to_string())?
+            .clone()
+        {
+            return if cancelled {
+                Err("录制已结束，无法取消已保存的视频".to_string())
+            } else {
+                result
+            };
+        }
         let attempt = FinishAttempt::begin(recording)?;
+        recording.cancelled.store(cancelled, Ordering::Release);
+        recording.stop_requested.store(true, Ordering::Release);
         (recording.clone(), attempt)
     };
     unregister_recording_esc(
         &app,
         take_recording_esc_registration(&active.recording_esc_registered),
     );
-    active.cancelled.store(cancelled, Ordering::Release);
-    active.stop_requested.store(true, Ordering::Release);
     for _ in 0..300 {
         if let Some(result) = active
             .finished
@@ -958,97 +1022,80 @@ async fn finish_recording(
             .map_err(|_| "录屏状态不可用".to_string())?
             .clone()
         {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-            let artifact = match result {
-                Ok(artifact) => artifact,
-                Err(error) => {
-                    unregister_recording_esc(
-                        &app,
-                        take_recording_esc_registration(&active.recording_esc_registered),
-                    );
-                    clear_finished_recording(&state, &session_id)?;
-                    attempt.complete();
-                    return Err(error);
-                }
-            };
-            if !cancelled {
-                state
-                    .artifacts
-                    .lock()
-                    .map_err(|_| "录制结果不可用".to_string())?
-                    .insert(session_id.clone(), artifact.clone());
-                let _ = app.emit(
-                    "recording-status",
-                    RecordingStatusEvent {
-                        session_id: session_id.clone(),
-                        status: "stopped".to_string(),
-                        elapsed_ms: artifact.duration_ms,
-                        fps: artifact.fps,
-                        dropped_frames: 0,
-                        error: None,
-                        artifact: Some(artifact.clone()),
-                    },
-                );
-            }
-            unregister_recording_esc(
-                &app,
-                take_recording_esc_registration(&active.recording_esc_registered),
-            );
-            clear_finished_recording(&state, &session_id)?;
             attempt.complete();
-            return Ok(artifact);
+            return result;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
+    let recovery_app = app.clone();
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        let state = recovery_app.state::<RecorderState>();
+        let pending = state
+            .active
+            .lock()
+            .ok()
+            .and_then(|slot| pending_timeout_recording(&slot, &session_id));
+        // 与 finalizer 串行核验和恢复，已结束或被替换的会话不能重新占用 Esc。
+        let result = if let Some(recording) = pending {
+            if let Some(window) = recovery_app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            register_recording_esc(&recovery_app).map(|registered| {
+                recording
+                    .recording_esc_registered
+                    .store(registered, Ordering::Release);
+            })
+        } else {
+            Ok(())
+        };
+        let _ = sender.send(result);
+    })
+    .map_err(|error| format!("停止录制超时，无法恢复操作：{error}"))?;
+    let recovery = receiver
+        .await
+        .map_err(|_| "停止录制超时，恢复操作中断".to_string())?;
+    finish_timeout_result(&active, recovery)
+}
+
+fn finish_timeout_result(
+    recording: &ActiveRecording,
+    recovery: Result<(), String>,
+) -> Result<RecordingArtifact, String> {
+    if let Some(result) = recording
+        .finished
+        .lock()
+        .map_err(|_| "录屏状态不可用".to_string())?
+        .clone()
+    {
+        return result;
     }
-    match register_recording_esc(&app) {
-        Ok(registered_by_recording) => {
-            active
-                .recording_esc_registered
-                .store(registered_by_recording, Ordering::Release);
-            Err("停止录制超时，录制仍在收尾，请稍后重试".to_string())
-        }
+    match recovery {
+        Ok(()) => Err("停止录制超时，录制仍在收尾，请稍后重试".to_string()),
         Err(error) => Err(format!(
             "停止录制超时，录制仍在收尾，请稍后重试；Esc 无法重新启用：{error}"
         )),
     }
 }
 
-fn clear_finished_recording(state: &RecorderState, session_id: &str) -> Result<(), String> {
-    let mut active = state
-        .active
-        .lock()
-        .map_err(|_| "录屏状态不可用".to_string())?;
-    match active.as_ref() {
-        Some(recording) if recording.id == session_id => {
-            active.take();
-            Ok(())
-        }
-        Some(_) => Err("录制会话不匹配".to_string()),
-        None => Err("未找到录制任务".to_string()),
+fn ensure_recording_slot_available(active: &Option<ActiveRecording>) -> Result<(), String> {
+    if active.is_some() {
+        Err("已有录制任务正在进行".to_string())
+    } else {
+        Ok(())
     }
 }
 
-fn take_recoverable_finished_recording(active: &mut Option<ActiveRecording>) -> bool {
-    let Some(recording) = active.as_ref() else {
-        return false;
-    };
-    let finished = recording
-        .finished
-        .lock()
-        .ok()
-        .is_some_and(|result| result.is_some());
-    if finished && !recording.finishing.load(Ordering::Acquire) {
-        active.take();
-        return true;
+fn pending_timeout_recording(
+    active: &Option<ActiveRecording>,
+    session_id: &str,
+) -> Option<ActiveRecording> {
+    let recording = active.as_ref().filter(|item| item.id == session_id)?;
+    if recording.finished.lock().ok()?.is_some() {
+        return None;
     }
-    false
+    Some(recording.clone())
 }
 
 enum EncoderInput {
@@ -1626,6 +1673,11 @@ fn capture_loop(
     let mut segments = Vec::new();
     let mut segment_index = 0u64;
     let mut capture_backend = "xcap";
+    let mut window_capture = if target.mode == "window" {
+        Some(window_capture::WindowCapture::new(target.window_id)?)
+    } else {
+        None
+    };
     // 先确保高亮层可用，再启动 gdigrab。否则高亮层创建失败时不会遗留已经开始
     // 采集的 FFmpeg 子进程。
     let uses_native_capture = gdigrab_capture_rect(&target)?.is_some();
@@ -1661,150 +1713,169 @@ fn capture_loop(
     if let Some(active_segment) = segment.as_ref() {
         capture_backend = active_segment.capture_backend;
     }
-    while !stop_requested.load(Ordering::Acquire) {
-        let wall_elapsed_ms = started.elapsed().as_millis() as u64;
-        if pause_requested.load(Ordering::Acquire) {
-            if let Some(overlays) = visual_overlays.as_ref() {
-                overlays.hide();
+    let capture_result = (|| -> Result<(), String> {
+        while !stop_requested.load(Ordering::Acquire) {
+            if let Some(window) = window_capture.as_mut() {
+                window.refresh()?;
             }
-            if let Some(active_segment) = segment.take() {
-                if let Some(path) =
-                    finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire))?
-                {
-                    segments.push(path);
+            let wall_elapsed_ms = started.elapsed().as_millis() as u64;
+            if pause_requested.load(Ordering::Acquire) {
+                if let Some(overlays) = visual_overlays.as_ref() {
+                    overlays.hide();
+                }
+                if let Some(active_segment) = segment.take() {
+                    if let Some(path) =
+                        finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire))?
+                    {
+                        segments.push(path);
+                    }
+                }
+                if paused_since_ms.is_none() {
+                    paused_since_ms = Some(wall_elapsed_ms);
+                }
+                active_elapsed_ms.store(
+                    recording_elapsed_ms(0, wall_elapsed_ms, paused_since_ms, paused_total_ms),
+                    Ordering::Release,
+                );
+                std::thread::sleep(Duration::from_millis(60));
+                continue;
+            }
+            if let Some(paused_at_ms) = paused_since_ms.take() {
+                paused_total_ms =
+                    paused_total_ms.saturating_add(wall_elapsed_ms.saturating_sub(paused_at_ms));
+                next_frame = Instant::now();
+                if let Some(overlays) = visual_overlays.as_ref() {
+                    overlays.show();
                 }
             }
-            if paused_since_ms.is_none() {
-                paused_since_ms = Some(wall_elapsed_ms);
+            if segment.is_none() {
+                segment_index = segment_index.saturating_add(1);
+                segment = Some(start_encoder_segment(
+                    ffmpeg,
+                    encoder,
+                    &target,
+                    &settings,
+                    width,
+                    height,
+                    output.with_file_name(format!(
+                        "{}-segment-{segment_index}.mp4",
+                        output
+                            .file_stem()
+                            .and_then(|name| name.to_str())
+                            .unwrap_or("recording")
+                    )),
+                )?);
+                if let Some(active_segment) = segment.as_ref() {
+                    capture_backend = active_segment.capture_backend;
+                }
             }
-            active_elapsed_ms.store(
-                recording_elapsed_ms(0, wall_elapsed_ms, paused_since_ms, paused_total_ms),
-                Ordering::Release,
-            );
-            std::thread::sleep(Duration::from_millis(60));
-            continue;
-        }
-        if let Some(paused_at_ms) = paused_since_ms.take() {
-            paused_total_ms =
-                paused_total_ms.saturating_add(wall_elapsed_ms.saturating_sub(paused_at_ms));
-            next_frame = Instant::now();
-            if let Some(overlays) = visual_overlays.as_ref() {
-                overlays.show();
+            if segment
+                .as_ref()
+                .is_some_and(EncoderSegment::uses_native_capture)
+            {
+                // 画面直接由 gdigrab 交给 FFmpeg/H.264 硬编。这里只维持会话时钟、状态
+                // 上报与暂停/停止响应，避免回退到每帧 RGBA 复制和 stdin 写入。
+                let elapsed_ms = recording_elapsed_ms(
+                    0,
+                    started.elapsed().as_millis() as u64,
+                    None,
+                    paused_total_ms,
+                );
+                active_elapsed_ms.store(elapsed_ms, Ordering::Release);
+                if elapsed_ms.saturating_sub(last_status_emit_ms) >= 1_000 {
+                    let _ = app.emit(
+                        "recording-status",
+                        RecordingStatusEvent {
+                            session_id: session_id.to_string(),
+                            status: "recording".to_string(),
+                            elapsed_ms,
+                            // 采集帧数由 FFmpeg 管理；结束后再从成片探测真实平均帧率，
+                            // 录制中以 0 表示尚未可测，绝不把目标帧率伪报成实际帧率。
+                            fps: 0,
+                            dropped_frames: 0,
+                            error: None,
+                            artifact: None,
+                        },
+                    );
+                    last_status_emit_ms = elapsed_ms;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+                continue;
             }
-        }
-        if segment.is_none() {
-            segment_index = segment_index.saturating_add(1);
-            segment = Some(start_encoder_segment(
-                ffmpeg,
-                encoder,
-                &target,
-                &settings,
-                width,
-                height,
-                output.with_file_name(format!(
-                    "{}-segment-{segment_index}.mp4",
-                    output
-                        .file_stem()
-                        .and_then(|name| name.to_str())
-                        .unwrap_or("recording")
-                )),
-            )?);
-            if let Some(active_segment) = segment.as_ref() {
-                capture_backend = active_segment.capture_backend;
-            }
-        }
-        if segment
-            .as_ref()
-            .is_some_and(EncoderSegment::uses_native_capture)
-        {
-            // 画面直接由 gdigrab 交给 FFmpeg/H.264 硬编。这里只维持会话时钟、状态
-            // 上报与暂停/停止响应，避免回退到每帧 RGBA 复制和 stdin 写入。
+            let frame_start = Instant::now();
+            let frame = if let Some(window) = window_capture.as_ref() {
+                window.capture()?
+            } else {
+                capture_target(&target)?
+            };
+            let frame = if settings.cursor_highlight {
+                draw_cursor_highlight(
+                    frame,
+                    &target,
+                    window_capture.as_ref().map(|window| window.rect()),
+                )
+            } else {
+                frame
+            };
+            let frame = if target.mode == "window" {
+                window_capture::fit_window_frame(frame, width, height)
+            } else if frame.width() != width || frame.height() != height {
+                return Err("录制目标尺寸发生变化，请重新开始录制".to_string());
+            } else {
+                frame
+            };
             let elapsed_ms = recording_elapsed_ms(
                 0,
                 started.elapsed().as_millis() as u64,
                 None,
                 paused_total_ms,
             );
+            // capture_target 期间暂停或停止时，丢弃刚完成的帧；每次采样至多写一帧。
+            if scheduler.should_write_captured_frame(
+                stop_requested.load(Ordering::Acquire),
+                pause_requested.load(Ordering::Acquire),
+            ) {
+                let active_segment = segment.as_mut().expect("活动录制片段必须存在");
+                active_segment.write_frame(&frame)?;
+                active_segment.has_frames = true;
+                scheduler.record_written_frame();
+            }
+            if stop_requested.load(Ordering::Acquire) {
+                break;
+            }
+            if pause_requested.load(Ordering::Acquire) {
+                // 下一轮进入暂停分支并冻结录制时长；当前刚捕获的帧已被丢弃。
+                continue;
+            }
             active_elapsed_ms.store(elapsed_ms, Ordering::Release);
             if elapsed_ms.saturating_sub(last_status_emit_ms) >= 1_000 {
+                let actual_fps = scheduler.actual_fps(elapsed_ms);
                 let _ = app.emit(
                     "recording-status",
                     RecordingStatusEvent {
                         session_id: session_id.to_string(),
                         status: "recording".to_string(),
                         elapsed_ms,
-                        // 采集帧数由 FFmpeg 管理；结束后再从成片探测真实平均帧率，
-                        // 录制中以 0 表示尚未可测，绝不把目标帧率伪报成实际帧率。
-                        fps: 0,
-                        dropped_frames: 0,
+                        fps: actual_fps,
+                        dropped_frames,
                         error: None,
                         artifact: None,
                     },
                 );
                 last_status_emit_ms = elapsed_ms;
             }
-            std::thread::sleep(Duration::from_millis(100));
-            continue;
+            next_frame += frame_duration;
+            let now = Instant::now();
+            if now < next_frame {
+                std::thread::sleep(next_frame - now);
+            } else if now.duration_since(next_frame) > frame_duration {
+                dropped_frames += 1;
+                next_frame = frame_start + frame_duration;
+            }
         }
-        let frame_start = Instant::now();
-        let frame = capture_target(&target)?;
-        let frame = if settings.cursor_highlight {
-            draw_cursor_highlight(frame, &target)
-        } else {
-            frame
-        };
-        if frame.width() != width || frame.height() != height {
-            return Err("录制目标尺寸发生变化，请重新开始录制".to_string());
-        }
-        let elapsed_ms = recording_elapsed_ms(
-            0,
-            started.elapsed().as_millis() as u64,
-            None,
-            paused_total_ms,
-        );
-        // capture_target 期间暂停或停止时，丢弃刚完成的帧；每次采样至多写一帧。
-        if scheduler.should_write_captured_frame(
-            stop_requested.load(Ordering::Acquire),
-            pause_requested.load(Ordering::Acquire),
-        ) {
-            let active_segment = segment.as_mut().expect("活动录制片段必须存在");
-            active_segment.write_frame(&frame)?;
-            active_segment.has_frames = true;
-            scheduler.record_written_frame();
-        }
-        if stop_requested.load(Ordering::Acquire) {
-            break;
-        }
-        if pause_requested.load(Ordering::Acquire) {
-            // 下一轮进入暂停分支并冻结录制时长；当前刚捕获的帧已被丢弃。
-            continue;
-        }
-        active_elapsed_ms.store(elapsed_ms, Ordering::Release);
-        if elapsed_ms.saturating_sub(last_status_emit_ms) >= 1_000 {
-            let actual_fps = scheduler.actual_fps(elapsed_ms);
-            let _ = app.emit(
-                "recording-status",
-                RecordingStatusEvent {
-                    session_id: session_id.to_string(),
-                    status: "recording".to_string(),
-                    elapsed_ms,
-                    fps: actual_fps,
-                    dropped_frames,
-                    error: None,
-                    artifact: None,
-                },
-            );
-            last_status_emit_ms = elapsed_ms;
-        }
-        next_frame += frame_duration;
-        let now = Instant::now();
-        if now < next_frame {
-            std::thread::sleep(next_frame - now);
-        } else if now.duration_since(next_frame) > frame_duration {
-            dropped_frames += 1;
-            next_frame = frame_start + frame_duration;
-        }
-    }
+        Ok(())
+    })();
+    let mut warning = capture_result.err();
     let elapsed_ms = recording_elapsed_ms(
         0,
         started.elapsed().as_millis() as u64,
@@ -1813,15 +1884,20 @@ fn capture_loop(
     );
     active_elapsed_ms.store(elapsed_ms, Ordering::Release);
     if let Some(active_segment) = segment.take() {
-        if let Some(path) =
-            finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire))?
-        {
-            segments.push(path);
+        match finish_encoder_segment(active_segment, cancelled.load(Ordering::Acquire)) {
+            Ok(Some(path)) => segments.push(path),
+            Ok(None) => {}
+            Err(error) => {
+                warning = Some(match warning {
+                    Some(reason) => format!("{reason}；{error}"),
+                    None => error,
+                });
+            }
         }
     }
     drop(visual_overlays);
     if segments.is_empty() {
-        return Err("录制未产生可用的视频帧".to_string());
+        return Err(warning.unwrap_or_else(|| "录制未产生可用的视频帧".to_string()));
     }
     concat_recording_segments(ffmpeg, &segments, &output)?;
     let size_bytes = std::fs::metadata(&output)
@@ -1830,6 +1906,7 @@ fn capture_loop(
     let actual_fps =
         probe_recording_fps(ffmpeg, &output).unwrap_or_else(|| scheduler.actual_fps(elapsed_ms));
     let artifact = RecordingArtifact {
+        warning: warning.map(|reason| format!("{reason}；已停止并保存可用录制")),
         path: output.to_string_lossy().to_string(),
         duration_ms: elapsed_ms,
         requested_fps: fps,
@@ -1840,18 +1917,6 @@ fn capture_loop(
         height,
         size_bytes,
     };
-    let _ = app.emit(
-        "recording-status",
-        RecordingStatusEvent {
-            session_id: session_id.to_string(),
-            status: "stopped".to_string(),
-            elapsed_ms: artifact.duration_ms,
-            fps: artifact.fps,
-            dropped_frames,
-            error: None,
-            artifact: None,
-        },
-    );
     Ok(artifact)
 }
 
@@ -1876,8 +1941,10 @@ fn target_dimensions(target: &CaptureTarget) -> Result<(u32, u32), String> {
             }
         }
         "window" => {
-            let window = find_window(target.window_id)?;
-            Ok((window.width(), window.height()))
+            let window = window_capture::WindowCapture::new(target.window_id)?;
+            // xcap 在高 DPI 下的实际帧尺寸可能不同于窗口元数据，以采集像素确定画布。
+            let frame = window.capture()?;
+            Ok((frame.width().max(1), frame.height().max(1)))
         }
         _ => Err("未知的录制模式".to_string()),
     }
@@ -1937,7 +2004,11 @@ fn find_window(id: Option<u32>) -> Result<xcap::Window, String> {
         .ok_or_else(|| "未找到窗口".to_string())
 }
 
-fn draw_cursor_highlight(mut image: RgbaImage, target: &CaptureTarget) -> RgbaImage {
+fn draw_cursor_highlight(
+    mut image: RgbaImage,
+    target: &CaptureTarget,
+    window_rect: Option<CaptureRect>,
+) -> RgbaImage {
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::Foundation::POINT;
@@ -1953,13 +2024,23 @@ fn draw_cursor_highlight(mut image: RgbaImage, target: &CaptureTarget) -> RgbaIm
                 "monitor" => find_monitor(target.monitor_id.as_deref())
                     .map(|monitor| (monitor.x(), monitor.y()))
                     .unwrap_or((0, 0)),
-                "window" => find_window(target.window_id)
-                    .map(|window| (window.x(), window.y()))
+                "window" => window_rect
+                    .as_ref()
+                    .map(|rect| (rect.x, rect.y))
                     .unwrap_or((0, 0)),
                 _ => (0, 0),
             };
-            let cx = point.x - origin_x;
-            let cy = point.y - origin_y;
+            let (scale_x, scale_y) = window_rect
+                .as_ref()
+                .map(|rect| {
+                    (
+                        image.width() as f64 / rect.width.max(1) as f64,
+                        image.height() as f64 / rect.height.max(1) as f64,
+                    )
+                })
+                .unwrap_or((1.0, 1.0));
+            let cx = ((point.x - origin_x) as f64 * scale_x).round() as i32;
+            let cy = ((point.y - origin_y) as f64 * scale_y).round() as i32;
             for y in (cy - 14)..=(cy + 14) {
                 for x in (cx - 14)..=(cx + 14) {
                     if x >= 0 && y >= 0 && x < image.width() as i32 && y < image.height() as i32 {
@@ -2389,12 +2470,13 @@ pub fn cleanup_stale_recordings(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::{
-        cursor_highlight_window_position, cursor_highlight_window_size, export_gif_with_ffmpeg,
-        is_recording_esc, recording_border_bounds, replace_gif_export_with, select_video_encoder,
-        select_video_encoder_from_listing, start_encoder_after_highlight,
-        stop_and_join_cursor_follow_thread, take_recording_esc_registration, ActiveRecording,
-        take_recoverable_finished_recording, CaptureRect, ExportOptions, FinishAttempt,
-        RecordingArtifact,
+        cursor_highlight_window_position, cursor_highlight_window_size,
+        ensure_recording_slot_available, export_gif_with_ffmpeg, finish_timeout_result,
+        is_recording_esc, pending_timeout_recording, recording_border_bounds,
+        replace_gif_export_with, select_video_encoder, select_video_encoder_from_listing,
+        start_encoder_after_highlight, stop_and_join_cursor_follow_thread,
+        take_recording_esc_registration, ActiveRecording, CaptureRect, ExportOptions,
+        FinishAttempt, RecordingArtifact,
     };
     use std::path::Path;
     use std::process::Command;
@@ -2501,7 +2583,7 @@ mod tests {
     }
 
     #[test]
-    fn recovers_finished_session_only_when_no_stop_call_is_finishing() {
+    fn completed_capture_keeps_its_slot_until_finalizer_cleanup() {
         let recording = ActiveRecording {
             id: "recording-finished".to_string(),
             stop_requested: Arc::new(AtomicBool::new(true)),
@@ -2509,6 +2591,7 @@ mod tests {
             cancelled: Arc::new(AtomicBool::new(false)),
             elapsed_ms: Arc::new(AtomicU64::new(0)),
             finished: Arc::new(Mutex::new(Some(Ok(RecordingArtifact {
+                warning: None,
                 path: "recording.mp4".to_string(),
                 duration_ms: 1,
                 requested_fps: 30,
@@ -2523,19 +2606,18 @@ mod tests {
             recording_esc_registered: Arc::new(AtomicBool::new(false)),
         };
         let mut active = Some(recording);
-        active
-            .as_ref()
-            .unwrap()
-            .finishing
-            .store(true, Ordering::Release);
-        assert!(!take_recoverable_finished_recording(&mut active));
-        active
-            .as_ref()
-            .unwrap()
-            .finishing
-            .store(false, Ordering::Release);
-        assert!(take_recoverable_finished_recording(&mut active));
-        assert!(active.is_none());
+        assert!(ensure_recording_slot_available(&active).is_err());
+        assert!(finish_timeout_result(active.as_ref().unwrap(), Ok(())).is_ok());
+        assert!(pending_timeout_recording(&active, "recording-finished").is_none());
+        *active.as_ref().unwrap().finished.lock().unwrap() = None;
+        assert!(finish_timeout_result(active.as_ref().unwrap(), Ok(()))
+            .unwrap_err()
+            .contains("超时"));
+        assert!(pending_timeout_recording(&active, "recording-finished").is_some());
+        assert!(pending_timeout_recording(&active, "another-session").is_none());
+        active.take();
+        assert!(ensure_recording_slot_available(&active).is_ok());
+        assert!(pending_timeout_recording(&active, "recording-finished").is_none());
     }
 
     #[test]
