@@ -391,8 +391,11 @@ export const Preview = forwardRef<PreviewHandle, PreviewProps>(
       const openDiagramPreview = (diagram: HTMLElement | null) => {
         const svg = diagram?.querySelector('.mermaid-svg svg');
         if (!svg) return;
+        // outerHTML 使用 HTML 序列化，会把 foreignObject 中的 <br/> 变成
+        // <br>、空格实体变成 &nbsp;，导致独立 SVG 图片无法按 XML 解码。
+        const serializedSvg = new XMLSerializer().serializeToString(svg);
         // 内联 SVG 的百分比尺寸不能直接用于 WebView2 的图片预览。
-        const previewSvg = ensureIntrinsicSvgDimensions(svg.outerHTML);
+        const previewSvg = ensureIntrinsicSvgDimensions(serializedSvg);
         setMermaidPreview(new Blob([previewSvg], { type: 'image/svg+xml;charset=utf-8' }));
       };
       const handleClick = (event: MouseEvent) => {
