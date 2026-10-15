@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import type { CaptureRect, CaptureTarget, RecordingSettings } from './types';
+import type { CaptureMode, CaptureRect, CaptureTarget, RecordingSettings } from './types';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { AudioLines, CircleStop, Clock3, ExternalLink, FileImage, FolderOpen, MonitorUp, Pause, Play, RefreshCw, Save, Video, Volume2, VolumeX } from 'lucide-react';
@@ -22,6 +22,11 @@ export default function ScreenRecorder() {
   const [state, dispatch] = useReducer(recorderReducer, undefined, createInitialRecorderState);
   const [view, setView] = useState<'recorder' | 'gif'>('recorder');
   const [monitorId, setMonitorId] = useState('');
+  const [mode, setMode] = useState<CaptureMode>('region');
+  const [fullscreenMonitorId, setFullscreenMonitorId] = useState('');
+  const [windowId, setWindowId] = useState('');
+  const [windowSearch, setWindowSearch] = useState('');
+  const sourcesInitialized = useRef(false);
   const [region, setRegion] = useState<CaptureRect | null>(null);
   const [minimizeBeforeCapture, setMinimizeBeforeCapture] = useState(true);
   const [settings, setSettings] = useState<RecordingSettings>(DEFAULT_RECORDING_SETTINGS);
@@ -46,11 +51,21 @@ export default function ScreenRecorder() {
     void refreshSources().then((sources) => {
       if (!sources) return;
       const primary = sources.monitors.find((item) => item.primary) ?? sources.monitors[0];
-      if (primary) {
-        setMonitorId(primary.id);
-      }
+      if (primary) setMonitorId(primary.id);
     });
   }, [refreshSources]);
+
+  useEffect(() => {
+    if (recorder.refreshingSources) return;
+    if (!sourcesInitialized.current && recorder.monitors.length > 0) {
+      sourcesInitialized.current = true;
+      setFullscreenMonitorId((recorder.monitors.find((item) => item.primary) ?? recorder.monitors[0]).id);
+    } else {
+      setFullscreenMonitorId((current) => recorder.monitors.some((item) => item.id === current) ? current : '');
+    }
+    setWindowId((current) => recorder.windows.some((item) => String(item.id) === current) ? current : '');
+    if (monitorId && !recorder.monitors.some((item) => item.id === monitorId)) setRegion(null);
+  }, [recorder.monitors, recorder.windows, recorder.refreshingSources, monitorId]);
 
   useEffect(() => {
     if (state.status !== 'recording') return;
@@ -99,27 +114,32 @@ export default function ScreenRecorder() {
     }
   };
 
-  const startRecordingForRegion = async () => {
+  const startRecording = async () => {
     if (startingRecordingRef.current || recorder.loading || state.status === 'recording' || state.status === 'paused' || state.status === 'stopping') return;
-    if (!region) {
-      toast.error('请先框选录制区域');
+    const target: CaptureTarget | null = mode === 'region'
+      ? (region && monitorId ? { mode, monitorId, rect: region } : null)
+      : mode === 'monitor'
+        ? (recorder.monitors.some((item) => item.id === fullscreenMonitorId) ? { mode, monitorId: fullscreenMonitorId } : null)
+        : (recorder.windows.some((item) => String(item.id) === windowId) ? { mode, windowId: Number(windowId) } : null);
+    if (!target) {
+      toast.error(mode === 'region' ? '请先框选录制区域' : mode === 'monitor' ? '请选择录制显示器' : '请选择录制窗口');
       return;
     }
     startingRecordingRef.current = true;
     setStartingRecording(true);
-    const target: CaptureTarget = { mode: 'region', monitorId, rect: region };
     try {
       dispatch({ type: 'countdown' });
       if (settings.countdownSec > 0) await new Promise((resolve) => window.setTimeout(resolve, settings.countdownSec * 1000));
       const session = await recorder.start(target, settings);
       if (session) {
+        if (recorder.hasFinished(session.id)) return;
         setElapsedMs(0);
         dispatch({ type: 'started', session });
-        log.info('录制已开始', { mode: 'region', fps: settings.fps, quality: settings.quality });
+        log.info('录制已开始', { mode, fps: settings.fps, quality: settings.quality });
       } else {
         log.error('录制启动失败', recorder.error);
         dispatch({ type: 'error', message: recorder.error ?? '无法开始录制' });
-        showOperationError({ message: '录制启动失败', error: recorder.error ?? '无法开始录制', retry: () => void startRecordingForRegion(), retryLabel: '重试', copyLabel: '复制详情', logsLabel: '查看日志' });
+        showOperationError({ message: '录制启动失败', error: recorder.error ?? '无法开始录制', retry: () => void startRecording(), retryLabel: '重试', copyLabel: '复制详情', logsLabel: '查看日志' });
       }
     } finally {
       startingRecordingRef.current = false;
@@ -181,10 +201,6 @@ export default function ScreenRecorder() {
       log.error('导出录制失败', { format, error: message });
       showOperationError({ message: `导出 ${format.toUpperCase()} 失败`, error: reason, retry: () => void exportRecording(format), retryLabel: '重试导出', copyLabel: '复制详情', logsLabel: '查看日志' });
     }
-  };
-
-  const startRecording = async () => {
-    await startRecordingForRegion();
   };
 
   useEffect(() => {
@@ -312,6 +328,7 @@ export default function ScreenRecorder() {
           <Button variant="outline" onClick={() => void openRecordingInGifEditor()}><ExternalLink className="h-4 w-4" />编辑 GIF</Button>
         </div>
         {recorder.error && <p role="alert" className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-center text-xs text-destructive">{recorder.error}</p>}
+        {state.artifact.warning && <p role="status" className="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-center text-sm text-warning">{state.artifact.warning}</p>}
         <p className="mt-3 break-all text-center font-mono text-xs text-muted-foreground">缓存文件：{state.artifact.path}</p>
       </div>
     );
@@ -323,20 +340,26 @@ export default function ScreenRecorder() {
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive"><Video className="h-5 w-5" /></span><h2 className="font-heading text-xl font-bold">屏幕录制</h2></div>
-            <p className="mt-2 text-sm text-muted-foreground">在屏幕上拖拽框选需要录制的区域；停止后可导出 MP4 或制作 GIF。</p>
+            <p className="mt-2 text-sm text-muted-foreground">录制屏幕区域、整个显示器或指定窗口；停止后可导出 MP4 或制作 GIF。</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => void recorder.refreshSources()}><RefreshCw className="h-4 w-4" />刷新来源</Button>
-            <Button variant="outline" onClick={() => setView('gif')}><FileImageIcon />GIF 编辑器</Button>
+            <Button variant="outline" disabled={startingRecording || selectingRegion || recorder.refreshingSources} onClick={() => void recorder.refreshSources()}><RefreshCw className="h-4 w-4" />刷新来源</Button>
+            <Button variant="outline" disabled={startingRecording || selectingRegion} onClick={() => setView('gif')}><FileImageIcon />GIF 编辑器</Button>
           </div>
         </div>
 
         {!isTauri && <div className="mb-5 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">录制依赖 Windows 桌面版。你仍可使用右上角的 GIF 编辑器。</div>}
         {(state.error || recorder.error) && <div className="mb-5 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{state.error ?? recorder.error}</div>}
 
-        <div className="grid gap-5 lg:grid-cols-[1.25fr_.75fr]">
+        <fieldset disabled={startingRecording || selectingRegion || recorder.loading} className="grid min-w-0 gap-5 lg:grid-cols-[1.25fr_.75fr]">
           <section className="rounded-xl border border-border bg-card p-5 shadow-tinted-sm">
             <h3 className="text-sm font-semibold">1. 选择录制内容</h3>
+            <div role="group" aria-label="录制模式" className="mt-4 grid grid-cols-3 gap-2">
+              {([{ value: 'region', label: '区域录制' }, { value: 'monitor', label: '全屏录制' }, { value: 'window', label: '窗口录制' }] as const).map((item) => (
+                <Button key={item.value} aria-pressed={mode === item.value} variant={mode === item.value ? 'default' : 'outline'} onClick={() => setMode(item.value)}>{item.label}</Button>
+              ))}
+            </div>
+            {mode === 'region' && <>
             <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-medium"><MonitorUp className="h-5 w-5 text-primary" />框选录制区域</div>
@@ -349,6 +372,27 @@ export default function ScreenRecorder() {
               <p className="text-sm font-medium">已框选区域参数</p>
               {region ? <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{(['x', 'y', 'width', 'height'] as const).map((key) => <div key={key}><Label className="text-[11px]">{key === 'x' ? 'X' : key === 'y' ? 'Y' : key === 'width' ? '宽度' : '高度'}</Label><div className="mt-1 rounded-md border border-border bg-muted/30 px-3 py-2 font-mono text-sm tabular-nums">{region[key]}</div></div>)}</div> : <p className="mt-2 text-xs text-muted-foreground">尚未框选区域</p>}
             </div>
+            </>}
+            {mode === 'monitor' && <div className="mt-4 space-y-3 rounded-lg border border-border p-4">
+              <Label htmlFor="recording-monitor">录制显示器</Label>
+              <Select id="recording-monitor" value={fullscreenMonitorId} onChange={(event) => setFullscreenMonitorId(event.target.value)} options={[
+                { value: '', label: '请选择显示器' },
+                ...recorder.monitors.map((item) => ({ value: item.id, label: `${item.name}${item.primary ? ' · 主屏' : ''} · ${item.width} × ${item.height}` })),
+              ]} />
+              <p className="text-xs leading-5 text-muted-foreground">录制所选显示器的完整画面，包含该屏幕上可见的窗口；不拼接多个显示器。</p>
+            </div>}
+            {mode === 'window' && <div className="mt-4 space-y-3 rounded-lg border border-border p-4">
+              <Label htmlFor="recording-window-search">搜索窗口</Label>
+              <input id="recording-window-search" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" placeholder="输入应用名称或窗口标题" value={windowSearch} onChange={(event) => setWindowSearch(event.target.value)} />
+              <Label htmlFor="recording-window">录制窗口</Label>
+              <Select id="recording-window" value={windowId} onChange={(event) => setWindowId(event.target.value)} options={[
+                { value: '', label: '请选择窗口' },
+                ...recorder.windows.filter((item) => String(item.id) === windowId || `${item.appName} ${item.title}`.toLowerCase().includes(windowSearch.trim().toLowerCase())).map((item) => ({ value: String(item.id), label: `${item.appName || '应用'} · ${item.title} · ${item.width} × ${item.height}` })),
+              ]} />
+              {!recorder.windows.length && <p className="text-xs text-muted-foreground">没有可录制窗口，请打开并恢复目标窗口后刷新来源。</p>}
+              <p className="text-xs leading-5 text-muted-foreground">跟随指定窗口；调整大小时等比例适配并补黑边。最小化或关闭窗口将停止并保存。部分硬件加速或受保护窗口可能无法捕获。</p>
+            </div>}
+            {(mode === 'window' ? recorder.sourceErrors.windows : recorder.sourceErrors.monitors) && <p role="alert" className="mt-3 text-sm text-destructive">{mode === 'window' ? recorder.sourceErrors.windows : recorder.sourceErrors.monitors}</p>}
           </section>
 
           <section className="rounded-xl border border-border bg-card p-5 shadow-tinted-sm">
@@ -360,16 +404,17 @@ export default function ScreenRecorder() {
               <label className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm"><span className="flex items-center gap-2"><MonitorUp className="h-4 w-4 text-muted-foreground" />光标高亮</span><input type="checkbox" checked={settings.cursorHighlight} onChange={(event) => setSettings((current) => ({ ...current, cursorHighlight: event.target.checked }))} /></label>
               <div className="rounded-lg border border-border p-3">
                 <div className="mb-2 flex items-center gap-2 text-sm font-medium"><AudioLines className="h-4 w-4" />音频</div>
+                {recorder.sourceErrors.audio && <p role="alert" className="mb-2 text-xs text-destructive">{recorder.sourceErrors.audio}</p>}
                 <label className="flex items-center justify-between py-1.5 text-sm"><span className="flex items-center gap-2"><Volume2 className="h-4 w-4 text-muted-foreground" />麦克风</span><input type="checkbox" checked={settings.audio.microphone} onChange={(event) => setSettings((current) => ({ ...current, audio: { ...current.audio, microphone: event.target.checked, microphoneId: event.target.checked ? recorder.audioSources.find((item) => item.kind === 'microphone')?.id : undefined } }))} /></label>
                 <label className="flex items-center justify-between py-1.5 text-sm"><span className="flex items-center gap-2"><VolumeX className="h-4 w-4 text-muted-foreground" />系统声音</span><input type="checkbox" checked={settings.audio.system} onChange={(event) => setSettings((current) => ({ ...current, audio: { ...current.audio, system: event.target.checked, systemId: event.target.checked ? recorder.audioSources.find((item) => item.kind === 'system')?.id : undefined } }))} /></label>
               </div>
             </div>
           </section>
-        </div>
+        </fieldset>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 p-4">
-          <div className="flex items-center gap-3"><Clock3 className="h-5 w-5 text-primary" /><p className="text-sm text-muted-foreground">{selectingRegion ? '请在屏幕上拖拽框选区域，按 Enter 确认。' : '开始后主窗口会自动隐藏，框选确认后立即录制。'}</p></div>
-          <Button size="lg" onClick={() => void startRecording()} disabled={recorder.loading || !isTauri || selectingRegion || startingRecording || !region}><CircleStop className="h-4 w-4" />{startingRecording ? '正在启动…' : '开始录制'}</Button>
+          <div className="flex items-center gap-3"><Clock3 className="h-5 w-5" /><p className="text-sm text-muted-foreground">{selectingRegion ? '请在屏幕上拖拽框选区域，按 Enter 确认。' : startingRecording ? '倒计时结束后开始录制…' : '点击开始后按设置倒计时，录制时主窗口自动隐藏；Esc 停止。'}</p></div>
+          <Button size="lg" onClick={() => void startRecording()} disabled={recorder.loading || recorder.refreshingSources || !isTauri || selectingRegion || startingRecording || (mode === 'region' ? !region : mode === 'monitor' ? !recorder.monitors.some((item) => item.id === fullscreenMonitorId) : !recorder.windows.some((item) => String(item.id) === windowId))}><CircleStop className="h-4 w-4" />{startingRecording ? '正在启动…' : '开始录制'}</Button>
         </div>
       </div>
     </div>
@@ -377,7 +422,7 @@ export default function ScreenRecorder() {
 }
 
 function SettingSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
-  return <div><Label>{label}</Label><Select value={value} onChange={(event) => onChange(event.target.value)} options={options} /></div>;
+  return <div><Label htmlFor={`recording-${label}`}>{label}</Label><Select id={`recording-${label}`} value={value} onChange={(event) => onChange(event.target.value)} options={options} /></div>;
 }
 
 function formatDuration(value: number) {

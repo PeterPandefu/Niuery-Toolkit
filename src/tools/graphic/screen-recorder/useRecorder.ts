@@ -23,6 +23,8 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
   const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
   const [windows, setWindows] = useState<WindowInfo[]>([]);
   const [audioSources, setAudioSources] = useState<AudioSource[]>([]);
+  const [sourceErrors, setSourceErrors] = useState<{ monitors?: string; windows?: string; audio?: string }>({});
+  const [refreshingSources, setRefreshingSources] = useState(false);
   const [session, setSession] = useState<RecordingSession | null>(null);
   const [artifact, setArtifact] = useState<RecordingArtifact | null>(null);
   const [status, setStatus] = useState<RecordingStatusEvent | null>(null);
@@ -30,17 +32,20 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const onStatusRef = useRef(onStatus);
   const lastSessionIdRef = useRef<string | null>(null);
+  const terminalSessionRef = useRef<string | null>(null);
   onStatusRef.current = onStatus;
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
     void listen<RecordingStatusEvent>('recording-status', (event) => {
       const nextStatus = event.payload;
+      if (nextStatus.status === 'stopped' || nextStatus.status === 'error') terminalSessionRef.current = nextStatus.sessionId;
       if (nextStatus.status === 'stopped' && nextStatus.artifact) {
         lastSessionIdRef.current = nextStatus.sessionId;
         setSession(null);
         setArtifact(nextStatus.artifact);
       }
+      if (nextStatus.status === 'error') setSession(null);
       setStatus(nextStatus);
       onStatusRef.current?.(nextStatus);
     }).then((cleanup) => {
@@ -50,33 +55,38 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
   }, []);
 
   const refreshSources = useCallback(async () => {
-    setError(null);
+    setRefreshingSources(true);
     try {
-      const [nextMonitors, nextWindows, nextAudio] = await Promise.all([
+      const [monitorResult, windowResult, audioResult] = await Promise.allSettled([
         invoke<MonitorInfo[]>('list_capture_monitors'),
         invoke<WindowInfo[]>('list_capture_windows'),
         invoke<AudioSource[]>('list_audio_sources'),
       ]);
+      const nextMonitors = monitorResult.status === 'fulfilled' ? monitorResult.value : [];
+      const nextWindows = windowResult.status === 'fulfilled' ? windowResult.value : [];
+      const nextAudio = audioResult.status === 'fulfilled' ? audioResult.value : [];
+      const message = (result: PromiseSettledResult<unknown>) => result.status === 'rejected' ? String(result.reason instanceof Error ? result.reason.message : result.reason) : undefined;
+      setSourceErrors({ monitors: message(monitorResult), windows: message(windowResult), audio: message(audioResult) });
       setMonitors(nextMonitors);
       setWindows(nextWindows);
       setAudioSources(nextAudio);
       return { monitors: nextMonitors, windows: nextWindows, audioSources: nextAudio };
-    } catch (reason) {
-      const message = reason instanceof Error ? reason.message : String(reason);
-      log.warn('获取录制来源失败', message);
-      setError(message);
-      return null;
+    } finally {
+      setRefreshingSources(false);
     }
   }, []);
 
   const start = useCallback(async (target: CaptureTarget, settings: RecordingSettings) => {
+    terminalSessionRef.current = null;
     setLoading(true);
     setError(null);
     try {
       log.info('开始录制', { mode: target.mode, fps: settings.fps, quality: settings.quality });
       const nextSession = await invoke<RecordingSession>('start_recording', { target, settings });
-      setSession(nextSession);
-      setArtifact(null);
+      if (terminalSessionRef.current !== nextSession.id) {
+        setSession(nextSession);
+        setArtifact(null);
+      }
       log.info('录制会话已创建', { sessionId: nextSession.id, mode: target.mode });
       return nextSession;
     } catch (reason) {
@@ -235,6 +245,8 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     monitors,
     windows,
     audioSources,
+    sourceErrors,
+    refreshingSources,
     session,
     artifact,
     status,
@@ -251,5 +263,6 @@ export function useRecorder({ onStatus }: RecorderApiOptions = {}) {
     prepareGifEditor,
     loadPreview,
     clearError: () => setError(null),
+    hasFinished: (sessionId: string) => terminalSessionRef.current === sessionId,
   };
 }
