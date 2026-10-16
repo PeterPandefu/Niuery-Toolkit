@@ -13,6 +13,8 @@ import { preprocessOcrImage } from './ocr-preprocess';
 import { postprocessOcrText } from './ocr-postprocess';
 import { ImagePreview } from './image-preview';
 import { ImageFileDropzone } from './image-file-dropzone';
+import { ResourceNotice } from '@/components/resources/ResourceNotice';
+import { resourcesForOcr } from '@/lib/resources';
 
 const LANGUAGE_OPTIONS: { value: OcrLanguage; label: string }[] = [
   { value: 'chi_sim+eng', label: '简体中文 + 英文' },
@@ -120,7 +122,7 @@ export function OcrPanel() {
   );
 
   return (
-    <WorkbenchSplit
+    <div className="flex h-full flex-col"><ResourceNotice ids={resourcesForOcr(language)} /><div className="min-h-0 flex-1"><WorkbenchSplit
       empty={files.length === 0}
       emptyFooter={
         <>
@@ -164,6 +166,6 @@ export function OcrPanel() {
           ) : null}
         </>
       }
-    />
+    /></div></div>
   );
 }

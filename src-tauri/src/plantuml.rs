@@ -5,13 +5,13 @@ use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-use tauri::Manager;
 
 const MAX_SOURCE_BYTES: usize = 2 * 1024 * 1024;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const RENDER_TIMEOUT: Duration = Duration::from_secs(2);
 
 struct PlantUmlWorker {
+    paths: PlantUmlPaths,
     child: Child,
     stdin: ChildStdin,
     requests: Sender<()>,
@@ -33,8 +33,8 @@ pub struct PlantUmlPaths {
     pub jar: PathBuf,
 }
 
-/// The distributable resources are deliberately self-contained: no PATH
-/// lookup or PlantUML server fallback is permitted for this offline tool.
+/// Legacy layout retained for development and migration. Rendering remains local.
+#[allow(dead_code)]
 pub fn bundled_paths(resource_dir: &Path) -> PlantUmlPaths {
     PlantUmlPaths {
         java: resource_dir
@@ -103,6 +103,7 @@ fn spawn_worker(paths: &PlantUmlPaths, format: &str) -> Result<PlantUmlWorker, S
         }
     });
     Ok(PlantUmlWorker {
+        paths: paths.clone(),
         stdin: child.stdin.take().ok_or("无法向 PlantUML 发送源码")?,
         requests: request_tx,
         results: result_rx,
@@ -164,6 +165,7 @@ fn render_with_worker(
     let mut pool = workers()
         .lock()
         .map_err(|_| "PlantUML 渲染器状态异常".to_string())?;
+    if pool.get(format).is_some_and(|worker| worker.paths != *paths) { pool.remove(format); }
     if !pool.contains_key(format) {
         pool.insert(format.to_owned(), spawn_worker(paths, format)?);
     }
@@ -225,6 +227,8 @@ pub fn apply_scheme(source: &str, scheme: &str) -> Result<String, String> {
 }
 
 pub fn warm_up(app: &tauri::AppHandle) -> Result<(), String> {
+    let _java = crate::resources::lease("java")?;
+    let _jar = crate::resources::lease("plantuml")?;
     let paths = resolve_bundled_paths(app)?;
     {
         let mut pool = workers()
@@ -237,18 +241,17 @@ pub fn warm_up(app: &tauri::AppHandle) -> Result<(), String> {
     render_with_worker(&paths, "@startuml\n@enduml", "svg").map(|_| ())
 }
 
+/// Resource mutations call this only after excluding active rendering leases.
+pub fn stop_idle_workers() -> Result<(), String> {
+    workers().lock().map_err(|_| "PlantUML renderer state is unavailable".to_string())?.clear();
+    Ok(())
+}
+
 fn resolve_bundled_paths(app: &tauri::AppHandle) -> Result<PlantUmlPaths, String> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|error| format!("无法定位 PlantUML 资源目录: {error}"))?;
-    for candidate in [&resource_dir, &resource_dir.join("resources")] {
-        let paths = bundled_paths(candidate);
-        if paths.java.is_file() && paths.jar.is_file() {
-            return Ok(paths);
-        }
-    }
-    Err("找不到随应用安装的 PlantUML 运行时。请重新安装包含 JRE 和 plantuml.jar 的 Niuery Toolkit。".into())
+    Ok(PlantUmlPaths {
+        java: crate::resources::resolve(app, "java")?.0,
+        jar: crate::resources::resolve(app, "plantuml")?.0,
+    })
 }
 
 pub fn render(
@@ -274,8 +277,30 @@ pub fn render_plantuml(
     scheme: String,
     format: String,
 ) -> Result<Vec<u8>, String> {
+    let _java = crate::resources::lease("java")?;
+    let _jar = crate::resources::lease("plantuml")?;
     if !matches!(scheme.as_str(), "light" | "dark") {
         return Err("PlantUML 主题无效".into());
     }
     render(&resolve_bundled_paths(&app)?, &source, &scheme, &format)
+}
+
+#[cfg(test)]
+mod resource_tests {
+    use super::*;
+    #[test]
+    fn consecutive_svg_renders_reuse_the_process_and_idle_workers_can_stop() {
+        let paths = bundled_paths(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"));
+        if !paths.java.is_file() || !paths.jar.is_file() { return; }
+        render(&paths, "@startuml\nAlice -> Bob\n@enduml", "light", "svg").unwrap();
+        let first = workers().lock().unwrap().get("svg").unwrap().child.id();
+        render(&paths, "@startuml\nBob -> Alice\n@enduml", "light", "svg").unwrap();
+        let second = workers().lock().unwrap().get("svg").unwrap().child.id();
+        assert_eq!(first, second);
+        // Active operations, not an idle JVM, own the resource leases.
+        let java = crate::resources::lease("java").unwrap();
+        drop(java);
+        stop_idle_workers().unwrap();
+        assert!(workers().lock().unwrap().is_empty());
+    }
 }

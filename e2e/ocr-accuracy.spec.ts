@@ -66,14 +66,16 @@ function characterAccuracy(expected: string, actual: string) {
 }
 
 async function openOcr(page: Page) {
+  await page.addInitScript(() => localStorage.setItem('niuery-toolkit-lang', 'zh'));
   await page.goto('/');
   await expect(page.locator('nav[aria-label="Category navigation"]')).toBeVisible();
   await page.keyboard.press('Control+k');
   const search = page.getByPlaceholder(/Search|搜索/i).first();
   await expect(search).toBeVisible();
-  await search.fill('图片处理');
-  await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: '图片 OCR' }).click();
+  await search.fill('image-studio');
+  await expect(page.locator('#tool-search-option-image-studio')).toBeVisible({ timeout: 10_000 });
+  await page.locator('#tool-search-option-image-studio').click();
+  await page.getByRole('tab', { name: '识别', exact: true }).click();
 }
 
 for (const ocrCase of cases) {
@@ -81,7 +83,9 @@ for (const ocrCase of cases) {
     test.setTimeout(120_000);
     await openOcr(page);
     await page.locator('select').selectOption(ocrCase.language);
-    await page.locator('input[type="file"]').setInputFiles({
+    const choosing = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: '选择文件', exact: true }).click();
+    await (await choosing).setFiles({
       name: `${ocrCase.name}.svg`,
       mimeType: 'image/svg+xml',
       buffer: createTextImage(ocrCase.text),

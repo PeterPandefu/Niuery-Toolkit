@@ -161,7 +161,9 @@ git clone <repo-url> && cd Niuery-Toolkit
 npm install
 ```
 
-HTML / Markdown 导出依赖本地 Chromium Headless Shell（约 270MB，不纳入 Git）。`npm install`、`npm run tauri:dev` 和 `npm run tauri:build` 都会自动准备；也可手动执行 `npm run prepare:chromium`。仅跑前端、不需要这份资源时，可设置 `NIUERY_SKIP_CHROMIUM=1`。
+桌面版采用小安装包，Chromium、FFmpeg、Java / PlantUML、OCR 引擎和中英文模型不再随安装包分发。打开需要它们的功能时会提示准备资源，在「设置 → 资源管理」统一下载、重试、取消、离线导入或移除。不会在启动时自动下载；资源准备后可离线使用，文档不上传。Chromium / FFmpeg / Java 优先复用经兼容性检查的本机程序，也可手动选择；移除操作只删除应用管理的文件。
+
+开发环境仍可复用 `src-tauri/resources` 中已有资源。需要准备 Chromium 时显式执行 `npm run prepare:chromium`，安装依赖和普通构建不再触发下载。
 
 ### 开发
 
@@ -182,6 +184,10 @@ npm run build
 # 桌面应用打包
 npm run tauri:build
 ```
+
+桌面构建使用 `build:desktop` 排除 `public/ocr`，普通 `npm run build` 保留网页端 OCR。维护者在完整本地资源齐备后运行 `npm run resources:pack`，生成 `resource-packages/*.zip` 和编入应用的版本 / SHA-256 目录；生成不会自动上传。默认地址是项目 GitHub Releases 的 `resources-v1`，正式分发前必须先发布对应的同名包。HTTPS 镜像只能替换下载位置，不能替换信任的版本或校验值；离线导入也必须匹配内置目录。资源存放在应用数据目录的 `resources-v1/<id>/<version>`，不写入系统程序目录。
+
+资源包更新必须重新生成目录并随应用发布；运行中的录屏 / 渲染会阻止资源替换。校验失败或中断不会激活半成品，已有版本保留。Java 包保留完整运行模块，仅去除启动缓存和开发链接库，暂不做可能影响图表渲染的模块裁剪。
 
 ### 测试
 

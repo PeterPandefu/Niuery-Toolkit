@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:desktop": "node scripts/desktop-build.mjs",
+    "resources:pack": "node scripts/resource-packages.mjs",
+    "test:scripts": "node --test scripts/resource-packages.test.mjs scripts/desktop-build.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -14,7 +17,6 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "prepare": "husky",
-    "postinstall": "node scripts/prepare-chromium.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

@@ -16,6 +16,8 @@ import { markPerformance, measurePerformance } from '@/lib/performance-diagnosti
 import { AtmosphereLayer } from '@/components/layout/SkinAtmosphere';
 import { WindowControls } from '@/components/layout/AppTitleBar';
 import { Mascot } from '@/components/mascot/Mascot';
+import { ResourceNotice } from '@/components/resources/ResourceNotice';
+import { TOOL_RESOURCES } from '@/lib/resources';
 
 interface ToolPanelProps {
   toolId: string | null;
@@ -282,10 +284,13 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
         {tool && activeTools.includes(tool.id) ? activeTools.map((id) => {
           const definition = getToolById(id);
           if (!definition) return null;
-          return <div key={id} className={id === toolId ? 'h-full animate-tool-enter' : 'hidden'} aria-hidden={id !== toolId}>
+          return <div key={id} className={id === toolId ? 'flex h-full flex-col animate-tool-enter' : 'hidden'} aria-hidden={id !== toolId}>
+            {id === toolId && <ResourceNotice ids={TOOL_RESOURCES[id] ?? []} />}
+            <div className="min-h-0 flex-1 overflow-hidden">
             <LocalizedToolErrorBoundary toolId={definition.id} toolName={t(`tools.${definition.id}`, definition.name)}>
               <Suspense fallback={<ToolLoader />}><ToolLoadTelemetry toolId={definition.id} /><definition.component /></Suspense>
             </LocalizedToolErrorBoundary>
+            </div>
           </div>;
         }) : tool ? <ToolStoppedScreen toolId={tool.id} /> : <WelcomeScreen onSelectTool={handleSelectTool} />}
       </main>

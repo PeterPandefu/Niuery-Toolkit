@@ -5,7 +5,6 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::ipc::Response;
@@ -19,7 +18,6 @@ mod window_capture;
 
 static NEXT_GIF_EXPORT_ID: AtomicU64 = AtomicU64::new(0);
 static GIF_EXPORT_REPLACE_LOCK: Mutex<()> = Mutex::new(());
-static RECORDING_ENCODER_CACHE: OnceLock<Mutex<Option<&'static str>>> = OnceLock::new();
 
 const RECORDING_ESC: &str = "Esc";
 
@@ -622,6 +620,7 @@ pub async fn start_recording(
         return Err("录屏目前仅支持 Windows".to_string());
     }
     let (width, height) = target_dimensions(&target)?;
+    let ffmpeg_lease = crate::resources::lease("ffmpeg")?;
     let ffmpeg = find_ffmpeg(&app)?;
     // 在共享入口锁内检查其他捕获会话并占用录屏状态，防止界面命令绕过快捷键保护。
     let guard_state = app.state::<crate::capture_guard::CaptureGuardState>();
@@ -664,6 +663,7 @@ pub async fn start_recording(
     let thread_id = id.clone();
     let fps = settings.fps;
     std::thread::spawn(move || {
+        let _ffmpeg_lease = ffmpeg_lease;
         let result = capture_loop(
             &thread_app,
             &thread_id,
@@ -2066,27 +2066,7 @@ pub fn ffmpeg_resource_candidates(resource_dir: &Path) -> [PathBuf; 2] {
 }
 
 fn find_ffmpeg(app: &AppHandle) -> Result<PathBuf, String> {
-    let resource = app.path().resource_dir().ok();
-    if let Some(path) = resource
-        .as_deref()
-        .map(ffmpeg_resource_candidates)
-        .into_iter()
-        .flatten()
-        .find(|path| path.is_file())
-    {
-        return Ok(path);
-    }
-    if Command::new("ffmpeg")
-        .arg("-version")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
-    {
-        return Ok(PathBuf::from("ffmpeg"));
-    }
-    Err("找不到 FFmpeg。请将 LGPL 版 ffmpeg.exe 放入 src-tauri/resources 后重新打包，或将 FFmpeg 加入系统 PATH。".to_string())
+    crate::resources::resolve(app, "ffmpeg").map(|(path, _)| path)
 }
 
 fn select_video_encoder(ffmpeg: &Path) -> Result<&'static str, String> {
@@ -2106,20 +2086,9 @@ fn select_video_encoder(ffmpeg: &Path) -> Result<&'static str, String> {
 }
 
 fn cached_select_video_encoder(ffmpeg: &Path) -> Result<&'static str, String> {
-    let cache = RECORDING_ENCODER_CACHE.get_or_init(|| Mutex::new(None));
-    if let Some(encoder) = cache
-        .lock()
-        .map_err(|_| "录屏编码器缓存不可用".to_string())?
-        .as_ref()
-        .copied()
-    {
-        return Ok(encoder);
-    }
-    let encoder = select_video_encoder(ffmpeg)?;
-    let mut cached = cache
-        .lock()
-        .map_err(|_| "录屏编码器缓存不可用".to_string())?;
-    Ok(cached.get_or_insert(encoder))
+    // Local program selection may change executable and adjacent codec DLLs.
+    // Do not reuse a process-global encoder choice across resource switches.
+    select_video_encoder(ffmpeg)
 }
 
 /// 在应用空闲启动阶段预热录屏编码器探测，避免首次点击“开始录制”时才启动
@@ -2244,6 +2213,7 @@ fn export_gif(
     output: &Path,
     options: &ExportOptions,
 ) -> Result<Option<String>, String> {
+    let _lease = crate::resources::lease("ffmpeg")?;
     let ffmpeg = find_ffmpeg(app)?;
     export_gif_with_ffmpeg(&ffmpeg, Path::new(input), output, options)
 }
@@ -2469,6 +2439,14 @@ pub fn cleanup_stale_recordings(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn encoder_detection_does_not_reuse_another_executables_result() {
+        let ffmpeg = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/ffmpeg.exe");
+        if !ffmpeg.is_file() { return; }
+        super::cached_select_video_encoder(&ffmpeg).unwrap();
+        assert!(super::cached_select_video_encoder(std::path::Path::new("C:/niuery-nonexistent-ffmpeg.exe")).is_err());
+    }
+
     use super::{
         cursor_highlight_window_position, cursor_highlight_window_size,
         ensure_recording_slot_available, export_gif_with_ffmpeg, finish_timeout_result,
