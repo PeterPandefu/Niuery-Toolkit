@@ -482,9 +482,6 @@ export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: Setti
 
         {/* Tab 切换 */}
         <div className="flex items-center gap-1 border-b border-border/60 px-5 pt-2.5 pb-0">
-          <button onClick={() => setTab('resources')} className={cn('rounded-t-md px-3 py-2 text-[12px] font-medium', tab === 'resources' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>
-            {t('resources.title', '资源管理')}
-          </button>
           <button
             onClick={() => setTab('alwaysOn')}
             className={cn(
@@ -520,6 +517,9 @@ export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: Setti
           >
             <Keyboard className="h-3 w-3" />
             {t('app.hotkeys')}
+          </button>
+          <button onClick={() => setTab('resources')} className={cn('rounded-t-md px-3 py-2 text-[12px] font-medium', tab === 'resources' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>
+            {t('resources.title', '资源管理')}
           </button>
           <button onClick={() => setTab('updates')} className={cn('rounded-t-md px-3 py-2 text-[12px] font-medium', tab === 'updates' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>
             {t('updates.title')}
