@@ -12,10 +12,12 @@ import { getThemeTokens, SKIN_IDS } from '@/lib/theme';
 import { DEFAULT_POINTER_EFFECT } from '@/lib/pointer-effect';
 import type { PointerEffect, SkinId } from '@/types/tool';
 import { useTheme } from '@/hooks/use-theme';
+import { ResourceManager } from '@/components/resources/ResourceManager';
 
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
+  initialTab?: 'alwaysOn' | 'resources';
 }
 
 /** 开关组件 */
@@ -298,10 +300,10 @@ const SKIN_ICONS = {
   ink: Feather,
 } as const satisfies Record<SkinId, typeof Sunrise>;
 
-export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
+export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: SettingsDialogProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState('');
-  const [tab, setTab] = useState<'appearance' | 'alwaysOn' | 'pinned' | 'hotkeys'>('alwaysOn');
+  const [tab, setTab] = useState<'appearance' | 'alwaysOn' | 'pinned' | 'hotkeys' | 'resources'>(initialTab);
   const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const setAlwaysOn = useToolLifecycleStore((s) => s.setAlwaysOn);
@@ -317,7 +319,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   useEffect(() => {
     if (open) {
       setFilter('');
-      setTab('alwaysOn');
+      setTab(initialTab);
       setHotkeyError(null);
       // 加载快捷键配置
       if (isTauri) {
@@ -326,7 +328,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         });
       }
     }
-  }, [open]);
+  }, [open, initialTab]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -426,6 +428,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
         {/* Tab 切换 */}
         <div className="flex items-center gap-1 border-b border-border/60 px-5 pt-2.5 pb-0">
+          <button onClick={() => setTab('resources')} className={cn('rounded-t-md px-3 py-2 text-[12px] font-medium', tab === 'resources' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>
+            {t('resources.title', '资源管理')}
+          </button>
           <button
             onClick={() => setTab('alwaysOn')}
             className={cn(
@@ -465,7 +470,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </div>
 
         {/* 筛选 / 快捷键头部 */}
-        {tab === 'appearance' ? null : tab === 'hotkeys' ? (
+        {tab === 'appearance' || tab === 'resources' ? null : tab === 'hotkeys' ? (
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-2.5">
             <span className="text-[11px] text-muted-foreground">{t('hotkeys.hint')}</span>
             <button
@@ -500,7 +505,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
         {/* 内容区 */}
         <div className="max-h-[46vh] overflow-y-auto px-3 py-3">
-          {tab === 'appearance' ? (
+          {tab === 'resources' ? <ResourceManager /> : tab === 'appearance' ? (
             <AppearanceSettings />
           ) : tab === 'hotkeys' ? (
             /* 快捷键配置 */
@@ -616,7 +621,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
         {/* 底部提示 */}
         <div className="flex items-center gap-3 border-t border-border bg-muted/30 px-5 py-2.5 text-[10px] text-muted-foreground">
-          {tab === 'appearance' ? (
+          {tab === 'resources' ? <span>{t('resources.title', '资源管理')}</span> : tab === 'appearance' ? (
             <span className="flex items-center gap-1.5">
               <Palette className="h-3 w-3 text-primary" />
               {t('theme.appearanceDesc')}

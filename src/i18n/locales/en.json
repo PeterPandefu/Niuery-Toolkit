@@ -1,4 +1,5 @@
 {
+  "resources": { "title": "Resources" },
   "app": {
     "name": "Niuery Toolkit",
     "description": "Offline-first developer toolkit",

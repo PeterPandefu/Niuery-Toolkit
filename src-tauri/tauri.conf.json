@@ -6,8 +6,8 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:21516",
-    "beforeDevCommand": "npm run prepare:chromium && npm run dev",
-    "beforeBuildCommand": "npm run prepare:chromium && npm run build"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build:desktop"
   },
   "app": {
     "windows": [
@@ -35,7 +35,7 @@
   },
   "bundle": {
     "active": true,
-    "resources": ["resources"],
+    "resources": ["resources/LICENSE.txt", "resources/THIRD_PARTY_NOTICES.md", "resources/plantuml/THIRD_PARTY_NOTICES.txt"],
     "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",

@@ -59,6 +59,7 @@ src-tauri/target-http-scope
 # Misc
 *.local
 coverage/
+resource-packages/
 
 # Verification screenshots (dev artifacts)
 /*.png

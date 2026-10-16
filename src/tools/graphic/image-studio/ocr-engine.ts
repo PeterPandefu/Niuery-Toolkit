@@ -1,6 +1,7 @@
 import { createWorker, OEM } from 'tesseract.js';
 import { createLogger } from '@/lib/logger';
 import { OCR_RECOGNITION_PARAMETERS } from './ocr-preprocess';
+import { ocrAssetUrls, isResourceDesktop } from '@/lib/resources';
 
 export type OcrLanguage = 'chi_sim' | 'eng' | 'chi_sim+eng';
 export type OcrWorker = Pick<Tesseract.Worker, 'recognize' | 'setParameters' | 'terminate'>;
@@ -16,26 +17,18 @@ export class OcrInitializationTimeoutError extends Error {
   }
 }
 
-function getOcrAssetUrl(path: string) {
-  return new URL(`ocr/${path}`, window.location.href).href;
-}
-
 function terminateSilently(worker: OcrWorker) {
   void Promise.resolve(worker.terminate()).catch(() => undefined);
 }
 
-export function createOcrWorker(
+export async function createOcrWorker(
   language: OcrLanguage,
   onProgress: (status: string, progress: number) => void,
   timeoutMs = OCR_INITIALIZATION_TIMEOUT_MS
 ): Promise<OcrWorker> {
   return new Promise((resolve, reject) => {
+    let assets: Awaited<ReturnType<typeof ocrAssetUrls>> | undefined;
     const startedAt = Date.now();
-    const assets = {
-      workerPath: getOcrAssetUrl('worker.min.js'),
-      corePath: getOcrAssetUrl('core/tesseract-core-lstm.wasm.js'),
-      langPath: getOcrAssetUrl('lang'),
-    };
     let lastStatus = '准备初始化';
     log.info('OCR 初始化开始', { language, timeoutMs, assets });
     let settled = false;
@@ -53,19 +46,20 @@ export function createOcrWorker(
     }, timeoutMs);
 
     Promise.resolve()
-      .then(() =>
-        createWorker(language, OEM.LSTM_ONLY, {
-          workerPath: getOcrAssetUrl('worker.min.js'),
-          workerBlobURL: false,
-          corePath: getOcrAssetUrl('core/tesseract-core-lstm.wasm.js'),
-          langPath: getOcrAssetUrl('lang'),
+      .then(() => ocrAssetUrls(language))
+      .then((resolvedAssets) => {
+        assets = resolvedAssets;
+        if (settled) throw new OcrInitializationTimeoutError();
+        return createWorker(language, OEM.LSTM_ONLY, {
+          ...assets,
+          workerBlobURL: isResourceDesktop(),
           gzip: true,
           logger: ({ status, progress }) => {
             lastStatus = status;
             onProgress(status, progress);
           },
-        })
-      )
+        });
+      })
       .then(
         async (worker) => {
           if (settled) {

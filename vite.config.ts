@@ -63,6 +63,7 @@ function tldrawLocalAssets(): Plugin {
 }
 
 export default defineConfig({
+  publicDir: process.env.NIUERY_DESKTOP_PUBLIC || 'public',
   base: './',
   plugins: [react(), tldrawLocalAssets()],
   define: {
@@ -98,6 +99,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    exclude: ['node_modules', 'dist', 'e2e'],
+    exclude: ['node_modules', 'dist', 'e2e', 'scripts/**', 'resource-packages/**'],
   },
 })
