@@ -34,7 +34,7 @@ export const useToolLifecycleStore = create<ToolLifecycleStore>()(
   persist(
     (set, get) => ({
       activeTools: [],
-      alwaysOnTools: [],
+      alwaysOnTools: ['screenshot-editor', 'clipboard-history'],
 
       startTool: (toolId) =>
         set((state) => {
