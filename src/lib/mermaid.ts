@@ -17,6 +17,19 @@ export async function getMermaid() {
 }
 
 /**
+ * 将 Mermaid 生成的 HTML 风格 SVG 转成可作为独立图片解码的 XML。
+ * Mermaid 的 foreignObject 标签可能包含 `<br>` 和 HTML 实体；直接把
+ * 返回字符串放进 `image/svg+xml` Blob 时，WebView2 会拒绝解析这类内容。
+ */
+export function serializeSvgForImage(svg: string): string {
+  if (!/<foreignObject\b/i.test(svg)) return svg;
+  if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') return svg;
+  const document = new DOMParser().parseFromString(svg, 'text/html');
+  const root = document.querySelector('svg');
+  return root ? new XMLSerializer().serializeToString(root) : svg;
+}
+
+/**
  * Mermaid emits `width="100%"` without a height. That is fine for inline SVG,
  * but an SVG loaded through an `<img>` Blob needs intrinsic dimensions so the
  * image viewer can calculate its fit size consistently in WebView2.

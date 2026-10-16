@@ -50,4 +50,16 @@ describe('Mermaid diagram renderer', () => {
     expect(registerExternalDiagrams).toHaveBeenCalledWith([{ id: 'zenuml' }]);
     expect(render).toHaveBeenCalledWith(expect.stringMatching(/^niuery-mermaid-editor-/), source);
   });
+
+  it('serializes HTML labels as XML-safe SVG before creating an image Blob', async () => {
+    render.mockResolvedValueOnce({
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><div>接收结果<br>样本&nbsp;D</div></foreignObject></svg>',
+    });
+
+    const result = await renderMermaidDiagram('flowchart TD\nA --> B', { scheme: 'light' });
+
+    expect(result.svg).toContain('<br />');
+    expect(result.svg).not.toContain('<br>');
+    expect(result.svg).not.toContain('&nbsp;');
+  });
 });
