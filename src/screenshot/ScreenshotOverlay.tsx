@@ -175,6 +175,20 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
     await closeCurrentScreenshot();
   }, [closeCurrentScreenshot, exportBase64]);
 
+  // F 键：直接全屏截图（底图即整屏捕获，无需经过选区渲染）
+  const captureFullscreen = useCallback(async () => {
+    const c = document.createElement('canvas');
+    c.width = Math.round(screenW);
+    c.height = Math.round(screenH);
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(screenImage, 0, 0, c.width, c.height);
+    const b64 = c.toDataURL('image/png').replace(/^data:image\/\w+;base64,/, '');
+    try { await invoke('copy_image_to_clipboard', { base64Data: b64 }); }
+    catch (err) { console.error('复制失败', err); }
+    await closeCurrentScreenshot();
+  }, [screenImage, screenW, screenH, closeCurrentScreenshot]);
+
   const handleSave = useCallback(async () => {
     const b64 = exportBase64();
     if (b64) {
@@ -247,6 +261,10 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
   // 用 ref 保存 handleCopy 供键盘事件使用（避免闭包过期）
   const copyRef = useRef(handleCopy);
   copyRef.current = handleCopy;
+
+  // 用 ref 保存 captureFullscreen 供键盘事件使用（与 copyRef 同一模式）
+  const fullscreenRef = useRef(captureFullscreen);
+  fullscreenRef.current = captureFullscreen;
 
   // ── 手绘确认：计算外接矩形 ────────────────────────────────
   const confirmFreehand = useCallback(() => {
@@ -418,6 +436,15 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
         e.preventDefault();
         setMode((m) => (m === 'freehand' ? 'rect' : 'freehand'));
         setFreehandPoints([]);
+        return;
+      }
+      // F 键：立即全屏截图（仅普通截图模式；拖拽框选/手绘笔画中途不响应）
+      if ((e.key === 'f' || e.key === 'F') && !longshotMode && !recordingMode
+        && phase !== 'selecting' && phase !== 'drawing') {
+        e.preventDefault();
+        if (e.repeat) return; // 按住不松时避免重复触发
+        stopMouseTracking();
+        void fullscreenRef.current();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -679,8 +706,8 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
                 : longshotMode
                 ? '拖动框选可滚动区域 · Enter 开始长截图'
                 : mode === 'freehand'
-                  ? '按住鼠标绘制截图区域 · Enter 确认 · M 切换矩形'
-                  : '拖动鼠标框选截图区域 · M 切换手绘'}
+                  ? '按住鼠标绘制截图区域 · Enter 确认 · M 切换矩形 · F 全屏截图'
+                  : '拖动鼠标框选截图区域 · M 切换手绘 · F 全屏截图'}
             </span>
             <button
               type="button"
