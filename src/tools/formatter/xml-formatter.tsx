@@ -62,17 +62,22 @@ export default function XmlFormatter() {
     setOutput(formattedOutput);
   }, [formattedOutput, input]);
 
-  const sampleXml = `<root><item id="1"><name>Test</name><value>123</value></item><item id="2"><name>Test2</name><value>456</value></item></root>`;
+  const sampleXml = `<root>
+  <item id="1">
+    <name>Test</name>
+    <value>123</value>
+  </item>
+  <item id="2">
+    <name>Test2</name>
+    <value>456</value>
+  </item>
+</root>`;
   const hasFoldableContent = hasFoldableStructure(input, 'xml') || hasFoldableStructure(output, 'xml');
 
   const unfoldAll = () => {
     void inputEditorRef.current?.unfoldAll();
     void outputEditorRef.current?.unfoldAll();
   };
-
-  useEffect(() => {
-    unfoldAll();
-  }, [input, output, indent, mode]);
 
   return (
     <ToolLayout

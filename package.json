@@ -1,12 +1,15 @@
 {
   "name": "niuery-toolkit",
   "private": true,
-  "version": "1.0.6",
+  "version": "1.1.0",
   "type": "module",
   "description": "Offline-first developer toolkit - DevToys Clone",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:desktop": "node scripts/desktop-build.mjs",
+    "resources:pack": "node scripts/resource-packages.mjs",
+    "test:scripts": "node --test scripts/resource-packages.test.mjs scripts/desktop-build.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -17,7 +20,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "prepare:chromium": "powershell -ExecutionPolicy Bypass -File scripts/prepare-chromium.ps1"
+    "prepare:chromium": "node scripts/prepare-chromium.mjs --required"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
@@ -29,6 +32,7 @@
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/space-grotesk": "^5.3.0",
+    "@mermaid-js/mermaid-zenuml": "^0.2.3",
     "@monaco-editor/react": "^4.7.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-http": "^2.5.9",

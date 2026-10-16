@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import { type ScreenshotTool, TOOL_COLORS, STROKE_WIDTHS, FONT_SIZES, MOSAIC_SIZES } from './types';
 import { HUD } from './hud';
 
@@ -5,6 +6,7 @@ interface EditToolbarProps {
   /** 工具栏左上角在屏幕中的坐标 */
   x: number;
   y: number;
+  onSizeChange: (size: { width: number; height: number }) => void;
   tool: ScreenshotTool;
   color: string;
   strokeWidth: number;
@@ -37,6 +39,7 @@ const TOOLS: { id: ScreenshotTool; label: string; icon: string }[] = [
 export function EditToolbar({
   x,
   y,
+  onSizeChange,
   tool,
   color,
   strokeWidth,
@@ -53,12 +56,35 @@ export function EditToolbar({
   onSave,
   onCopy,
 }: EditToolbarProps) {
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+
+    const reportSize = () => {
+      const { width, height } = toolbar.getBoundingClientRect();
+      onSizeChange({ width, height });
+    };
+
+    reportSize();
+    if (typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(reportSize);
+    observer.observe(toolbar);
+    return () => observer.disconnect();
+  }, [onSizeChange]);
+
   return (
     <div
+      ref={toolbarRef}
       className="fixed z-50 flex items-center gap-0.5 rounded-md px-1.5 py-1 shadow-lg select-none"
       style={{
         left: x,
         top: y,
+        maxWidth: 'calc(100vw - 8px)',
+        overflowX: 'auto',
+        whiteSpace: 'nowrap',
         background: HUD.bg,
         backdropFilter: 'blur(8px)',
       }}

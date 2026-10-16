@@ -233,6 +233,40 @@ describe('getDocStats', () => {
 });
 
 describe('extractOutline', () => {
+  it.each([
+    ['LF', '\n'],
+    ['CRLF', '\r\n'],
+    ['CR', '\r'],
+  ])('应支持 %s 换行并保留标题的跳转行号', (_name, eol) => {
+    const source = [
+      '# 样本手工重测与复查结果 设计方案',
+      '',
+      '## 1. 背景',
+      '正文',
+      '```mermaid',
+      '# 代码块中的伪标题',
+      '```',
+      '## 2. 技术方案',
+      '### 2.1 架构',
+      '',
+    ].join(eol);
+
+    expect(extractOutline(source)).toEqual([
+      { level: 1, text: '样本手工重测与复查结果 设计方案', line: 0 },
+      { level: 2, text: '1. 背景', line: 2 },
+      { level: 2, text: '2. 技术方案', line: 7 },
+      { level: 3, text: '2.1 架构', line: 8 },
+    ]);
+  });
+
+  it('应支持混合换行的文档', () => {
+    expect(extractOutline('# Title\r\n正文\n## Sub\r### Deep\r\n')).toEqual([
+      { level: 1, text: 'Title', line: 0 },
+      { level: 2, text: 'Sub', line: 2 },
+      { level: 3, text: 'Deep', line: 3 },
+    ]);
+  });
+
   it('应提取标题大纲', () => {
     const outline = extractOutline('# Title\n## Sub\n### Deep');
     expect(outline).toEqual([

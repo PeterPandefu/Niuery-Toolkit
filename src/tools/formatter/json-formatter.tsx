@@ -70,17 +70,21 @@ export default function JsonFormatter() {
     setOutput(formattedOutput);
   }, [formattedOutput, input]);
 
-  const sampleJson = `{"name":"Niuery Toolkit","version":"1.0.0","features":["offline","secure","fast"],"nested":{"key":"value","array":[1,2,3]}}`;
+  const sampleJson = `{
+  "name": "Niuery Toolkit",
+  "version": "1.0.0",
+  "features": ["offline", "secure", "fast"],
+  "nested": {
+    "key": "value",
+    "array": [1, 2, 3]
+  }
+}`;
   const hasFoldableContent = hasFoldableStructure(input, 'json') || hasFoldableStructure(output, 'json');
 
   const unfoldAll = () => {
     void inputEditorRef.current?.unfoldAll();
     void outputEditorRef.current?.unfoldAll();
   };
-
-  useEffect(() => {
-    unfoldAll();
-  }, [input, output]);
 
   return (
     <ToolLayout

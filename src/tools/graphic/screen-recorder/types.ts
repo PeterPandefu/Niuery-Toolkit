@@ -65,6 +65,7 @@ export interface RecordingSession {
 }
 
 export interface RecordingArtifact {
+  warning?: string;
   path: string;
   durationMs: number;
   requestedFps?: number;

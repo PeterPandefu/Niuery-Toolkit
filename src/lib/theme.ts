@@ -275,6 +275,7 @@ export function registerMonacoThemes(monaco: typeof Monaco) {
           'editorLineNumber.foreground': toHex(tokens['muted-foreground']),
           'editorLineNumber.activeForeground': toHex(tokens.foreground),
           'editorGutter.background': toHex(tokens.background),
+          'editorGutter.foldingControlForeground': toHex(tokens['muted-foreground']),
           'editorIndentGuide.background1': rgbaHex(tokens.border, '8c'),
           'editorIndentGuide.activeBackground1': toHex(tokens.border),
           'editorWidget.background': toHex(tokens.popover),

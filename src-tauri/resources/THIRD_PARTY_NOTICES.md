@@ -9,9 +9,19 @@ directory. Its full GNU LGPL v3 text is included as `LICENSE.txt`. Corresponding
 recipes and source availability are published by BtbN at
 https://github.com/BtbN/FFmpeg-Builds and by FFmpeg at https://ffmpeg.org/download.html.
 
-The recorder uses `rawvideo`, `aac`, `palettegen`, and `paletteuse`; it prefers the
-Windows Media Foundation `h264_mf` encoder and falls back to `mpeg4`. It deliberately
-does not require GPL encoders such as x264.
+The recorder uses `rawvideo`, `aac`, `palettegen`, and `paletteuse`; it prefers
+software H.264 (`libx264` if provided by an external installation, otherwise
+`libopenh264`) and falls back to Windows Media Foundation `h264_mf`. The project's
+LGPL resource pack does not require or distribute GPL x264.
+
+## Optional OCR resource packs
+
+Tesseract.js 7 and tesseract.js-core are distributed under Apache-2.0. Their full
+license texts accompany each generated OCR pack under `licenses/`. Traineddata
+files are from the Tesseract tessdata project, Apache-2.0:
+https://github.com/tesseract-ocr/tessdata . The original local model bytes are
+preserved; publishing resource packs requires checking their upstream provenance
+and corresponding license/source obligations before release.
 
 ## simple-mind-map
 

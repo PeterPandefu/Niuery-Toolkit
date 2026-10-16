@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { copyToClipboard } from '@/lib/utils';
 import { createOcrWorker, OcrInitializationTimeoutError, type OcrWorker } from '@/tools/graphic/image-studio/ocr-engine';
+import { ResourceNotice } from '@/components/resources/ResourceNotice';
 import { preprocessOcrImage } from '@/tools/graphic/image-studio/ocr-preprocess';
 import { postprocessOcrText } from '@/tools/graphic/image-studio/ocr-postprocess';
 
@@ -229,6 +230,7 @@ export function ScreenshotOcrPanel({
 
   return (
     <section className="flex min-h-0 flex-col gap-3 border-t border-border bg-muted/20 p-3" aria-label="截图文字识别">
+      <ResourceNotice ids={['ocr-engine', 'ocr-chi-sim', 'ocr-eng']} />
       <div className="flex items-center gap-2">
         <ScanText className="h-4 w-4 text-primary" />
         <div className="min-w-0 flex-1">

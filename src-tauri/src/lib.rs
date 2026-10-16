@@ -6,6 +6,7 @@ mod hotkey;
 mod plantuml;
 pub mod process_tools;
 pub mod recorder;
+pub mod resources;
 mod screenshot;
 mod sticky_note;
 mod system_monitor;
@@ -171,6 +172,17 @@ fn current_capture_activity(app: &tauri::AppHandle) -> CaptureActivity {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol("resource", |context, request, responder| {
+            let app = context.app_handle().clone();
+            std::thread::spawn(move || {
+                let result = resources::read_ocr_asset(&app, request.uri().path());
+                let response = match result {
+                    Ok((bytes, mime)) => tauri::http::Response::builder().header("Content-Type", mime).header("Access-Control-Allow-Origin", "*").header("X-Content-Type-Options", "nosniff").body(bytes).unwrap(),
+                    Err(_) => tauri::http::Response::builder().status(404).header("Access-Control-Allow-Origin", "*").body(Vec::new()).unwrap(),
+                };
+                responder.respond(response);
+            });
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -323,6 +335,15 @@ pub fn run() {
         .manage(HotkeyState::default())
         .manage(CloseBehaviorState::default())
         .invoke_handler(tauri::generate_handler![
+            resources::list_resources,
+            resources::install_resource,
+            resources::cancel_resource_download,
+            resources::remove_resource,
+            resources::select_local_resource,
+            resources::import_resource,
+            resources::set_resource_mirror,
+            resources::get_resource_mirror,
+            resources::get_resource_paths,
             ws_server::start_ws_server,
             ws_server::stop_ws_server,
             ws_server::ws_broadcast,

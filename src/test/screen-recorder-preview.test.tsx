@@ -29,6 +29,32 @@ const settings: RecordingSettings = {
 let statusListener: ((event: { payload: RecordingStatusEvent }) => void) | undefined;
 
 describe('screen recording preview', () => {
+  it('启动响应前自动停止时保留成品且不重新标记为活动会话', async () => {
+    const artifact = { path: 'C:/early.mp4', width: 640, height: 480, durationMs: 10 };
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'start_recording') {
+        statusListener?.({ payload: { sessionId: 'early', status: 'stopped', artifact, elapsedMs: 10, fps: 30, droppedFrames: 0 } });
+        return { id: 'early', width: 640, height: 480, startedAt: 1 };
+      }
+    });
+    const { result } = renderHook(() => useRecorder());
+    await act(async () => { await result.current.start(target, settings); });
+    expect(result.current.session).toBeNull();
+    expect(result.current.artifact).toEqual(artifact);
+  });
+  it('窗口枚举失败不阻断显示器来源，保留分来源错误', async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'list_capture_windows') throw new Error('窗口枚举不可用');
+      if (command === 'list_capture_monitors') return [{ id: 'main', primary: true }];
+      return [];
+    });
+    const { result } = renderHook(() => useRecorder());
+    await act(async () => { await result.current.refreshSources(); });
+    expect(result.current.monitors).toEqual([{ id: 'main', primary: true }]);
+    expect(result.current.windows).toEqual([]);
+    expect((result.current as typeof result.current & { sourceErrors?: { windows?: string } }).sourceErrors?.windows).toBe('窗口枚举不可用');
+    expect(result.current.error).toBeNull();
+  });
   beforeEach(() => {
     listenMock.mockImplementation((_event: string, listener: typeof statusListener) => {
       statusListener = listener;

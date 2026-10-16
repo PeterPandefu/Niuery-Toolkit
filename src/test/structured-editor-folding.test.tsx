@@ -11,16 +11,27 @@ const mockRunAction = vi.hoisted(() => vi.fn());
 
 vi.mock('@monaco-editor/react', () => ({
   loader: { config: vi.fn() },
-  default: function MockEditor({ language, onMount, readOnly, value }: {
+  default: function MockEditor({ language, onMount, options, readOnly, value }: {
     language: string;
     onMount?: (editor: { getAction: () => { run: typeof mockRunAction } }) => void;
+    options?: { folding?: boolean; showFoldingControls?: string };
     readOnly?: boolean;
     value: string;
   }) {
     useEffect(() => {
       onMount?.({ getAction: () => ({ run: mockRunAction }) });
     }, [onMount]);
-    return <div data-testid="结构化编辑器" data-language={language} data-readonly={readOnly}>{value}</div>;
+    return (
+      <div
+        data-testid="结构化编辑器"
+        data-language={language}
+        data-readonly={readOnly}
+        data-folding={String(options?.folding)}
+        data-folding-controls={options?.showFoldingControls}
+      >
+        {value}
+      </div>
+    );
   },
 }));
 
@@ -52,6 +63,8 @@ describe('结构化编辑器折叠', () => {
 
     expect(screen.getAllByTestId('结构化编辑器')).toHaveLength(2);
     expect(screen.getAllByTestId('结构化编辑器').map((element) => element.dataset.language)).toEqual(languages);
+    expect(screen.getAllByTestId('结构化编辑器').every((element) => element.dataset.folding === 'true')).toBe(true);
+    expect(screen.getAllByTestId('结构化编辑器').every((element) => element.dataset.foldingControls === 'always')).toBe(true);
     expect(screen.getByRole('button', { name: '全部折叠' })).toBeEnabled();
     expect(screen.getByRole('button', { name: '全部展开' })).toBeEnabled();
   });

@@ -23,6 +23,12 @@ export default function App() {
   const activeToolId = useAppStore((s) => s.activeToolId);
   const initAlwaysOnTools = useToolLifecycleStore((s) => s.initAlwaysOnTools);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'alwaysOn' | 'resources'>('alwaysOn');
+  useEffect(() => {
+    const open = () => { setSettingsTab('resources'); setSettingsOpen(true); };
+    window.addEventListener('open-resource-manager', open);
+    return () => window.removeEventListener('open-resource-manager', open);
+  }, []);
 
   // 应用启动时自动加载常驻工具
   useEffect(() => {
@@ -71,12 +77,12 @@ export default function App() {
       <div className="relative z-[1] flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <Sidebar onSelectTool={handleSelectTool} />
         <div className="relative z-10 min-h-0 min-w-0 flex-1 overflow-hidden">
-          <ToolPanel toolId={activeToolId} onOpenSettings={() => setSettingsOpen(true)} />
+          <ToolPanel toolId={activeToolId} onOpenSettings={() => { setSettingsTab('alwaysOn'); setSettingsOpen(true); }} />
         </div>
       </div>
       <StatusBar />
       <SearchDialog onSelectTool={handleSelectTool} />
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsDialog open={settingsOpen} initialTab={settingsTab} onClose={() => setSettingsOpen(false)} />
       <Toaster position="bottom-right" richColors closeButton offset={48} />
       <NativeFileDropBridge />
     </div>

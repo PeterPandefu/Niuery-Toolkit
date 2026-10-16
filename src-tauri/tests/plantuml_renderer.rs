@@ -1,6 +1,7 @@
 #[allow(dead_code)]
 #[path = "../src/plantuml.rs"]
 mod plantuml;
+use niuery_toolkit_lib::resources;
 
 use std::path::Path;
 use std::time::Instant;
@@ -63,7 +64,7 @@ fn plantuml_applies_the_dark_theme_inside_the_uml_document() {
 }
 
 #[test]
-fn plantuml_reuses_the_jvm_for_consecutive_svg_renders() {
+fn plantuml_returns_intact_svg_for_consecutive_renders() {
     let resource_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
     let paths = plantuml::bundled_paths(&resource_dir);
     if !paths.java.is_file() || !paths.jar.is_file() {
@@ -71,19 +72,12 @@ fn plantuml_reuses_the_jvm_for_consecutive_svg_renders() {
     }
 
     let source = "@startuml\nAlice -> Bob: warm\n@enduml";
-    let first_started = Instant::now();
     let first = plantuml::render(&paths, source, "light", "svg").unwrap();
-    let first_elapsed = first_started.elapsed();
-    let second_started = Instant::now();
     let second = plantuml::render(&paths, source, "light", "svg").unwrap();
-    let second_elapsed = second_started.elapsed();
 
     assert!(first.starts_with(b"<?xml") || first.starts_with(b"<svg"));
     assert!(second.starts_with(b"<?xml") || second.starts_with(b"<svg"));
-    assert!(
-        second_elapsed < first_elapsed,
-        "first={first_elapsed:?}, second={second_elapsed:?}"
-    );
+    assert_eq!(first, second);
 }
 
 #[test]

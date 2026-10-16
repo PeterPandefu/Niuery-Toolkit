@@ -65,7 +65,7 @@ export function MergeImagePanel() {
     });
 
   return (
-    <WorkbenchSplit>
+    <WorkbenchSplit empty={files.length === 0}>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label="排列方式">
@@ -125,7 +125,7 @@ export function MergePdfPanel() {
     });
 
   return (
-    <WorkbenchSplit>
+    <WorkbenchSplit empty={files.length === 0}>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <p className="text-xs text-muted-foreground">每张图片作为一页，页面尺寸与图片一致</p>
@@ -161,7 +161,7 @@ export function MergeGifPanel() {
     });
 
   return (
-    <WorkbenchSplit>
+    <WorkbenchSplit empty={files.length === 0}>
       <ImageFileDropzone files={files} onChange={setFiles} multiple />
       <ImagePreview files={files} />
       <OptionRow label={`帧间隔 ${delayMs}ms`}>
@@ -341,7 +341,7 @@ export function CutoutPanel() {
     });
 
   return (
-    <WorkbenchSplit>
+    <WorkbenchSplit empty={file.length === 0}>
       <ImageFileDropzone files={file} onChange={setFile} />
       <ImagePreview files={file} />
       {imgUrl && imgSize && (
