@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Clipboard, History, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -94,7 +95,7 @@ export function ImageFileDropzone({ files, onChange, multiple = false, accept = 
       <FileDropzone files={files} onChange={onChange} multiple={multiple} accept={accept} hint={hint} footer={files.length === 0 ? importActions : undefined} />
       {files.length > 0 ? <div className="flex flex-wrap items-center gap-2">{importActions}</div> : null}
 
-      {historyOpen && (
+      {historyOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="选择历史图片">
           <button className="absolute inset-0 bg-black/55 backdrop-blur-sm" aria-label="关闭历史图片" onClick={() => setHistoryOpen(false)} />
           <section className="relative flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-tinted-lg">
@@ -128,7 +129,8 @@ export function ImageFileDropzone({ files, onChange, multiple = false, accept = 
               {history.length === 0 && <p className="col-span-full py-10 text-center text-sm text-muted-foreground">暂无图片历史记录</p>}
             </div>
           </section>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
