@@ -47,7 +47,7 @@ function WelcomeScreen({ onSelectTool }: { onSelectTool: (id: string) => void })
   const setSearchOpen = useAppStore((s) => s.setSearchOpen);
   const pinnedTools = useAppStore((s) => s.pinnedTools);
   const recentToolUsage = useAppStore((s) => s.recentToolUsage);
-  const mascotEnabled = useAppStore((s) => s.mascotEnabled) !== false;
+  const mascotEnabled = useAppStore((s) => s.mascotEnabled) ?? false;
   const allTools = useMemo(() => getAllTools(), []);
 
   const recentTools = useMemo(

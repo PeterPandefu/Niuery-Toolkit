@@ -62,7 +62,7 @@ export function useTheme() {
   const setAtmosphere = useAppStore((state) => state.setAtmosphere);
   const pointerEffect = useAppStore((state) => state.pointerEffect) ?? DEFAULT_POINTER_EFFECT;
   const setPointerEffect = useAppStore((state) => state.setPointerEffect);
-  const mascotEnabled = useAppStore((state) => state.mascotEnabled) !== false;
+  const mascotEnabled = useAppStore((state) => state.mascotEnabled) ?? false;
   const setMascotEnabled = useAppStore((state) => state.setMascotEnabled);
   const resetAppearance = useAppStore((state) => state.resetAppearance);
   const scheme = useResolvedTheme();

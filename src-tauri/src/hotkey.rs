@@ -3,6 +3,26 @@ use std::sync::Mutex;
 use tauri::Manager;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_shortcuts_are_parseable_and_match_requested_actions() {
+        let bindings = default_bindings();
+        for (action, expected) in [
+            (ACTION_SHOW_WINDOW, "Alt+Home"),
+            (ACTION_STICKY_NOTE, "Alt+N"),
+            (ACTION_SCREENSHOT, "Alt+Q"),
+            (ACTION_LONGSHOT, "Alt+W"),
+            (ACTION_SCREEN_RECORDER, "Alt+E"),
+        ] {
+            assert_eq!(bindings[action], expected);
+            assert!(bindings[action].parse::<Shortcut>().is_ok());
+        }
+    }
+}
+
 /// 快捷键动作类型
 pub const ACTION_SHOW_WINDOW: &str = "showWindow";
 pub const ACTION_STICKY_NOTE: &str = "stickyNote";
@@ -13,13 +33,13 @@ pub const ACTION_SCREEN_RECORDER: &str = "screenRecorder";
 /// 默认快捷键绑定
 pub fn default_bindings() -> HashMap<String, String> {
     let mut m = HashMap::new();
-    m.insert(ACTION_SHOW_WINDOW.to_string(), "Ctrl+Shift+T".to_string());
-    m.insert(ACTION_STICKY_NOTE.to_string(), "Ctrl+Alt+N".to_string());
-    m.insert(ACTION_SCREENSHOT.to_string(), "Ctrl+Alt+A".to_string());
-    m.insert(ACTION_LONGSHOT.to_string(), "Ctrl+Alt+S".to_string());
+    m.insert(ACTION_SHOW_WINDOW.to_string(), "Alt+Home".to_string());
+    m.insert(ACTION_STICKY_NOTE.to_string(), "Alt+N".to_string());
+    m.insert(ACTION_SCREENSHOT.to_string(), "Alt+Q".to_string());
+    m.insert(ACTION_LONGSHOT.to_string(), "Alt+W".to_string());
     m.insert(
         ACTION_SCREEN_RECORDER.to_string(),
-        "Ctrl+Shift+R".to_string(),
+        "Alt+E".to_string(),
     );
     m
 }

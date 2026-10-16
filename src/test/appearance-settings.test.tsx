@@ -29,6 +29,7 @@ describe('外观设置', () => {
       skin: 'forge',
       atmosphere: 'on',
       pointerEffect: 'glow',
+      mascotEnabled: true,
     });
 
     render(
@@ -55,6 +56,6 @@ describe('外观设置', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /外观|Appearance/ }));
     expect(screen.getByText(/指针特效|Pointer effect/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /光晕|Glow/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /光晕|Glow/ })).toHaveAttribute('aria-pressed', 'false');
   });
 });

@@ -5,6 +5,15 @@ import { DEFAULT_SKIN, isSkinId } from '@/lib/theme';
 import { DEFAULT_ATMOSPHERE, normalizeAtmosphere } from '@/lib/atmosphere';
 import { DEFAULT_POINTER_EFFECT, normalizePointerEffect } from '@/lib/pointer-effect';
 
+const DEFAULT_PINNED_TOOLS = [
+  'markdown-editor',
+  'mind-map',
+  'excalidraw-board',
+  'clipboard-history',
+  'image-studio',
+  'translator',
+];
+
 export interface RecentToolUsage {
   count: number;
   lastUsedOrder: number;
@@ -74,7 +83,7 @@ export const useAppStore = create<AppStore>()(
       setAtmosphere: (atmosphere) => set({ atmosphere }),
       pointerEffect: DEFAULT_POINTER_EFFECT,
       setPointerEffect: (pointerEffect) => set({ pointerEffect }),
-      mascotEnabled: true,
+      mascotEnabled: false,
       setMascotEnabled: (mascotEnabled) => set({ mascotEnabled }),
       resetAppearance: () =>
         set({
@@ -82,7 +91,7 @@ export const useAppStore = create<AppStore>()(
           skin: DEFAULT_SKIN,
           atmosphere: DEFAULT_ATMOSPHERE,
           pointerEffect: DEFAULT_POINTER_EFFECT,
-          mascotEnabled: true,
+          mascotEnabled: false,
         }),
 
       // 分类面板
@@ -118,7 +127,7 @@ export const useAppStore = create<AppStore>()(
       setSearchOpen: (open) => set({ searchOpen: open }),
 
       // 快捷栏固定工具
-      pinnedTools: ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'qrcode', 'text-diff'],
+      pinnedTools: [...DEFAULT_PINNED_TOOLS],
       setPinnedTools: (tools) => set({ pinnedTools: tools }),
       togglePinnedTool: (toolId) =>
         set((state) => {
@@ -171,8 +180,8 @@ export const useAppStore = create<AppStore>()(
           skin: isSkinId(persisted.skin) ? persisted.skin : DEFAULT_SKIN,
           atmosphere: normalizeAtmosphere(persisted.atmosphere),
           pointerEffect: normalizePointerEffect(persisted.pointerEffect),
-          mascotEnabled: persisted.mascotEnabled ?? true,
-          pinnedTools: persisted.pinnedTools ?? ['json-formatter', 'base64', 'timestamp', 'uuid-generator', 'qrcode', 'text-diff'],
+          mascotEnabled: persisted.mascotEnabled ?? false,
+          pinnedTools: persisted.pinnedTools ?? [...DEFAULT_PINNED_TOOLS],
           sidebarCollapsed: persisted.sidebarCollapsed ?? false,
         };
       },
