@@ -11,6 +11,45 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+fn chromium_candidates(
+    resource_dir: &Path,
+    executable: &str,
+    platform_directory: &str,
+) -> Vec<PathBuf> {
+    vec![
+        resource_dir.join("chromium").join(executable),
+        resource_dir
+            .join("chromium")
+            .join(platform_directory)
+            .join(executable),
+        resource_dir
+            .join("resources")
+            .join("chromium")
+            .join(executable),
+        resource_dir
+            .join("resources")
+            .join("chromium")
+            .join(platform_directory)
+            .join(executable),
+    ]
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::chromium_candidates;
+    use std::path::Path;
+
+    #[test]
+    fn includes_tauri_resources_platform_path() {
+        let candidates =
+            chromium_candidates(Path::new("C:/app"), "chrome-headless-shell.exe", "win-x64");
+
+        assert!(candidates.iter().any(|candidate| {
+            candidate == Path::new("C:/app/resources/chromium/win-x64/chrome-headless-shell.exe")
+        }));
+    }
+}
+
 fn chromium_path(app: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(path) = std::env::var("NIUERY_CHROMIUM_PATH") {
         let candidate = PathBuf::from(path);
@@ -33,14 +72,7 @@ fn chromium_path(app: &AppHandle) -> Result<PathBuf, String> {
     } else {
         "win-x64"
     };
-    let mut candidates = vec![
-        // 打包后 Tauri 会把 resources 目录映射到 resource_dir。
-        resource_dir.join("chromium").join(executable),
-        resource_dir
-            .join("chromium")
-            .join(platform_directory)
-            .join(executable),
-    ];
+    let mut candidates = chromium_candidates(&resource_dir, executable, platform_directory);
 
     // `tauri dev` 的 resource_dir 通常是 target/debug，不会自动复制源码资源。
     // 开发模式下补查 src-tauri/resources，避免调试环境误报 Chromium 缺失。
