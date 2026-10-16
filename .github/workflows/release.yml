@@ -24,6 +24,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Test release notes
+        run: node --test scripts/release-notes.test.mjs
+
+      - name: Prepare release notes
+        id: notes
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const { readFile } = require('node:fs/promises');
+            const path = require('node:path');
+            const { pathToFileURL } = require('node:url');
+            const { buildReleaseNotes } = await import(pathToFileURL(path.join(process.cwd(), 'scripts/release-notes.mjs')).href);
+            let changelog = '';
+            try {
+              changelog = await readFile('CHANGELOG.md', 'utf8');
+            } catch (error) {
+              if (error.code !== 'ENOENT') throw error;
+            }
+            return await buildReleaseNotes({
+              changelog,
+              tagName: context.ref.replace('refs/tags/', ''),
+              generateNotes: async (tagName) => {
+                core.info('No curated notes found; generating GitHub release notes.');
+                const { data } = await github.rest.repos.generateReleaseNotes({
+                  ...context.repo,
+                  tag_name: tagName,
+                });
+                return data.body;
+              },
+            });
+
       - name: Build and publish Tauri release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -33,7 +65,6 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Niuery Toolkit ${{ github.ref_name }}
-          releaseBody: |
-            请查看本次 Release 的变更说明。
+          releaseBody: ${{ steps.notes.outputs.result }}
           releaseDraft: false
           prerelease: false
