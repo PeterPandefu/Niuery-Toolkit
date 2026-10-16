@@ -36,6 +36,8 @@
     "@monaco-editor/react": "^4.7.0",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-http": "^2.5.9",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "2.7.1",
     "@tldraw/assets": "^5.3.1",
     "@tldraw/tldraw": "^5.3.1",
     "class-variance-authority": "^0.7.1",

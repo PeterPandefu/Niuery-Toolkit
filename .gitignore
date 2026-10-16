@@ -50,6 +50,7 @@ pnpm-debug.log*
 .qoder-cn/
 
 # Tauri
+.tauri/
 src-tauri/target/
 src-tauri/target-recorder-test/
 src-tauri/target-diagram-bundle/
