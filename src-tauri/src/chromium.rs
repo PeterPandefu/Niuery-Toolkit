@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -11,75 +11,48 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-fn chromium_path(app: &AppHandle) -> Result<PathBuf, String> {
-    if let Ok(path) = std::env::var("NIUERY_CHROMIUM_PATH") {
-        let candidate = PathBuf::from(path);
-        if candidate.is_file() {
-            return Ok(candidate);
-        }
-    }
-
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|error| error.to_string())?;
-    let executable = if cfg!(target_os = "windows") {
-        "chrome-headless-shell.exe"
-    } else {
-        "chrome-headless-shell"
-    };
-    let platform_directory = if cfg!(target_arch = "aarch64") {
-        "win-arm64"
-    } else {
-        "win-x64"
-    };
-    let mut candidates = vec![
-        // 打包后 Tauri 会把 resources 目录映射到 resource_dir。
+#[cfg(test)]
+fn chromium_candidates(
+    resource_dir: &Path,
+    executable: &str,
+    platform_directory: &str,
+) -> Vec<PathBuf> {
+    vec![
         resource_dir.join("chromium").join(executable),
         resource_dir
             .join("chromium")
             .join(platform_directory)
             .join(executable),
-    ];
+        resource_dir
+            .join("resources")
+            .join("chromium")
+            .join(executable),
+        resource_dir
+            .join("resources")
+            .join("chromium")
+            .join(platform_directory)
+            .join(executable),
+    ]
+}
 
-    // `tauri dev` 的 resource_dir 通常是 target/debug，不会自动复制源码资源。
-    // 开发模式下补查 src-tauri/resources，避免调试环境误报 Chromium 缺失。
-    #[cfg(debug_assertions)]
-    {
-        if let Some(src_tauri_dir) = std::env::current_exe()
-            .ok()
-            .and_then(|path| path.ancestors().nth(3).map(Path::to_path_buf))
-        {
-            candidates.push(
-                src_tauri_dir
-                    .join("resources")
-                    .join("chromium")
-                    .join(executable),
-            );
-            candidates.push(
-                src_tauri_dir
-                    .join("resources")
-                    .join("chromium")
-                    .join(platform_directory)
-                    .join(executable),
-            );
-        }
+#[cfg(test)]
+mod path_tests {
+    use super::chromium_candidates;
+    use std::path::Path;
+
+    #[test]
+    fn includes_tauri_resources_platform_path() {
+        let candidates =
+            chromium_candidates(Path::new("C:/app"), "chrome-headless-shell.exe", "win-x64");
+
+        assert!(candidates.iter().any(|candidate| {
+            candidate == Path::new("C:/app/resources/chromium/win-x64/chrome-headless-shell.exe")
+        }));
     }
+}
 
-    candidates
-        .iter()
-        .find(|candidate| candidate.is_file())
-        .cloned()
-        .ok_or_else(|| {
-            let searched = candidates
-                .iter()
-                .map(|candidate| candidate.display().to_string())
-                .collect::<Vec<_>>()
-                .join("；");
-            format!(
-                "未找到本地 Chromium，已检查：{searched}。请运行 npm run prepare:chromium，或设置 NIUERY_CHROMIUM_PATH"
-            )
-        })
+fn chromium_path(app: &AppHandle) -> Result<PathBuf, String> {
+    crate::resources::resolve(app, "chromium").map(|(path, _)| path)
 }
 
 /// 使用本地 Chromium 将完整 HTML 渲染为 PDF 字节。
@@ -106,6 +79,7 @@ pub async fn render_html_to_png(
 }
 
 fn render_html_to_pdf_blocking(app: &AppHandle, html: &str) -> Result<Vec<u8>, String> {
+    let _lease = crate::resources::lease("chromium")?;
     let chromium = chromium_path(app)?;
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -133,6 +107,7 @@ fn render_html_to_pdf_blocking(app: &AppHandle, html: &str) -> Result<Vec<u8>, S
             .arg("--disable-sync")
             .arg("--disable-translate")
             .arg("--no-first-run")
+            .arg(format!("--user-data-dir={}", base.join("profile").display()))
             .arg("--no-pdf-header-footer")
             .arg("--run-all-compositor-stages-before-draw")
             .arg("--virtual-time-budget=1000")
@@ -154,6 +129,7 @@ fn render_html_to_png_blocking(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<Vec<u8>, String> {
+    let _lease = crate::resources::lease("chromium")?;
     let chromium = chromium_path(app)?;
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -181,6 +157,7 @@ fn render_html_to_png_blocking(
             .arg("--disable-sync")
             .arg("--disable-translate")
             .arg("--no-first-run")
+            .arg(format!("--user-data-dir={}", base.join("profile").display()))
             .arg("--hide-scrollbars")
             .arg("--run-all-compositor-stages-before-draw")
             .arg("--virtual-time-budget=1000")

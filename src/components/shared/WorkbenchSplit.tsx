@@ -18,6 +18,9 @@ interface WorkbenchSplitProps {
   children?: ReactNode;
   preview?: ReactNode;
   properties?: ReactNode;
+  emptyFooter?: ReactNode;
+  /** 未选择文件时收成单列舞台，不展开右侧属性栏 */
+  empty?: boolean;
   className?: string;
 }
 
@@ -30,13 +33,21 @@ function SplitLayout({ preview, properties, className }: { preview: ReactNode[];
   );
 }
 
-/** 复合工具：预览主区 + 右侧属性。无法拆分时回退为单列。 */
-export function WorkbenchSplit({ children, preview, properties, className }: WorkbenchSplitProps) {
+function StageLayout({ preview, footer, className }: { preview: ReactNode[]; footer?: ReactNode; className?: string }) {
+  return (
+    <div className={cn('mx-auto w-full max-w-2xl space-y-3 [&_[data-dropzone]]:min-h-[280px]', className)}>
+      {preview}
+      {footer ? <div className="flex flex-wrap items-center justify-center gap-2 px-1">{footer}</div> : null}
+    </div>
+  );
+}
+
+function resolvePanes({ children, preview, properties }: Pick<WorkbenchSplitProps, 'children' | 'preview' | 'properties'>) {
   const explicitPreview = preview == null ? [] : Children.toArray(preview);
   const explicitProperties = properties == null ? [] : Children.toArray(properties);
 
   if (explicitPreview.length > 0 && explicitProperties.length > 0) {
-    return <SplitLayout preview={explicitPreview} properties={explicitProperties} className={className} />;
+    return { preview: explicitPreview, properties: explicitProperties };
   }
 
   const nodes = Children.toArray(children);
@@ -44,8 +55,23 @@ export function WorkbenchSplit({ children, preview, properties, className }: Wor
   const autoProperties = nodes.filter((node) => !isPreviewNode(node));
 
   if (autoPreview.length === 0 || autoProperties.length === 0) {
+    return { preview: [], properties: [], fallback: nodes };
+  }
+
+  return { preview: autoPreview, properties: autoProperties };
+}
+
+/** 复合工具：预览主区 + 右侧属性。空态收成舞台；无法拆分时回退为单列。 */
+export function WorkbenchSplit({ children, preview, properties, emptyFooter, empty = false, className }: WorkbenchSplitProps) {
+  const panes = resolvePanes({ children, preview, properties });
+
+  if (panes.fallback) {
     return <div className={cn('space-y-4', className)}>{children}</div>;
   }
 
-  return <SplitLayout preview={autoPreview} properties={autoProperties} className={className} />;
+  if (empty) {
+    return <StageLayout preview={panes.preview} footer={emptyFooter} className={className} />;
+  }
+
+  return <SplitLayout preview={panes.preview} properties={panes.properties} className={className} />;
 }

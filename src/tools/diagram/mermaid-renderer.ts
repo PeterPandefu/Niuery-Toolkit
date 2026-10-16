@@ -1,12 +1,7 @@
+import { ensureIntrinsicSvgDimensions, getMermaid, serializeSvgForImage } from '@/lib/mermaid';
 import type { DiagramRenderResult } from './diagram-editor';
 
-let mermaidPromise: Promise<typeof import('mermaid').default> | null = null;
 let renderSequence = 0;
-
-async function getMermaid() {
-  mermaidPromise ??= import('mermaid').then(({ default: mermaid }) => mermaid);
-  return mermaidPromise;
-}
 
 export async function renderMermaidDiagram(
   source: string,
@@ -20,5 +15,5 @@ export async function renderMermaidDiagram(
     fontFamily: 'IBM Plex Sans, Noto Sans SC, sans-serif',
   });
   const { svg } = await mermaid.render(`niuery-mermaid-editor-${++renderSequence}`, source);
-  return { svg };
+  return { svg: ensureIntrinsicSvgDimensions(serializeSvgForImage(svg)) };
 }

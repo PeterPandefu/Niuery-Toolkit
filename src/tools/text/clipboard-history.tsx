@@ -93,6 +93,10 @@ function ClipboardThumbnail({ entry, onPreview }: { entry: ClipboardEntryView; o
 
 type FilterType = 'all' | 'text' | 'image' | 'files';
 
+function placeClipboardEntry(entries: ClipboardEntryView[], entry: ClipboardEntryView) {
+  return [entry, ...entries.filter((item) => item.id !== entry.id)].slice(0, 200);
+}
+
 function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts;
   const seconds = Math.floor(diff / 1000);
@@ -151,7 +155,7 @@ export default function ClipboardHistory() {
       const { listen } = await import('@tauri-apps/api/event');
       const unlisten = await listen<ClipboardEntryView>('clipboard-new-entry', (event) => {
         if (cancelled) return;
-        setEntries((prev) => [event.payload, ...prev].slice(0, 200));
+        setEntries((prev) => placeClipboardEntry(prev, event.payload));
       });
       unlistenRef.current = unlisten;
     }
@@ -177,7 +181,7 @@ export default function ClipboardHistory() {
       switch (entry.content_type) {
         case 'text':
           if (entry.text) {
-            await invoke('copy_text_to_clipboard', { text: entry.text });
+            await invoke('copy_text_to_clipboard', { text: entry.text, id: entry.id });
           }
           break;
         case 'image':
@@ -185,11 +189,12 @@ export default function ClipboardHistory() {
           break;
         case 'files':
           if (entry.file_paths) {
-            await invoke('copy_files_to_clipboard', { paths: entry.file_paths });
+            await invoke('copy_files_to_clipboard', { paths: entry.file_paths, id: entry.id });
           }
           break;
       }
 
+      setEntries((prev) => placeClipboardEntry(prev, { ...entry, timestamp: Date.now() }));
       setCopiedId(entry.id);
       log.info('已复制历史条目', { id: entry.id, type: entry.content_type });
       toast.success('已复制到剪贴板');

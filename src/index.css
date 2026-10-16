@@ -208,8 +208,7 @@
     background-color: hsl(var(--sidebar));
   }
 
-  html[data-atmosphere="low"] .app-statusbar,
-  html[data-atmosphere="high"] .app-statusbar {
+  html[data-atmosphere="on"] .app-statusbar {
     background-color: hsl(var(--sidebar) / 0.9);
   }
 
@@ -217,18 +216,15 @@
     background-color: hsl(var(--sidebar));
   }
 
-  html[data-atmosphere="low"] .app-shell::before,
-  html[data-atmosphere="high"] .app-shell::before {
+  html[data-atmosphere="on"] .app-shell::before {
     opacity: 1;
   }
 
-  html[data-atmosphere="low"] .app-sidebar,
-  html[data-atmosphere="high"] .app-sidebar {
+  html[data-atmosphere="on"] .app-sidebar {
     background-color: hsl(var(--sidebar) / 0.78);
   }
 
-  html[data-atmosphere="low"] .app-panel,
-  html[data-atmosphere="high"] .app-panel {
+  html[data-atmosphere="on"] .app-panel {
     background-color: hsl(var(--background) / 0.78);
   }
 
@@ -322,12 +318,23 @@
   @apply h-full w-full overflow-hidden rounded-md border;
 }
 
+/* 折叠箭头使用 Codicon 私用区字形；避免继承 body 的 sans 字体后显示成「?」 */
+.monaco-editor .codicon[class*='codicon-'],
+.monaco-editor .codicon[class*='codicon-']::before {
+  font-family: codicon !important;
+}
+
 /* Markdown 预览 - 代码样式
  * 排版插件会为 pre 设置浅色代码文本，而此处使用的是浅色背景。
  * 显式使用主题前景色，避免代码块和行内代码出现低对比度或异常配色。
  */
 .markdown-preview pre.hljs {
   @apply my-4 overflow-x-auto rounded-md bg-muted p-3 font-mono text-sm font-normal text-foreground;
+}
+
+.markdown-preview[data-font-size] pre.hljs {
+  font-size: 1em;
+  line-height: inherit;
 }
 
 .markdown-preview pre.hljs code {
@@ -492,52 +499,28 @@
 }
 
 
-html[data-atmosphere="low"][data-skin="forge"] .app-shell::before {
-  background:
-    radial-gradient(70% 48% at 12% 0%, hsl(var(--ember-glow) / 0.34), transparent 64%),
-    linear-gradient(180deg, hsl(var(--ember-glow) / 0.1), transparent 42%);
-}
-
-html[data-atmosphere="high"][data-skin="forge"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="forge"] .app-shell::before {
   background:
     radial-gradient(70% 48% at 12% 0%, hsl(var(--ember-glow) / 0.5), transparent 62%),
     radial-gradient(42% 32% at 92% 100%, hsl(16 80% 48% / 0.2), transparent 58%);
   animation: atmosphere-drift 12s ease-in-out infinite;
 }
 
-html[data-atmosphere="low"][data-skin="ocean"] .app-shell::before {
-  background:
-    radial-gradient(64% 46% at 18% 0%, hsl(var(--ember-glow) / 0.32), transparent 64%),
-    linear-gradient(160deg, hsl(191 70% 50% / 0.12), transparent 46%);
-}
-
-html[data-atmosphere="high"][data-skin="ocean"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="ocean"] .app-shell::before {
   background:
     radial-gradient(58% 42% at 16% 8%, hsl(var(--ember-glow) / 0.42), transparent 62%),
     radial-gradient(46% 36% at 86% 92%, hsl(191 70% 50% / 0.26), transparent 58%);
   animation: atmosphere-drift 12s ease-in-out infinite;
 }
 
-html[data-atmosphere="low"][data-skin="forest"] .app-shell::before {
-  background:
-    radial-gradient(68% 50% at 86% 0%, hsl(95 32% 42% / 0.28), transparent 66%),
-    linear-gradient(180deg, hsl(140 25% 30% / 0.1), transparent 44%);
-}
-
-html[data-atmosphere="high"][data-skin="forest"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="forest"] .app-shell::before {
   background:
     radial-gradient(62% 46% at 88% 0%, hsl(95 32% 42% / 0.36), transparent 64%),
     radial-gradient(40% 32% at 10% 100%, hsl(140 25% 30% / 0.18), transparent 60%);
   animation: atmosphere-drift 16s ease-in-out infinite;
 }
 
-html[data-atmosphere="low"][data-skin="aurora"] .app-shell::before {
-  background:
-    radial-gradient(58% 44% at 12% 6%, hsl(170 80% 50% / 0.3), transparent 62%),
-    radial-gradient(52% 40% at 88% 16%, hsl(262 80% 60% / 0.26), transparent 60%);
-}
-
-html[data-atmosphere="high"][data-skin="aurora"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="aurora"] .app-shell::before {
   background:
     radial-gradient(52% 40% at 14% 8%, hsl(170 80% 50% / 0.44), transparent 60%),
     radial-gradient(48% 42% at 84% 18%, hsl(262 80% 60% / 0.38), transparent 58%),
@@ -546,8 +529,7 @@ html[data-atmosphere="high"][data-skin="aurora"] .app-shell::before {
   animation: aurora-shift 10s ease-in-out infinite;
 }
 
-html[data-atmosphere="low"][data-skin="ink"] .app-shell::before,
-html[data-atmosphere="high"][data-skin="ink"] .app-shell::before {
+html[data-atmosphere="on"][data-skin="ink"] .app-shell::before {
   background:
     radial-gradient(hsl(var(--foreground) / 0.07) 0.8px, transparent 0.8px),
     linear-gradient(180deg, hsl(var(--primary) / 0.08), transparent 36%);
@@ -557,10 +539,6 @@ html[data-atmosphere="high"][data-skin="ink"] .app-shell::before {
 html[data-skin="mono"] .app-shell::before,
 html[data-atmosphere="off"] .app-shell::before {
   opacity: 0;
-  animation: none;
-}
-
-html[data-atmosphere="low"] .app-shell::before {
   animation: none;
 }
 
@@ -574,6 +552,157 @@ html[data-atmosphere="low"] .app-shell::before {
   50% { background-position: 24% 14%, 76% 20%, 0 0; }
 }
 
+.mascot {
+  --ox: hsl(var(--primary));
+  --ox-paper: color-mix(in oklab, hsl(var(--primary)) 14%, white);
+  --ox-horn: color-mix(in oklab, hsl(var(--primary)) 34%, black);
+  --ox-ink: color-mix(in oklab, hsl(var(--primary)) 18%, black);
+}
+
+.mascot-figure {
+  transform-origin: 50% 82%;
+  animation: mascot-breathe 3.8s ease-in-out infinite;
+}
+
+.mascot-ear,
+.mascot-tail,
+.mascot-eyes,
+.mascot-eye-left {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  transition: transform 180ms ease;
+}
+
+.mascot-eyes,
+.mascot-eye-left {
+  transform-origin: center;
+  transition-duration: 90ms;
+}
+
+.mascot:hover .mascot-ear-left,
+.mascot[data-pose="perk"] .mascot-ear-left {
+  transform: rotate(-14deg);
+}
+
+.mascot:hover .mascot-ear-right,
+.mascot[data-pose="perk"] .mascot-ear-right {
+  transform: rotate(14deg);
+}
+
+.mascot:hover .mascot-tail,
+.mascot[data-pose="nod"] .mascot-tail {
+  transform: rotate(18deg);
+  transform-origin: 0% 80%;
+}
+
+.mascot[data-pose="nod"] .mascot-figure {
+  animation: none;
+  transform: rotate(-6deg);
+}
+
+.mascot[data-pose="pet"] .mascot-figure {
+  animation: none;
+  transform: translateY(4px) scale(0.985);
+}
+
+.mascot[data-pose="pet"] .mascot-eyes,
+.mascot[data-pose="pet"] .mascot-eye-left {
+  transform: scaleY(0.22);
+}
+
+.mascot[data-pose="pet"] .mascot-tail {
+  animation: mascot-wag 280ms ease-in-out infinite;
+  transform-origin: 0% 80%;
+}
+
+.mascot[data-pose="hop"] .mascot-figure {
+  animation: mascot-hop 520ms ease;
+}
+
+.mascot-bubble {
+  animation: mascot-bubble-in 180ms ease;
+}
+
+@keyframes mascot-bubble-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mascot-balloon {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mascot-balloon 2.6s ease-in-out infinite;
+}
+
+.mascot-balloon.is-popping {
+  animation: mascot-balloon-pop 460ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+
+@keyframes mascot-balloon {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-5px) rotate(4deg); }
+}
+
+@keyframes mascot-balloon-pop {
+  0% { transform: scale(1); opacity: 1; }
+  28% { transform: scale(1.42); opacity: 1; }
+  100% { transform: scale(1.85); opacity: 0; }
+}
+
+.mascot-burst-svg .ring,
+.mascot-burst-svg .shard {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.mascot-burst-svg .ring {
+  animation: mascot-ring 520ms cubic-bezier(0.16, 0.8, 0.28, 1) forwards;
+}
+
+.mascot-burst-svg .shard {
+  animation: mascot-shard 520ms cubic-bezier(0.16, 0.84, 0.32, 1) forwards;
+}
+
+.mascot-burst-svg .s1 { --dx: -18px; --dy: -20px; }
+.mascot-burst-svg .s2 { --dx: 20px; --dy: -16px; animation-delay: 16ms; }
+.mascot-burst-svg .s3 { --dx: -6px; --dy: -26px; animation-delay: 8ms; }
+.mascot-burst-svg .s4 { --dx: 16px; --dy: 10px; }
+.mascot-burst-svg .s5 { --dx: -20px; --dy: 8px; animation-delay: 24ms; }
+.mascot-burst-svg .s6 { --dx: 6px; --dy: 18px; animation-delay: 12ms; }
+.mascot-burst-svg .s7 { --dx: -12px; --dy: -6px; }
+.mascot-burst-svg .s8 { --dx: 22px; --dy: -6px; animation-delay: 20ms; }
+
+@keyframes mascot-ring {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+
+@keyframes mascot-shard {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+}
+
+.mascot.is-blinking .mascot-eyes,
+.mascot[data-pose="wink"] .mascot-eye-left {
+  transform: scaleY(0.08);
+}
+
+@keyframes mascot-breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1.5px); }
+}
+
+@keyframes mascot-wag {
+  0%, 100% { transform: rotate(6deg); }
+  50% { transform: rotate(26deg); }
+}
+
+@keyframes mascot-hop {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  35% { transform: translateY(-18px) scale(0.97, 1.04); }
+  68% { transform: translateY(0) scale(1.04, 0.96); }
+}
+
 /* 减少动效偏好 */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -581,7 +710,9 @@ html[data-atmosphere="low"] .app-shell::before {
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    /* 非零时长会让默认 transition-property: all 的元素也产生过渡，
+       Mermaid 同帧测量 foreignObject 时会读到临时宽高，撑大 SVG 画布。 */
+    transition: none !important;
   }
 
   .recording-capture-border {

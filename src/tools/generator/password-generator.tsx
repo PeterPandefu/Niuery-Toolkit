@@ -49,8 +49,9 @@ export default function PasswordGenerator() {
           <div className="flex items-center gap-2 rounded-lg border bg-muted/50 p-4">
             <code
               className={cn(
-                'flex-1 break-all font-mono text-lg',
-                !showPassword && 'blur-sm select-none'
+                'flex-1 break-all text-lg',
+                password ? 'font-mono' : 'font-sans text-muted-foreground',
+                password && !showPassword && 'blur-sm select-none'
               )}
             >
               {password || '点击生成按钮'}
