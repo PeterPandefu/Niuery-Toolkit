@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { Expand, Maximize, Minimize, Minus, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, Maximize, Minimize, Minus, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   clampImageViewerZoom,
@@ -11,6 +11,9 @@ export interface ImageViewerProps {
   source?: string | Blob;
   alt: string;
   title?: string;
+  /** Optional metadata and gallery controls for dialog previews. */
+  description?: string;
+  navigation?: { onPrevious: () => void; onNext: () => void };
   mode?: 'inline' | 'dialog';
   wheelZoom?: 'always' | 'ctrl';
   fullscreen?: boolean;
@@ -135,6 +138,8 @@ export function ImageViewer({
   source,
   alt,
   title,
+  description,
+  navigation,
   mode = 'inline',
   wheelZoom = mode === 'dialog' ? 'always' : 'ctrl',
   fullscreen = false,
@@ -185,17 +190,27 @@ export function ImageViewer({
   }, [fullscreen]);
 
   useEffect(() => {
-    if (mode !== 'dialog') return;
+    if (mode !== 'dialog' || !open) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
         setOpen(false);
         onClose?.();
+        return;
+      }
+      // Arrow keys still belong to selects and editable fields when focused.
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+      if (navigation && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.key === 'ArrowLeft') navigation.onPrevious();
+        else navigation.onNext();
       }
     };
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [mode, onClose]);
+  }, [mode, open, onClose, navigation]);
 
   const close = () => {
     setOpen(false);
@@ -292,7 +307,10 @@ export function ImageViewer({
         <button className="absolute inset-0 bg-black/75 backdrop-blur-sm" aria-label="关闭预览" onClick={close} />
         <section className={`relative flex h-full w-full flex-col overflow-hidden bg-popover ${isFullscreen ? 'max-h-none max-w-none rounded-none border-0' : 'max-h-[90vh] max-w-6xl rounded-xl border border-border shadow-tinted-lg'}`}>
           <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <h3 className="min-w-0 truncate text-sm font-semibold">{title ?? alt}</h3>
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-semibold">{title ?? alt}</h3>
+              {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+            </div>
             <div className="flex shrink-0 items-center gap-1">
               <ViewerControls
                 zoom={zoom}
@@ -309,7 +327,15 @@ export function ImageViewer({
               <Button variant="ghost" size="icon" onClick={close} title="关闭预览（Esc）" aria-label="关闭预览"><X /></Button>
             </div>
           </header>
-          {viewport}
+          <div className="relative flex min-h-0 flex-1">
+            {viewport}
+            {navigation && (
+              <>
+                <Button variant="secondary" size="icon" className="absolute left-4 top-1/2 z-10 -translate-y-1/2" onClick={navigation.onPrevious} title="上一张（←）" aria-label="上一张（←）"><ChevronLeft /></Button>
+                <Button variant="secondary" size="icon" className="absolute right-4 top-1/2 z-10 -translate-y-1/2" onClick={navigation.onNext} title="下一张（→）" aria-label="下一张（→）"><ChevronRight /></Button>
+              </>
+            )}
+          </div>
           <footer className="border-t border-border px-4 py-2 text-center text-xs text-muted-foreground">拖动平移 · 滚轮缩放 · Esc 关闭</footer>
         </section>
       </div>,

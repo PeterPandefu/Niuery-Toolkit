@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { ImageViewer } from '@/components/media/image-viewer';
 import { saveBytesWithFeedback, saveResultsWithFeedback, type SaveFile } from '@/lib/file-save';
@@ -26,39 +25,19 @@ function ResultLightbox({ files, initialIndex, onClose }: { files: SaveFile[]; i
   const canNavigate = files.length > 1;
   const file = files[index];
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-      if (event.key === 'ArrowLeft' && canNavigate) setIndex((value) => (value - 1 + files.length) % files.length);
-      if (event.key === 'ArrowRight' && canNavigate) setIndex((value) => (value + 1) % files.length);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [canNavigate, files.length, onClose]);
-
-  useEffect(() => {
-  }, [index]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="处理结果预览">
-      <button className="absolute inset-0 bg-black/75 backdrop-blur-sm" aria-label="关闭预览" onClick={onClose} />
-      <section className="relative flex h-full max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-tinted-lg">
-        <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold">{file.name}</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">{formatBytes(file.blob.size)} · {index + 1} / {files.length}</p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose} title="关闭预览（Esc）" aria-label="关闭预览"><X /></Button>
-        </header>
-        <div className="relative flex min-h-0 flex-1">
-          {canNavigate && <Button variant="secondary" size="icon" className="absolute left-4 top-1/2 z-10 -translate-y-1/2" onClick={() => setIndex((value) => (value - 1 + files.length) % files.length)} title="上一张（←）"><ChevronLeft /></Button>}
-          {urls[index] ? (
-            <ImageViewer source={urls[index]} alt={`${file.name} 处理结果预览`} mode="inline" wheelZoom="always" />
-          ) : <span className="text-sm text-white/70">正在加载预览…</span>}
-          {canNavigate && <Button variant="secondary" size="icon" className="absolute right-4 top-1/2 z-10 -translate-y-1/2" onClick={() => setIndex((value) => (value + 1) % files.length)} title="下一张（→）"><ChevronRight /></Button>}
-        </div>
-      </section>
-    </div>
+    <ImageViewer
+      source={urls[index]}
+      alt={`${file.name} 处理结果预览`}
+      title={file.name}
+      description={`${formatBytes(file.blob.size)} · ${index + 1} / ${files.length}`}
+      mode="dialog"
+      navigation={canNavigate ? {
+        onPrevious: () => setIndex((value) => (value - 1 + files.length) % files.length),
+        onNext: () => setIndex((value) => (value + 1) % files.length),
+      } : undefined}
+      onClose={onClose}
+    />
   );
 }
 

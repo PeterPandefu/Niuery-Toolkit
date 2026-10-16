@@ -59,4 +59,18 @@ describe('ImageFileDropzone', () => {
     expect(files[0]).toBe(current);
     expect(files[1].name).toMatch(/^剪贴板图片-.*\.png$/);
   });
+
+  it('历史图片选择窗口避开工具内容区的层叠和裁剪', async () => {
+    const { container } = render(
+      <div style={{ position: 'relative', zIndex: 10, overflow: 'hidden' }}>
+        <ImageFileDropzone files={[]} onChange={() => undefined} />
+      </div>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '历史图片' }));
+    const dialog = await screen.findByRole('dialog', { name: '选择历史图片' });
+    expect(dialog.parentElement).toBe(document.body);
+    expect(container).not.toContainElement(dialog);
+    fireEvent.click(screen.getByRole('button', { name: '关闭历史图片' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });

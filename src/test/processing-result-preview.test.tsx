@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProcessingResultPreview } from '@/tools/graphic/image-studio/processing-result-preview';
 
@@ -18,7 +18,11 @@ describe('ProcessingResultPreview', () => {
     vi.clearAllMocks();
     Object.defineProperty(window, '__TAURI_INTERNALS__', { configurable: true, value: {} });
     invokeMock.mockResolvedValue('C:\\Users\\Peter\\Pictures\\result.png');
-    vi.stubGlobal('URL', { createObjectURL: vi.fn((_: Blob) => 'blob:preview'), revokeObjectURL: vi.fn() });
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn((blob: Blob) => `blob:result-${blob.size}`),
+      revokeObjectURL: vi.fn(),
+    });
   });
 
   it('单图处理结果在保存前并排显示原图和结果', () => {
@@ -53,5 +57,38 @@ describe('ProcessingResultPreview', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '保存全部' }));
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('save_file_dialog', expect.objectContaining({ defaultName: '批量结果.zip' })));
+  });
+
+  it('opens results above the tool context and navigates in the same full-screen dialog', () => {
+    const { container, unmount } = render(
+      <div style={{ position: 'relative', zIndex: 10, overflow: 'hidden' }}>
+        <ProcessingResultPreview sourceFiles={[]} result={{
+          files: [
+            { name: 'first.png', blob: new Blob(['first'], { type: 'image/png' }) },
+            { name: 'second.png', blob: new Blob(['second'], { type: 'image/png' }) },
+          ],
+          zipName: 'results.zip',
+        }} />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByTitle('放大查看 first.png'));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.parentElement).toBe(document.body);
+    expect(container).not.toContainElement(dialog);
+    expect(within(dialog).getByRole('img', { name: 'first.png 处理结果预览' })).toHaveAttribute('src', 'blob:result-5');
+    fireEvent.click(within(dialog).getByRole('button', { name: '全屏预览' }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    fireEvent.click(within(dialog).getByRole('button', { name: '下一张（→）' }));
+    expect(within(dialog).getByRole('img', { name: 'second.png 处理结果预览' })).toHaveAttribute('src', 'blob:result-6');
+    expect(within(dialog).getByRole('button', { name: '退出全屏预览' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(within(dialog).getByRole('img', { name: 'first.png 处理结果预览' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /保存全部/ })).toBeInTheDocument();
+    unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:result-5');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:result-6');
   });
 });
