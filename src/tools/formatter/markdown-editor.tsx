@@ -14,6 +14,7 @@ import { useToolLogger } from '@/hooks/use-tool-logger';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { saveBytes } from '@/lib/file-save';
+import { measureMarkdownExportHeight } from '@/lib/markdown-export-size';
 import { isTauri } from '@/lib/api-client';
 import {
   Columns2,
@@ -406,7 +407,9 @@ export default function MarkdownEditor() {
       }
       const title = getMarkdownExportTitle(content, t('markdownEditor.untitled'));
       const html = generateExportHtml(rendered, title);
-      const bytes = await invoke<number[]>('render_html_to_png', { html, width: 1440, height: 10000 });
+      const width = 1440;
+      const height = await measureMarkdownExportHeight(html, width);
+      const bytes = await invoke<number[]>('render_html_to_png', { html, width, height });
       const filename = `${title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || t('markdownEditor.untitled')}.png`;
       const path = await saveBytes(filename, new Uint8Array(bytes), 'PNG 图像', ['png']);
       if (!path) {
