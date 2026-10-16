@@ -1,5 +1,16 @@
 {
   "resources": { "title": "Resources" },
+  "updates": {
+    "title": "Software updates",
+    "description": "Check for and install stable releases from GitHub Releases.",
+    "desktopOnly": "Software updates are available only in the Tauri desktop app.",
+    "noUpdate": "You are up to date.",
+    "available": "Version {{version}} is available",
+    "check": "Check for updates",
+    "checking": "Checking…",
+    "install": "Download and install",
+    "installing": "Installing…"
+  },
   "app": {
     "name": "Niuery Toolkit",
     "description": "Offline-first developer toolkit",

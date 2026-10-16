@@ -326,6 +326,8 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(CaptureGuardState::default())
         .manage(WsServerState::default())
         .manage(ScreenshotState::default())
