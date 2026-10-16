@@ -1,5 +1,16 @@
 {
   "resources": { "title": "资源管理" },
+  "updates": {
+    "title": "软件更新",
+    "description": "检查并安装来自 GitHub Releases 的正式版本。",
+    "desktopOnly": "软件更新仅支持 Tauri 桌面版。",
+    "noUpdate": "当前已是最新版本。",
+    "available": "发现新版本 {{version}}",
+    "check": "检查更新",
+    "checking": "检查中…",
+    "install": "下载并安装",
+    "installing": "安装中…"
+  },
   "app": {
     "name": "Niuery Toolkit",
     "description": "离线优先的开发者工具箱",

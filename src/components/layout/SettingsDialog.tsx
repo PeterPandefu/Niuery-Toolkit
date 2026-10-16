@@ -7,17 +7,18 @@ import { useAppStore } from '@/store/app-store';
 import { isTauri } from '@/lib/api-client';
 import { emitHotkeysChanged } from '@/lib/hotkeys';
 import { CATEGORY_ICONS } from '@/types/tool';
-import { Check, Contrast, Feather, Keyboard, Monitor, Moon, Palette, Pin, Power, RotateCcw, Search, Sparkles, Sunrise, Sun, Trees, Waves, X, Zap } from 'lucide-react';
+import { Check, Contrast, Download, Feather, Keyboard, Monitor, Moon, Palette, Pin, Power, RefreshCw, RotateCcw, Search, Sparkles, Sunrise, Sun, Trees, Waves, X, Zap } from 'lucide-react';
 import { getThemeTokens, SKIN_IDS } from '@/lib/theme';
 import { DEFAULT_POINTER_EFFECT } from '@/lib/pointer-effect';
 import type { PointerEffect, SkinId } from '@/types/tool';
 import { useTheme } from '@/hooks/use-theme';
 import { ResourceManager } from '@/components/resources/ResourceManager';
+import { checkForAppUpdate, installAppUpdate, type AvailableUpdate } from '@/lib/app-updater';
 
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
-  initialTab?: 'alwaysOn' | 'resources';
+  initialTab?: 'alwaysOn' | 'resources' | 'updates';
 }
 
 /** 开关组件 */
@@ -300,10 +301,63 @@ const SKIN_ICONS = {
   ink: Feather,
 } as const satisfies Record<SkinId, typeof Sunrise>;
 
+function UpdateSettings() {
+  const { t } = useTranslation();
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [update, setUpdate] = useState<AvailableUpdate | null>(null);
+
+  const checkUpdate = useCallback(async () => {
+    setChecking(true);
+    setError(null);
+    try {
+      setUpdate(await checkForAppUpdate());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+
+  const installUpdate = useCallback(async () => {
+    if (!update) return;
+    setInstalling(true);
+    setError(null);
+    try {
+      await installAppUpdate(update);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setInstalling(false);
+    }
+  }, [update]);
+
+  return (
+    <div className="space-y-4 px-2 py-1">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">{t('updates.title')}</h3>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{t('updates.description')}</p>
+      </div>
+      {!isTauri ? (
+        <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-3 text-xs text-muted-foreground">{t('updates.desktopOnly')}</div>
+      ) : (
+        <div className="space-y-3 rounded-lg border border-border p-4">
+          {update ? <div><div className="text-sm font-medium">{t('updates.available', { version: update.version })}</div>{update.body ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{update.body}</p> : null}</div> : <p className="text-xs text-muted-foreground">{t('updates.noUpdate')}</p>}
+          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => void checkUpdate()} disabled={checking || installing} className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50"><RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />{checking ? t('updates.checking') : t('updates.check')}</button>
+            {update ? <button type="button" onClick={() => void installUpdate()} disabled={checking || installing} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Download className="h-3.5 w-3.5" />{installing ? t('updates.installing') : t('updates.install')}</button> : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: SettingsDialogProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState('');
-  const [tab, setTab] = useState<'appearance' | 'alwaysOn' | 'pinned' | 'hotkeys' | 'resources'>(initialTab);
+  const [tab, setTab] = useState<'appearance' | 'alwaysOn' | 'pinned' | 'hotkeys' | 'resources' | 'updates'>(initialTab);
   const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const setAlwaysOn = useToolLifecycleStore((s) => s.setAlwaysOn);
@@ -467,10 +521,13 @@ export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: Setti
             <Keyboard className="h-3 w-3" />
             {t('app.hotkeys')}
           </button>
+          <button onClick={() => setTab('updates')} className={cn('rounded-t-md px-3 py-2 text-[12px] font-medium', tab === 'updates' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>
+            {t('updates.title')}
+          </button>
         </div>
 
         {/* 筛选 / 快捷键头部 */}
-        {tab === 'appearance' || tab === 'resources' ? null : tab === 'hotkeys' ? (
+        {tab === 'appearance' || tab === 'resources' || tab === 'updates' ? null : tab === 'hotkeys' ? (
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-2.5">
             <span className="text-[11px] text-muted-foreground">{t('hotkeys.hint')}</span>
             <button
@@ -505,7 +562,7 @@ export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: Setti
 
         {/* 内容区 */}
         <div className="max-h-[46vh] overflow-y-auto px-3 py-3">
-          {tab === 'resources' ? <ResourceManager /> : tab === 'appearance' ? (
+          {tab === 'resources' ? <ResourceManager /> : tab === 'updates' ? <UpdateSettings /> : tab === 'appearance' ? (
             <AppearanceSettings />
           ) : tab === 'hotkeys' ? (
             /* 快捷键配置 */
@@ -621,7 +678,7 @@ export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: Setti
 
         {/* 底部提示 */}
         <div className="flex items-center gap-3 border-t border-border bg-muted/30 px-5 py-2.5 text-[10px] text-muted-foreground">
-          {tab === 'resources' ? <span>{t('resources.title', '资源管理')}</span> : tab === 'appearance' ? (
+          {tab === 'resources' ? <span>{t('resources.title', '资源管理')}</span> : tab === 'updates' ? <span>{t('updates.description')}</span> : tab === 'appearance' ? (
             <span className="flex items-center gap-1.5">
               <Palette className="h-3 w-3 text-primary" />
               {t('theme.appearanceDesc')}

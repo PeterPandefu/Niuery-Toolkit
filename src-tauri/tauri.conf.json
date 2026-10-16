@@ -33,10 +33,23 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyQzM2REVENzQ2QkJDNjkKUldScHZHdDA3VzNESXRnSmprSFNCdmlrVmNnY3ZEYU0yLzhUNlRzRXpQdWJ3NVU1ckQ2L2o4cSsK",
+      "endpoints": [
+        "https://github.com/PeterPandefu/Niuery-Toolkit/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "resources": ["resources/LICENSE.txt", "resources/THIRD_PARTY_NOTICES.md", "resources/plantuml/THIRD_PARTY_NOTICES.txt"],
     "targets": ["nsis"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
