@@ -3,6 +3,8 @@ mod capture_guard;
 mod chromium;
 mod clipboard;
 mod file_saver;
+#[cfg(test)]
+mod file_dialog_tests;
 mod hotkey;
 mod plantuml;
 pub mod process_tools;

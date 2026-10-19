@@ -3,6 +3,9 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 
+#[cfg(test)]
+use crate::file_dialog_tests::dialog_stub as rfd;
+
 #[derive(Serialize)]
 pub struct OpenedTextFile {
     pub path: String,
@@ -61,52 +64,69 @@ fn snapshot_path(app: &tauri::AppHandle, tool: &str, id: &str) -> Result<PathBuf
     )))
 }
 
+/// 原生对话框及文件读写会持续阻塞，必须离开 WebView 事件线程和异步工作线程。
+/// Windows 的 rfd 会在该阻塞线程初始化 STA COM，避免在 WebView2 回调中重入 Shell。
+async fn run_file_dialog<T: Send + 'static>(
+    operation: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(operation)
+        .await
+        .map_err(|error| format!("文件对话框任务失败: {error}"))?
+}
+
 /// 打开用户明确选择的 UTF-8 文本文档。
 #[tauri::command]
-pub fn open_text_file_dialog(
+pub async fn open_text_file_dialog(
     filter_name: String,
     extensions: Vec<String>,
 ) -> Result<Option<OpenedTextFile>, String> {
-    let extension_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
-    let path = rfd::FileDialog::new()
-        .add_filter(&filter_name, &extension_refs)
-        .pick_file();
+    run_file_dialog(move || {
+        let extension_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
+        let path = rfd::FileDialog::new()
+            .add_filter(&filter_name, &extension_refs)
+            .pick_file();
 
-    match path {
-        Some(path) => {
-            let contents =
-                std::fs::read_to_string(&path).map_err(|error| format!("读取文档失败: {error}"))?;
-            Ok(Some(OpenedTextFile {
-                path: path.to_string_lossy().into_owned(),
-                contents,
-            }))
+        match path {
+            Some(path) => {
+                let contents = std::fs::read_to_string(&path)
+                    .map_err(|error| format!("读取文档失败: {error}"))?;
+                Ok(Some(OpenedTextFile {
+                    path: path.to_string_lossy().into_owned(),
+                    contents,
+                }))
+            }
+            None => Ok(None),
         }
-        None => Ok(None),
-    }
+    })
+    .await
 }
 
 /// 打开用户明确选择的二进制文档，以 base64 传回前端。
 #[tauri::command]
-pub fn open_binary_file_dialog(
+pub async fn open_binary_file_dialog(
     filter_name: String,
     extensions: Vec<String>,
 ) -> Result<Option<OpenedBinaryFile>, String> {
-    let extension_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
-    let path = rfd::FileDialog::new()
-        .add_filter(&filter_name, &extension_refs)
-        .pick_file();
+    run_file_dialog(move || {
+        let extension_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
+        let path = rfd::FileDialog::new()
+            .add_filter(&filter_name, &extension_refs)
+            .pick_file();
 
-    match path {
-        Some(path) => {
-            let bytes = std::fs::read(&path).map_err(|error| format!("读取文档失败: {error}"))?;
-            use base64::Engine;
-            Ok(Some(OpenedBinaryFile {
-                path: path.to_string_lossy().into_owned(),
-                contents: base64::engine::general_purpose::STANDARD.encode(bytes),
-            }))
+        match path {
+            Some(path) => {
+                let bytes =
+                    std::fs::read(&path).map_err(|error| format!("读取文档失败: {error}"))?;
+                use base64::Engine;
+                Ok(Some(OpenedBinaryFile {
+                    path: path.to_string_lossy().into_owned(),
+                    contents: base64::engine::general_purpose::STANDARD.encode(bytes),
+                }))
+            }
+            None => Ok(None),
         }
-        None => Ok(None),
-    }
+    })
+    .await
 }
 
 fn selected_path(path: Option<PathBuf>) -> Option<String> {
@@ -115,14 +135,14 @@ fn selected_path(path: Option<PathBuf>) -> Option<String> {
 
 /// 选择一个现有文件路径，不读取或修改其内容。
 #[tauri::command]
-pub fn pick_existing_file() -> Result<Option<String>, String> {
-    Ok(selected_path(rfd::FileDialog::new().pick_file()))
+pub async fn pick_existing_file() -> Result<Option<String>, String> {
+    run_file_dialog(|| Ok(selected_path(rfd::FileDialog::new().pick_file()))).await
 }
 
 /// 选择一个现有文件夹路径，不读取或修改其内容。
 #[tauri::command]
-pub fn pick_existing_folder() -> Result<Option<String>, String> {
-    Ok(selected_path(rfd::FileDialog::new().pick_folder()))
+pub async fn pick_existing_folder() -> Result<Option<String>, String> {
+    run_file_dialog(|| Ok(selected_path(rfd::FileDialog::new().pick_folder()))).await
 }
 
 /// 写入应用私有目录中的临时恢复快照，不覆盖用户原始文档。
@@ -200,25 +220,28 @@ pub fn discard_recovery_snapshot(
 /// 通用文件保存：弹出系统保存对话框，将字节流写入用户选择的路径。
 /// 前端处理结果（PDF / 图片 / zip 等）统一通过该命令落盘。
 #[tauri::command]
-pub fn save_file_dialog(
+pub async fn save_file_dialog(
     bytes: Vec<u8>,
     default_name: String,
     filter_name: String,
     extensions: Vec<String>,
 ) -> Result<Option<String>, String> {
-    let ext_refs: Vec<&str> = extensions.iter().map(|s| s.as_str()).collect();
-    let path = rfd::FileDialog::new()
-        .add_filter(&filter_name, &ext_refs)
-        .set_file_name(&default_name)
-        .save_file();
+    run_file_dialog(move || {
+        let ext_refs: Vec<&str> = extensions.iter().map(|s| s.as_str()).collect();
+        let path = rfd::FileDialog::new()
+            .add_filter(&filter_name, &ext_refs)
+            .set_file_name(&default_name)
+            .save_file();
 
-    match path {
-        Some(path) => {
-            std::fs::write(&path, &bytes).map_err(|e| format!("保存失败: {e}"))?;
-            Ok(Some(path.to_string_lossy().into_owned()))
+        match path {
+            Some(path) => {
+                std::fs::write(&path, &bytes).map_err(|e| format!("保存失败: {e}"))?;
+                Ok(Some(path.to_string_lossy().into_owned()))
+            }
+            None => Ok(None),
         }
-        None => Ok(None),
-    }
+    })
+    .await
 }
 
 #[cfg(test)]

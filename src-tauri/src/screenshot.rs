@@ -800,7 +800,7 @@ pub fn copy_image_to_clipboard(app: AppHandle, base64_data: String) -> Result<()
 
 /// 弹出保存对话框，将 base64 图片保存到文件并返回实际路径
 #[tauri::command]
-pub fn save_image_dialog(
+pub async fn save_image_dialog(
     app: AppHandle,
     base64_data: String,
     format: Option<String>,
@@ -819,18 +819,13 @@ pub fn save_image_dialog(
     if let Some(window) = app.get_webview_window("screenshot") {
         let _ = window.hide();
     }
-    let path = rfd::FileDialog::new()
-        .add_filter(filter_name, extensions)
-        .set_file_name(format!("screenshot.{default_extension}"))
-        .save_file();
-
-    match path {
-        Some(path) => {
-            std::fs::write(&path, &bytes).map_err(|e| format!("保存失败: {e}"))?;
-            Ok(Some(path.to_string_lossy().into_owned()))
-        }
-        None => Ok(None),
-    }
+    crate::file_saver::save_file_dialog(
+        bytes,
+        format!("screenshot.{default_extension}"),
+        filter_name.into(),
+        extensions.iter().map(|extension| (*extension).into()).collect(),
+    )
+    .await
 }
 
 /// 隐藏并复位截图窗口，保留 WebView 供下一次快捷键复用。
