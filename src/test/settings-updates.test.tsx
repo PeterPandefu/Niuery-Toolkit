@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
@@ -64,5 +64,64 @@ describe('software update status', () => {
     expect(await screen.findByText('Download failed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: i18n.t('updates.install') })).toBeEnabled();
     expect(screen.queryByText(i18n.t('updates.noUpdate'))).not.toBeInTheDocument();
+  });
+
+  it('renders Markdown release notes in the update page', async () => {
+    check.mockResolvedValue({
+      version: '1.2.2',
+      body: [
+        '### 新增', '',
+        '- 支持 **Markdown** 更新说明',
+        '- 使用 `Alt+Q` 截图', '',
+        '### 改进', '',
+        '1. 下载更新', '2. 安装更新', '',
+        '> 更新后生效', '',
+        '```text', 'npm run build', '```', '',
+        '| 功能 | 状态 |', '| --- | --- |', '| 更新说明 | 已支持 |', '',
+        '[查看发行说明](https://github.com/PeterPandefu/Niuery-Toolkit/releases)',
+      ].join('\r\n'),
+      downloadAndInstall: vi.fn(),
+    });
+    openUpdates();
+    await checkUpdates();
+
+    expect(screen.getByRole('heading', { level: 3, name: '新增' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: '改进' })).toBeInTheDocument();
+    expect(screen.getByText('Markdown').tagName).toBe('STRONG');
+    expect(screen.getByText('Alt+Q').tagName).toBe('CODE');
+    expect(screen.getAllByRole('listitem')).toHaveLength(4);
+    expect(screen.getByText('下载更新').closest('ol')).toBeInTheDocument();
+    expect(screen.getByText('更新后生效').closest('blockquote')).toBeInTheDocument();
+    expect(screen.getByText('npm run build').closest('pre')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByRole('cell', { name: '已支持' })).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: '查看发行说明' });
+    expect(link).toHaveAttribute('href', 'https://github.com/PeterPandefu/Niuery-Toolkit/releases');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getByRole('button', { name: i18n.t('updates.install') })).toBeEnabled();
+  });
+
+  it('escapes raw HTML and rejects executable links in release notes', async () => {
+    check.mockResolvedValue({
+      version: '1.2.2',
+      body: '<img src="x" onerror="alert(1)">\n\n<script>alert(1)</script>\n\n[危险链接](javascript:alert(1))',
+      downloadAndInstall: vi.fn(),
+    });
+    openUpdates();
+    await checkUpdates();
+
+    expect(screen.getByText('<img src="x" onerror="alert(1)">')).toBeInTheDocument();
+    expect(screen.getByText('<script>alert(1)</script>')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '危险链接' })).not.toBeInTheDocument();
+  });
+
+  it('allows an available update without release notes', async () => {
+    check.mockResolvedValue({ version: '1.2.2', downloadAndInstall: vi.fn() });
+    openUpdates();
+    await checkUpdates();
+
+    expect(screen.getByText(i18n.t('updates.available', { version: '1.2.2' }))).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: i18n.t('updates.install') })).toBeEnabled();
   });
 });

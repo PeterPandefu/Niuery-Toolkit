@@ -14,6 +14,7 @@ import type { PointerEffect, SkinId } from '@/types/tool';
 import { useTheme } from '@/hooks/use-theme';
 import { ResourceManager } from '@/components/resources/ResourceManager';
 import { checkForAppUpdate, installAppUpdate, type AvailableUpdate } from '@/lib/app-updater';
+import { ReleaseNotes } from '@/components/markdown/ReleaseNotes';
 
 interface SettingsDialogProps {
   open: boolean;
@@ -347,7 +348,10 @@ function UpdateSettings() {
       ) : (
         <div className="space-y-3 rounded-lg border border-border p-4">
           {update ? (
-            <div><div className="text-sm font-medium">{t('updates.available', { version: update.version })}</div>{update.body ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{update.body}</p> : null}</div>
+            <div>
+              <div className="text-sm font-medium">{t('updates.available', { version: update.version })}</div>
+              {update.body ? <ReleaseNotes content={update.body} /> : null}
+            </div>
           ) : (
             <p className="text-xs text-muted-foreground">{t(checking ? 'updates.checking' : checked ? 'updates.noUpdate' : error ? 'updates.checkFailed' : 'updates.notChecked')}</p>
           )}
