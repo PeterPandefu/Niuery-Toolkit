@@ -304,15 +304,19 @@ const SKIN_ICONS = {
 function UpdateSettings() {
   const { t } = useTranslation();
   const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
 
   const checkUpdate = useCallback(async () => {
     setChecking(true);
+    setChecked(false);
     setError(null);
+    setUpdate(null);
     try {
       setUpdate(await checkForAppUpdate());
+      setChecked(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -342,7 +346,11 @@ function UpdateSettings() {
         <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-3 text-xs text-muted-foreground">{t('updates.desktopOnly')}</div>
       ) : (
         <div className="space-y-3 rounded-lg border border-border p-4">
-          {update ? <div><div className="text-sm font-medium">{t('updates.available', { version: update.version })}</div>{update.body ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{update.body}</p> : null}</div> : <p className="text-xs text-muted-foreground">{t('updates.noUpdate')}</p>}
+          {update ? (
+            <div><div className="text-sm font-medium">{t('updates.available', { version: update.version })}</div>{update.body ? <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{update.body}</p> : null}</div>
+          ) : (
+            <p className="text-xs text-muted-foreground">{t(checking ? 'updates.checking' : checked ? 'updates.noUpdate' : error ? 'updates.checkFailed' : 'updates.notChecked')}</p>
+          )}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
           <div className="flex gap-2">
             <button type="button" onClick={() => void checkUpdate()} disabled={checking || installing} className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50"><RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />{checking ? t('updates.checking') : t('updates.check')}</button>

@@ -9,7 +9,7 @@
     "build": "tsc -b && vite build",
     "build:desktop": "node scripts/desktop-build.mjs",
     "resources:pack": "node scripts/resource-packages.mjs",
-    "test:scripts": "node --test scripts/resource-packages.test.mjs scripts/desktop-build.test.mjs scripts/release-notes.test.mjs",
+    "test:scripts": "node --test scripts/resource-packages.test.mjs scripts/desktop-build.test.mjs scripts/release-notes.test.mjs scripts/release-updater.test.mjs scripts/repair-updater.test.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

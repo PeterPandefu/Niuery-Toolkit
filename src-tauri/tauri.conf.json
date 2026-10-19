@@ -43,6 +43,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "resources": ["resources/LICENSE.txt", "resources/THIRD_PARTY_NOTICES.md", "resources/plantuml/THIRD_PARTY_NOTICES.txt"],
     "targets": ["nsis"],
     "windows": {

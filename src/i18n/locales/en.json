@@ -5,6 +5,8 @@
     "description": "Check for and install stable releases from GitHub Releases.",
     "desktopOnly": "Software updates are available only in the Tauri desktop app.",
     "noUpdate": "You are up to date.",
+    "notChecked": "Check for updates to find the latest version.",
+    "checkFailed": "Could not check for updates. Please try again later.",
     "available": "Version {{version}} is available",
     "check": "Check for updates",
     "checking": "Checking…",

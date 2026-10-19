@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: windows-latest
@@ -24,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Test release notes
-        run: node --test scripts/release-notes.test.mjs
+      - name: Test release scripts
+        run: node --test scripts/release-notes.test.mjs scripts/release-updater.test.mjs scripts/repair-updater.test.mjs
 
       - name: Prepare release notes
         id: notes
@@ -57,6 +61,7 @@ jobs:
             });
 
       - name: Build and publish Tauri release
+        id: build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -66,5 +71,43 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: Niuery Toolkit ${{ github.ref_name }}
           releaseBody: ${{ steps.notes.outputs.result }}
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
+          includeUpdaterJson: true
+
+      - name: Verify updater assets and publish
+        id: verify_release
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ steps.build.outputs.releaseId }}
+        with:
+          script: |
+            const release_id = Number(process.env.RELEASE_ID);
+            if (!Number.isSafeInteger(release_id) || release_id <= 0) throw new Error('Missing release ID');
+            const identity = { ...context.repo, release_id };
+            const { data: release } = await github.rest.repos.getRelease(identity);
+            const tag = context.ref.replace('refs/tags/', '');
+            if (release.tag_name !== tag) throw new Error('Release tag does not match workflow tag');
+            if (!release.draft) throw new Error('Expected a draft release; do not overwrite a public release');
+            const version = tag.replace(/^v/, '');
+            const installer = release.assets.find((asset) => asset.name.endsWith(`_${version}_x64-setup.exe`));
+            const signature = release.assets.find((asset) => asset.name === `${installer?.name}.sig`);
+            const manifest = release.assets.find((asset) => asset.name === 'latest.json');
+            if (!installer || !signature || !manifest) throw new Error('Missing installer, updater signature or latest.json');
+            if ([installer, signature, manifest].some((asset) => asset.state !== 'uploaded')) throw new Error('Updater assets are not uploaded');
+            const readAsset = async (asset) => {
+              const { data } = await github.rest.repos.getReleaseAsset({
+                ...context.repo, asset_id: asset.id,
+                headers: { accept: 'application/octet-stream' },
+              });
+              return Buffer.from(data).toString('utf8').trim();
+            };
+            const update = JSON.parse(await readAsset(manifest));
+            if (update.version.replace(/^v/, '') !== version) throw new Error('Updater version does not match release');
+            const platform = update.platforms?.['windows-x86_64'];
+            if (!platform) throw new Error('Missing windows-x86_64 updater platform');
+            const installerUrl = installer.browser_download_url.replace(/\/download\/(untagged-[^/]+)\//, `/download/${encodeURIComponent(tag)}/`);
+            if (platform.url !== installerUrl) throw new Error('Updater URL does not match installer');
+            const signed = await readAsset(signature);
+            if (!signed || platform.signature?.trim() !== signed) throw new Error('Updater signature is empty or does not match .sig');
+            await github.rest.repos.updateRelease({ ...identity, draft: false, make_latest: 'true' });

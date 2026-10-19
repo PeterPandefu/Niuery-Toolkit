@@ -1,0 +1,116 @@
+name: Repair updater metadata
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published stable release missing latest.json
+        required: true
+        default: v1.2.1
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --test scripts/repair-updater.test.mjs
+
+      - name: Download and verify the published installer
+        id: prepare
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs/promises');
+            const path = require('node:path');
+            const { createHash } = require('node:crypto');
+            const tag = process.env.RELEASE_TAG;
+            if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error('Expected a stable version tag');
+            const { data: release } = await github.rest.repos.getReleaseByTag({ ...context.repo, tag });
+            const { data: latest } = await github.rest.repos.getLatestRelease(context.repo);
+            if (release.draft || release.prerelease || release.id !== latest.id) throw new Error('Repair only the current stable Latest release');
+            if (release.assets.some((asset) => asset.name === 'latest.json')) throw new Error('latest.json already exists; refusing to overwrite it');
+            const installer = release.assets.find((asset) => asset.name.endsWith(`_${tag.slice(1)}_x64-setup.exe`));
+            if (!installer || path.basename(installer.name) !== installer.name) throw new Error('Missing Windows installer');
+            const readAsset = async (asset) => {
+              const { data } = await github.rest.repos.getReleaseAsset({ ...context.repo, asset_id: asset.id, headers: { accept: 'application/octet-stream' } });
+              return Buffer.from(data);
+            };
+            const bytes = await readAsset(installer);
+            if (`sha256:${createHash('sha256').update(bytes).digest('hex')}` !== installer.digest) throw new Error('Installer SHA-256 digest does not match GitHub');
+            const directory = path.join(process.env.RUNNER_TEMP, 'niuery-updater-repair');
+            await fs.mkdir(directory, { recursive: true });
+            const installerPath = path.join(directory, installer.name);
+            await fs.writeFile(installerPath, bytes);
+            const signature = release.assets.find((asset) => asset.name === `${installer.name}.sig`);
+            if (signature) await fs.writeFile(`${installerPath}.sig`, await readAsset(signature));
+            core.exportVariable('INSTALLER_PATH', installerPath);
+            core.exportVariable('SIGNATURE_EXISTS', signature ? 'true' : 'false');
+
+      - name: Sign the original installer with the existing updater key
+        if: env.SIGNATURE_EXISTS != 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw 'Missing updater signing key' }
+          npx tauri signer sign "$env:INSTALLER_PATH"
+          if ($LASTEXITCODE -ne 0) { throw 'Updater signing failed' }
+
+      - name: Verify signature and upload missing updater metadata
+        id: upload
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs/promises');
+            const path = require('node:path');
+            const { createHash, createPublicKey, verify } = require('node:crypto');
+            const { data: release } = await github.rest.repos.getReleaseByTag({ ...context.repo, tag: process.env.RELEASE_TAG });
+            const { data: latest } = await github.rest.repos.getLatestRelease(context.repo);
+            if (release.id !== latest.id || release.draft || release.prerelease) throw new Error('Latest release changed; stop repair');
+            if (release.assets.some((asset) => asset.name === 'latest.json')) throw new Error('latest.json already exists; refusing to overwrite it');
+            const installer = release.assets.find((asset) => asset.name === path.basename(process.env.INSTALLER_PATH));
+            const bytes = await fs.readFile(process.env.INSTALLER_PATH);
+            if (!installer || `sha256:${createHash('sha256').update(bytes).digest('hex')}` !== installer.digest) throw new Error('Installer SHA-256 digest changed');
+            const signature = (await fs.readFile(`${process.env.INSTALLER_PATH}.sig`, 'utf8')).trim();
+            const config = JSON.parse(await fs.readFile('src-tauri/tauri.conf.json', 'utf8'));
+            const decode = (value) => Buffer.from(Buffer.from(value, 'base64').toString('utf8').trim().split(/\r?\n/)[1] ?? '', 'base64');
+            const publicKey = decode(config.plugins.updater.pubkey);
+            const signed = decode(signature);
+            if (publicKey.length !== 42 || signed.length !== 74 || !publicKey.subarray(2, 10).equals(signed.subarray(2, 10))) throw new Error('Signature key does not match the updater public key');
+            const algorithm = signed.subarray(0, 2).toString('ascii');
+            if (!['Ed', 'ED'].includes(algorithm)) throw new Error('Unsupported signature algorithm');
+            const key = createPublicKey({
+              key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), publicKey.subarray(10)]),
+              format: 'der', type: 'spki',
+            });
+            const message = algorithm === 'ED' ? createHash('blake2b512').update(bytes).digest() : bytes;
+            if (!verify(null, message, key, signed.subarray(10))) throw new Error('Installer signature verification failed');
+            const manifest = {
+              version: release.tag_name.slice(1), notes: release.body ?? '', pub_date: release.published_at,
+              platforms: { 'windows-x86_64': { url: installer.browser_download_url, signature } },
+            };
+            const upload = async (name, data, type) => github.rest.repos.uploadReleaseAsset({
+              ...context.repo, release_id: release.id, name, data,
+              headers: { 'content-type': type, 'content-length': data.length },
+            });
+            // Keep this resumable if the signature upload succeeds but the JSON upload fails.
+            if (!release.assets.some((asset) => asset.name === `${installer.name}.sig`)) {
+              await upload(`${installer.name}.sig`, Buffer.from(signature), 'application/octet-stream');
+            }
+            // Publish the updater endpoint last. Never change the existing installer or tag.
+            await upload('latest.json', Buffer.from(JSON.stringify(manifest, null, 2)), 'application/json');
