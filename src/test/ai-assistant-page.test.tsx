@@ -5,6 +5,7 @@ import type { AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant
 import AiAssistantPage from '@/tools/ai-assistant';
 import { holdAiUpdate } from '@/tools/ai-assistant/update-lock';
 import { saveBytesWithFeedback } from '@/lib/file-save';
+import { newConversation } from '@/tools/ai-assistant/model';
 
 const backend = vi.hoisted(() => ({
   load: vi.fn(), save: vi.fn(), saveProvider: vi.fn(), removeProvider: vi.fn(), listModels: vi.fn(),
@@ -34,6 +35,127 @@ beforeEach(async () => {
 afterEach(cleanup);
 
 describe('AI assistant page', () => {
+  it('groups assistant management under one settings button and supports dismissing it', async () => {
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    const trigger = screen.getByRole('button', { name: 'Assistant settings' });
+    expect(screen.queryByRole('button', { name: 'New assistant' })).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    const actions = screen.getByRole('group', { name: 'Assistant actions' });
+    expect(within(actions).getByRole('button', { name: 'New assistant' })).toHaveFocus();
+    expect(within(actions).getByRole('button', { name: 'Edit assistant' })).toBeEnabled();
+    expect(within(actions).getByRole('button', { name: 'Duplicate assistant' })).toBeEnabled();
+    expect(within(actions).getByRole('button', { name: 'Delete assistant' })).toBeDisabled();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(screen.getByRole('textbox', { name: 'Message' }));
+    expect(screen.queryByRole('group', { name: 'Assistant actions' })).not.toBeInTheDocument();
+  });
+
+  it('keeps edit, duplicate and delete actions usable from assistant settings', async () => {
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    const trigger = screen.getByRole('button', { name: 'Assistant settings' });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit assistant' }));
+    const editor = await screen.findByRole('dialog', { name: 'Edit assistant' });
+    expect(within(editor).getByRole('textbox', { name: 'Assistant name' })).toHaveValue('General assistant');
+    fireEvent.click(within(editor).getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate assistant' }));
+    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Assistant' }) as HTMLSelectElement).selectedOptions[0].textContent).toBe('General assistant copy'));
+    expect(screen.queryByRole('group', { name: 'Assistant actions' })).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete assistant' }));
+    const confirmation = await screen.findByRole('dialog', { name: 'Delete assistant' });
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Transfer and delete assistant' }));
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'General assistant copy' })).not.toBeInTheDocument());
+    expect(screen.getByRole('combobox', { name: 'Assistant' })).toHaveValue('assistant');
+  });
+
+  it('expands conversation search and restores the toolbar and visible history when creating a conversation', async () => {
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    const search = screen.getByRole('textbox', { name: 'Search conversations' });
+    const create = screen.getByRole('button', { name: 'New conversation' });
+    const tools = search.closest('.ai-conversation-tools');
+    expect(tools).toContainElement(create);
+    expect(tools).not.toHaveClass('is-searching');
+    fireEvent.focus(search);
+    fireEvent.change(search, { target: { value: 'no matching history' } });
+    expect(tools).toHaveClass('is-searching');
+    expect(screen.queryByRole('button', { name: /^Open conversation:/ })).not.toBeInTheDocument();
+    fireEvent.click(create);
+    expect(search).toHaveValue('');
+    expect(tools).not.toHaveClass('is-searching');
+    expect(screen.getAllByRole('button', { name: /^Open conversation:/ })).toHaveLength(1);
+    fireEvent.click(search);
+    expect(tools).toHaveClass('is-searching');
+    fireEvent.click(create);
+    expect(tools).not.toHaveClass('is-searching');
+    expect(screen.getAllByRole('button', { name: /^Open conversation:/ })).toHaveLength(1);
+  });
+
+  it('opens an existing empty new conversation and preserves its draft and attachments', async () => {
+    const value = workspace();
+    const empty = { ...newConversation(value.assistants[0]), id: 'empty', draft: 'Unsent question', draftAttachments: [{ id: 'file', name: 'notes.txt', kind: 'text' as const, mimeType: 'text/plain', size: 5, data: 'notes' }] };
+    const history = { ...newConversation(value.assistants[0]), id: 'history', title: 'Previous conversation', messages: [{ id: 'question', role: 'user' as const, content: 'Previous question', attachments: [], status: 'complete' as const, createdAt: 1 }] };
+    value.conversations = [history, empty];
+    value.activeConversationId = history.id;
+    backend.load.mockResolvedValue(value);
+    render(<AiAssistantPage />);
+    const input = await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.change(input, { target: { value: 'History draft' } });
+    const search = screen.getByRole('textbox', { name: 'Search conversations' });
+    fireEvent.change(search, { target: { value: 'Previous' } });
+    fireEvent.click(screen.getByRole('button', { name: 'New conversation' }));
+    expect(input).toHaveValue('Unsent question');
+    expect(screen.getByRole('button', { name: 'Remove attachment: notes.txt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open conversation: 新会话' }).closest('.ai-conversation-row')).toHaveClass('is-active');
+    expect(screen.getAllByRole('button', { name: /^Open conversation:/ })).toHaveLength(2);
+    expect(search).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: 'New conversation' }));
+    expect(input).toHaveValue('Unsent question');
+    expect(screen.getAllByRole('button', { name: /^Open conversation:/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Open conversation: Previous conversation' }));
+    expect(input).toHaveValue('History draft');
+  });
+
+  it.each(['renamed', 'has messages', 'another assistant'] as const)('creates a new conversation when the empty candidate is %s', async kind => {
+    const value = workspace();
+    const current = { ...newConversation(value.assistants[0]), id: 'current', title: 'Current conversation' };
+    const candidate = { ...newConversation(value.assistants[0]), id: 'candidate' };
+    if (kind === 'renamed') candidate.title = 'Saved blank conversation';
+    if (kind === 'has messages') candidate.messages = [{ id: 'question', role: 'user', content: '', attachments: [], status: 'failed', createdAt: 1 }];
+    if (kind === 'another assistant') {
+      value.assistants.push({ ...value.assistants[0], id: 'other', name: 'Other assistant' });
+      candidate.assistantId = 'other';
+    }
+    value.conversations = [current, candidate];
+    value.activeConversationId = current.id;
+    backend.load.mockResolvedValue(value);
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.click(screen.getByRole('button', { name: 'New conversation' }));
+    const rows = screen.getAllByRole('button', { name: /^Open conversation:/ });
+    expect(rows).toHaveLength(kind === 'another assistant' ? 2 : 3);
+    const active = rows.find(row => row.closest('.ai-conversation-row')?.classList.contains('is-active'));
+    expect(active).toHaveAccessibleName('Open conversation: 新会话');
+    expect(screen.getByRole('combobox', { name: 'Assistant' })).toHaveValue('assistant');
+  });
+
+  it('labels the icon-only model service settings control', async () => {
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    const settings = screen.getByRole('button', { name: 'Model service settings' });
+    expect(settings).toHaveAttribute('title', 'Model service settings');
+    expect(settings).toHaveTextContent('');
+    fireEvent.click(settings);
+    expect(await screen.findByRole('dialog', { name: 'Model service settings' })).toBeInTheDocument();
+  });
+
   it('keeps model selection, parameters and working export controls in the message composer', async () => {
     render(<AiAssistantPage />);
     await screen.findByRole('textbox', { name: 'Message' });
@@ -157,6 +279,7 @@ describe('AI assistant page', () => {
   it('creates and selects a custom assistant without changing existing conversations', async () => {
     render(<AiAssistantPage />);
     await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.click(screen.getByRole('button', { name: 'Assistant settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'New assistant' }));
     const dialog = await screen.findByRole('dialog', { name: 'New assistant' });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Assistant name' }), { target: { value: 'Reviewer' } });

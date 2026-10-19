@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUpRight, BotMessageSquare, Check, Code2, Copy, Languages, Lightbulb, Menu, MessageSquare, Paperclip, Pencil, Plus, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Square, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUpRight, BotMessageSquare, Check, Code2, Languages, Lightbulb, Menu, MessageSquare, Paperclip, Pencil, Plus, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Square, Trash2 } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { saveBytesWithFeedback } from '@/lib/file-save';
 import { desktopAiBackend } from './backend';
@@ -9,6 +9,7 @@ import { readAttachment, validateAttachments } from './attachments';
 import type { AiAssistant, AiConversation } from './types';
 import { AiSettings } from './settings';
 import { AssistantDialog } from './assistant-dialog';
+import { AssistantActions } from './assistant-actions';
 import { ConversationSettings } from './conversation-settings';
 import { ConversationExport } from './conversation-export';
 import { AttachmentPreview, MessageView } from './message-view';
@@ -27,6 +28,7 @@ export default function AiAssistantPage() {
   const [parametersOpen, setParametersOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const [localError, setLocalError] = useState<unknown>();
   const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
   const [rename, setRename] = useState<AiConversation | null>(null);
@@ -60,7 +62,7 @@ export default function AiAssistantPage() {
       created.modelId = fallback?.models[0]?.id;
     }
     api.update(value => ({ ...value, conversations: [...value.conversations, created], activeConversationId: created.id, activeAssistantId: selected.id }));
-    setEdit(null); setSidebarOpen(false); setLocalError(undefined); setFollowBottom(true);
+    setEdit(null); setSidebarOpen(false); setLocalError(undefined); setFollowBottom(true); setSearch(''); setSearchExpanded(false);
     return created;
   }
 
@@ -127,6 +129,12 @@ export default function AiAssistantPage() {
     api.update(value => ({ ...value, activeConversationId: item.id, activeAssistantId: item.assistantId }));
     setEdit(null); setSidebarOpen(false); setLocalError(undefined); setFollowBottom(true);
   }
+  function startConversation() {
+    const existing = workspace.conversations.find(item => item.assistantId === assistant.id && item.title === '新会话' && item.messages.length === 0);
+    if (!existing) { createConversation(); return; }
+    selectConversation(existing);
+    setSearch(''); setSearchExpanded(false);
+  }
   function selectAssistant(id: string) {
     const selected = workspace.assistants.find(item => item.id === id);
     if (!selected) return;
@@ -180,15 +188,16 @@ export default function AiAssistantPage() {
   return <div ref={rootRef} className="ai-workspace" onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { if (event.dataTransfer.files.length) { event.preventDefault(); void addFiles([...event.dataTransfer.files]); } }}>
     {sidebarOpen && <button type="button" className="ai-sidebar-scrim" aria-label={t('关闭会话列表', 'Close conversations')} onClick={() => setSidebarOpen(false)} />}
     <aside ref={sidebarRef} role={sidebarOpen ? 'dialog' : undefined} aria-modal={sidebarOpen || undefined} aria-label={t('助手与会话', 'Assistants and conversations')} className={`ai-sidebar ${sidebarOpen ? 'ai-sidebar-open' : ''}`}>
-      <div className="ai-assistant-picker"><div className="ai-section-caption">{t('我的助手', 'MY ASSISTANTS')}</div><div className="ai-button-row"><BotMessageSquare size={19} /><select aria-label={t('助手', 'Assistant')} value={assistant?.id ?? ''} onChange={event => selectAssistant(event.target.value)}>{workspace.assistants.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button type="button" className="ai-icon-button" {...iconLabel(t('新建助手', 'New assistant'))} onClick={() => setAssistantEditor('new')}><Plus size={17} /></button></div>
-        <div className="ai-assistant-actions"><button type="button" onClick={() => setAssistantEditor(assistant)}><Pencil size={12} />{t('编辑助手', 'Edit assistant')}</button><button type="button" {...iconLabel(t('复制助手', 'Duplicate assistant'))} onClick={() => { const next = { ...assistant, id: nanoid(), name: `${assistant.name} ${t('副本', 'copy')}`, parameters: { ...assistant.parameters } }; api.update(value => ({ ...value, assistants: [...value.assistants, next] })); createConversation(next); }}><Copy size={12} /></button><button type="button" disabled={workspace.assistants.length <= 1 || !!busy} {...iconLabel(t('删除助手', 'Delete assistant'))} onClick={() => { setDeleteAssistant(assistant); setTransferTarget(workspace.assistants.find(item => item.id !== assistant.id)?.id ?? ''); }}><Trash2 size={12} /></button></div>
+      <div className="ai-assistant-picker"><div className="ai-section-caption">{t('我的助手', 'MY ASSISTANTS')}</div><div className="ai-button-row"><BotMessageSquare size={19} aria-hidden="true" /><select aria-label={t('助手', 'Assistant')} value={assistant?.id ?? ''} onChange={event => selectAssistant(event.target.value)}>{workspace.assistants.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><AssistantActions canDelete={workspace.assistants.length > 1 && !busy} onNew={() => setAssistantEditor('new')} onEdit={() => setAssistantEditor(assistant)} onDuplicate={() => { const next = { ...assistant, id: nanoid(), name: `${assistant.name} ${t('副本', 'copy')}`, parameters: { ...assistant.parameters } }; api.update(value => ({ ...value, assistants: [...value.assistants, next] })); createConversation(next); }} onDelete={() => { setDeleteAssistant(assistant); setTransferTarget(workspace.assistants.find(item => item.id !== assistant.id)?.id ?? ''); }} /></div>
       </div>
-      <button type="button" className="ai-new-conversation" onClick={() => createConversation()}><Plus size={16} />{t('新建会话', 'New conversation')}</button>
-      <div className="ai-conversation-search"><Search size={14} /><input aria-label={t('搜索会话', 'Search conversations')} placeholder={t('搜索会话', 'Search conversations')} value={search} onChange={event => setSearch(event.target.value)} /></div>
+      <div className={`ai-conversation-tools ${searchExpanded ? 'is-searching' : ''}`}>
+        <div className="ai-conversation-search"><Search size={14} aria-hidden="true" /><input aria-label={t('搜索会话', 'Search conversations')} title={t('搜索会话', 'Search conversations')} placeholder={t('搜索会话', 'Search conversations')} value={search} onFocus={() => setSearchExpanded(true)} onClick={() => setSearchExpanded(true)} onChange={event => setSearch(event.target.value)} /></div>
+        <button type="button" className="ai-new-conversation" {...iconLabel(t('新建会话', 'New conversation'))} onClick={startConversation}><Plus size={16} aria-hidden="true" /><span aria-hidden={searchExpanded} className="ai-new-conversation-label">{t('新建会话', 'New conversation')}</span></button>
+      </div>
       <nav className="ai-conversations" aria-label={t('会话', 'Conversations')}>
         {workspace.conversations.filter(item => item.assistantId === assistant?.id && item.title.toLocaleLowerCase().includes(search.toLocaleLowerCase())).sort((a, b) => b.updatedAt - a.updatedAt).map(item => <div key={item.id} className={`ai-conversation-row ${item.id === conversation?.id ? 'is-active' : ''}`}><button type="button" aria-label={`${t('打开会话', 'Open conversation')}: ${item.title}`} onClick={() => selectConversation(item)}><MessageSquare size={14} /><span>{item.title}</span>{busy?.conversationId === item.id && <span className="ai-generating-dot" />}</button><div className="ai-conversation-actions"><button type="button" className="ai-icon-button" {...iconLabel(`${t('重命名会话', 'Rename conversation')}: ${item.title}`)} onClick={() => setRename(item)}><Pencil size={12} /></button><button type="button" className="ai-icon-button" disabled={busy?.conversationId === item.id} {...iconLabel(`${t('删除会话', 'Delete conversation')}: ${item.title}`)} onClick={() => removeConversation(item)}><Trash2 size={12} /></button></div></div>)}
       </nav>
-      <div className="ai-sidebar-footer"><span><ShieldCheck size={13} />{t('会话保存在本机', 'Conversations saved locally')}</span><button type="button" className="ai-settings-button" disabled={!!busy} onClick={() => setSettings(true)}><Settings2 size={16} />{t('模型服务设置', 'Model service settings')}</button></div>
+      <div className="ai-sidebar-footer"><span><ShieldCheck size={13} aria-hidden="true" />{t('会话保存在本机', 'Conversations saved locally')}</span><button type="button" className="ai-settings-button" {...iconLabel(t('模型服务设置', 'Model service settings'))} disabled={!!busy} onClick={() => setSettings(true)}><Settings2 size={16} aria-hidden="true" /></button></div>
     </aside>
     <main className="ai-chat">
       <header className="ai-chat-header"><button type="button" className="ai-icon-button ai-mobile-menu" {...iconLabel(t('会话列表', 'Conversations'))} onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={18} /></button><div className="ai-chat-heading"><h2>{conversation?.title || t('新会话', 'New conversation')}</h2><span>{assistant?.name}</span></div>{currentBusy && <span className="ai-chat-progress" role="status"><span className="ai-generating-dot" />{t('正在生成', 'Generating')}</span>}</header>
