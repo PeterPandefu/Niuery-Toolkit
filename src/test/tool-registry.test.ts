@@ -5,8 +5,8 @@ import zh from '@/i18n/locales/zh.json';
 import en from '@/i18n/locales/en.json';
 
 describe('工具注册表', () => {
-  it('完整注册 51 个工具', () => {
-    expect(getAllTools()).toHaveLength(51);
+  it('完整注册 50 个工具', () => {
+    expect(getAllTools()).toHaveLength(50);
   });
 
   it('按任务导向的稳定顺序返回 10 个分类', () => {
@@ -22,7 +22,7 @@ describe('工具注册表', () => {
     ['canvas', 3],
     ['capture', 2],
     ['network', 2],
-    ['system', 4],
+    ['system', 3],
     ['language', 1],
   ] as const)('分类 %s 包含 %i 个工具', (category, count) => {
     expect(getToolsByCategory(category)).toHaveLength(count);
@@ -39,8 +39,9 @@ describe('工具注册表', () => {
     expect(getToolById('mind-map')?.category).toBe('canvas');
     expect(getToolById('screenshot-editor')?.category).toBe('capture');
     expect(getToolById('clipboard-history')?.category).toBe('system');
-    expect(getToolById('port-process-killer')?.category).toBe('system');
-    expect(getToolById('file-unlocker')?.category).toBe('system');
+    expect(getToolById('resource-unlocker')?.category).toBe('system');
+    expect(getToolById('port-process-killer')).toBeUndefined();
+    expect(getToolById('file-unlocker')).toBeUndefined();
   });
 
   it('保留稳定的工具标识符与必填字段', () => {

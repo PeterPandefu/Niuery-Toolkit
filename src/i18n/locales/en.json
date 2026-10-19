@@ -252,8 +252,7 @@
     "translator": "Multilingual Translator",
     "pdf-toolkit": "PDF Processor",
     "system-monitor": "System Monitor",
-    "port-process-killer": "Port Process Terminator",
-    "file-unlocker": "File Unlocker",
+    "resource-unlocker": "占用解除",
     "mind-map": "Mind Map"
   },
   "actions": {

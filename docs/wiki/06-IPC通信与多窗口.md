@@ -60,7 +60,7 @@
 
 ### 2.6 文件与恢复快照（file_saver，7 个）
 
-`save_file_dialog{bytes, default_name, filter_name, extensions}`（**前端产物统一落盘出口**）/ `open_text_file_dialog{filter_name, extensions}` / `open_binary_file_dialog{...}`（base64）/ `pick_existing_file`（只取路径）/ `write_recovery_snapshot{tool, id, content, document_path?}` / `list_recovery_snapshots{tool}` / `discard_recovery_snapshot{tool, id}`。
+`save_file_dialog{bytes, default_name, filter_name, extensions}`（**前端产物统一落盘出口**）/ `open_text_file_dialog{filter_name, extensions}` / `open_binary_file_dialog{...}`（base64）/ `pick_existing_file` / `pick_existing_folder`（只取路径）/ `write_recovery_snapshot{tool, id, content, document_path?}` / `list_recovery_snapshots{tool}` / `discard_recovery_snapshot{tool, id}`。
 
 ### 2.7 渲染引擎桥（chromium 2 + plantuml 1）
 
@@ -70,9 +70,9 @@
 | `render_html_to_png{html, width?, height?}` | Chromium 截图 |
 | `render_plantuml{source, scheme, format}` | 返回 SVG/PNG 字节（JVM worker 池） |
 
-### 2.8 系统（hotkey 3 + system_monitor 1 + process_tools 3 + window_chrome 1）
+### 2.8 系统（hotkey 3 + system_monitor 1 + process_tools 4 + window_chrome 1）
 
-`get_hotkeys` / `update_hotkey{action, shortcut}` / `reset_hotkeys`；`get_system_stats`（1s 轮询）；`find_port_owners{port}` / `find_file_lock_owners{path}` / `terminate_processes{targets}`（pid+creationTime 双重身份）；`set_window_chrome{background, foreground, dark}`（DWM 标题栏/圆角/暗色）。
+`get_hotkeys` / `update_hotkey{action, shortcut}` / `reset_hotkeys`；`get_system_stats`（1s 轮询）；`find_port_owners{port}` / `find_file_lock_owners{path}` / `find_folder_lock_owners{path}` / `terminate_processes{targets}`（pid+creationTime 双重身份，创建时间以字符串传输）；`set_window_chrome{background, foreground, dark}`（DWM 标题栏/圆角/暗色）。
 
 ### 2.9 WebSocket 服务端（ws_server，3 个）
 

@@ -14,6 +14,11 @@ const DEFAULT_PINNED_TOOLS = [
   'translator',
 ];
 
+function normalizePinnedTools(tools: string[]): string[] {
+  return [...new Set(tools.map((id) =>
+    id === 'port-process-killer' || id === 'file-unlocker' ? 'resource-unlocker' : id))];
+}
+
 export interface RecentToolUsage {
   count: number;
   lastUsedOrder: number;
@@ -167,7 +172,7 @@ export const useAppStore = create<AppStore>()(
           atmosphere: persisted.atmosphere !== undefined ? normalizeAtmosphere(persisted.atmosphere) : currentState.atmosphere,
           pointerEffect: normalizePointerEffect(persisted.pointerEffect ?? currentState.pointerEffect),
           mascotEnabled: persisted.mascotEnabled ?? currentState.mascotEnabled,
-          pinnedTools: persisted.pinnedTools ?? currentState.pinnedTools,
+          pinnedTools: normalizePinnedTools(persisted.pinnedTools ?? currentState.pinnedTools),
           sidebarCollapsed: persisted.sidebarCollapsed ?? currentState.sidebarCollapsed,
         };
       },
@@ -181,7 +186,7 @@ export const useAppStore = create<AppStore>()(
           atmosphere: normalizeAtmosphere(persisted.atmosphere),
           pointerEffect: normalizePointerEffect(persisted.pointerEffect),
           mascotEnabled: persisted.mascotEnabled ?? false,
-          pinnedTools: persisted.pinnedTools ?? [...DEFAULT_PINNED_TOOLS],
+          pinnedTools: normalizePinnedTools(persisted.pinnedTools ?? [...DEFAULT_PINNED_TOOLS]),
           sidebarCollapsed: persisted.sidebarCollapsed ?? false,
         };
       },

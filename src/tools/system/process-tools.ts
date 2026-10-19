@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 export interface ProcessTarget {
   pid: number;
-  creationTime: number;
+  creationTime: string;
 }
 
 export interface PortEndpoint {
@@ -39,6 +39,14 @@ export function findPortOwners(port: number) {
 
 export function findFileLockOwners(path: string) {
   return invoke<ProcessOwner[]>('find_file_lock_owners', { path });
+}
+
+export function findFolderLockOwners(path: string) {
+  return invoke<ProcessOwner[]>('find_folder_lock_owners', { path });
+}
+
+export function pickExistingFolder() {
+  return invoke<string | null>('pick_existing_folder');
 }
 
 export function terminateProcesses(targets: ProcessTarget[]) {

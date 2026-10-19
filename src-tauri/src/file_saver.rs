@@ -119,6 +119,12 @@ pub fn pick_existing_file() -> Result<Option<String>, String> {
     Ok(selected_path(rfd::FileDialog::new().pick_file()))
 }
 
+/// 选择一个现有文件夹路径，不读取或修改其内容。
+#[tauri::command]
+pub fn pick_existing_folder() -> Result<Option<String>, String> {
+    Ok(selected_path(rfd::FileDialog::new().pick_folder()))
+}
+
 /// 写入应用私有目录中的临时恢复快照，不覆盖用户原始文档。
 #[tauri::command]
 pub fn write_recovery_snapshot(
