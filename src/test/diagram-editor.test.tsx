@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DiagramEditor, type DiagramRenderer } from '@/tools/diagram/diagram-editor';
+import { Toaster } from 'sonner';
 
 vi.mock('@monaco-editor/react', () => ({
   loader: { config: vi.fn() },
@@ -88,6 +89,109 @@ describe('DiagramEditor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '确认替换' }));
     expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveValue('flowchart TD\nA --> Imported');
+  });
+
+  it('extracts a Mermaid block from Markdown and keeps the draft until confirmation', async () => {
+    openTextDocument.mockResolvedValueOnce({
+      path: 'notes.md',
+      contents: '# Notes\n\n```mermaid\nflowchart TD\nA --> Extracted\n```\n\nOther text',
+    });
+    render(<DiagramEditor kind="mermaid" renderer={renderer} />);
+    const source = screen.getByRole('textbox', { name: 'Diagram source' });
+    const original = (source as HTMLTextAreaElement).value;
+
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+    const preview = await screen.findByText((_, element) => element?.tagName === 'PRE' && element.textContent === 'flowchart TD\nA --> Extracted');
+    expect(preview).toBeVisible();
+    expect(source).toHaveValue(original);
+    expect(openTextDocument).toHaveBeenCalledWith('Mermaid 实时编辑器 源文件', ['mmd', 'mermaid', 'txt', 'md', 'markdown']);
+
+    fireEvent.click(screen.getByRole('button', { name: '确认替换' }));
+    expect(source).toHaveValue('flowchart TD\nA --> Extracted');
+  });
+
+  it('lets the user preview and import the second Mermaid block without merging diagrams', async () => {
+    openTextDocument.mockResolvedValueOnce({
+      path: 'diagrams.markdown',
+      contents: '```mermaid\nflowchart LR\nA --> First\n```\n\n```mermaid\nsequenceDiagram\nAlice->>Bob: Second\n```',
+    });
+    render(<DiagramEditor kind="mermaid" renderer={renderer} />);
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+    const selector = await screen.findByRole('combobox', { name: '选择 Mermaid 代码块' });
+    expect(within(selector).getAllByRole('option')).toHaveLength(2);
+    fireEvent.change(selector, { target: { value: '1' } });
+    expect(screen.getByText((_, element) => element?.tagName === 'PRE' && element.textContent === 'sequenceDiagram\nAlice->>Bob: Second')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: '确认替换' }));
+    expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveValue('sequenceDiagram\nAlice->>Bob: Second');
+  });
+
+  it('keeps the current draft when the user cancels an extracted import', async () => {
+    openTextDocument.mockResolvedValueOnce({ path: 'notes.txt', contents: '```mermaid\nflowchart LR\nA --> Cancelled\n```' });
+    render(<DiagramEditor kind="mermaid" renderer={renderer} />);
+    const source = screen.getByRole('textbox', { name: 'Diagram source' });
+    fireEvent.change(source, { target: { value: 'flowchart TD\nKeep --> Draft' } });
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+    await screen.findByText('确认替换当前草稿');
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    expect(source).toHaveValue('flowchart TD\nKeep --> Draft');
+    expect(screen.queryByText('确认替换当前草稿')).not.toBeInTheDocument();
+  });
+
+  it('rejects unrelated text without offering to replace the draft', async () => {
+    openTextDocument.mockResolvedValueOnce({ path: 'notes.md', contents: '# Notes\n\nNo diagrams here.' });
+    render(<><Toaster /><DiagramEditor kind="mermaid" renderer={renderer} /></>);
+    const source = screen.getByRole('textbox', { name: 'Diagram source' });
+    const original = (source as HTMLTextAreaElement).value;
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+    expect(await screen.findByText(/未找到 Mermaid 代码块，也无法识别为有效的 Mermaid 源码/)).toBeVisible();
+    expect(screen.queryByText('确认替换当前草稿')).not.toBeInTheDocument();
+    expect(source).toHaveValue(original);
+  });
+
+  it('extracts Mermaid from browser file input using the same confirmation flow', async () => {
+    const { container } = render(<DiagramEditor kind="mermaid" renderer={renderer} />);
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const file = new File(['unused'], 'browser.txt', { type: 'text/plain' });
+    Object.defineProperty(file, 'text', { value: async () => 'Text\n\n~~~mermaid\nflowchart LR\nBrowser --> Imported\n~~~' });
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(await screen.findByText((_, element) => element?.tagName === 'PRE' && element.textContent === 'flowchart LR\nBrowser --> Imported')).toBeVisible();
+    expect(input.accept).toBe('.mmd,.mermaid,.txt,.md,.markdown');
+    fireEvent.click(screen.getByRole('button', { name: '确认替换' }));
+    expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveValue('flowchart LR\nBrowser --> Imported');
+  });
+
+  it('reports native file read failures and keeps the draft', async () => {
+    openTextDocument.mockRejectedValueOnce(new Error('无法读取文档'));
+    render(<><Toaster /><DiagramEditor kind="mermaid" renderer={renderer} /></>);
+    const source = screen.getByRole('textbox', { name: 'Diagram source' });
+    const original = (source as HTMLTextAreaElement).value;
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+    expect(await screen.findByText('导入失败：无法读取文档')).toBeVisible();
+    expect(screen.queryByText('确认替换当前草稿')).not.toBeInTheDocument();
+    expect(source).toHaveValue(original);
+  });
+
+  it('reports browser file read failures and enables another import', async () => {
+    const { container } = render(<><Toaster /><DiagramEditor kind="mermaid" renderer={renderer} /></>);
+    const source = screen.getByRole('textbox', { name: 'Diagram source' });
+    const original = (source as HTMLTextAreaElement).value;
+    const file = new File([], 'unreadable.md');
+    Object.defineProperty(file, 'text', { value: async () => { throw new Error('文件已被移动'); } });
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+    expect(await screen.findByText('导入失败：文件已被移动')).toBeVisible();
+    expect(screen.getByRole('button', { name: '导入源文件' })).toBeEnabled();
+    expect(source).toHaveValue(original);
+  });
+
+  it('preserves PlantUML source import and its file filter', async () => {
+    openTextDocument.mockResolvedValueOnce({ path: 'diagram.puml', contents: '@startuml\nAlice -> Bob: Hi\n@enduml' });
+    render(<DiagramEditor kind="plantuml" renderer={renderer} />);
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+    await screen.findByText('确认替换当前草稿');
+    expect(openTextDocument).toHaveBeenCalledWith('PlantUML 实时编辑器 源文件', ['puml']);
+    fireEvent.click(screen.getByRole('button', { name: '确认替换' }));
+    expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveValue('@startuml\nAlice -> Bob: Hi\n@enduml');
   });
 
   it('renders the current source immediately when the user selects refresh', async () => {

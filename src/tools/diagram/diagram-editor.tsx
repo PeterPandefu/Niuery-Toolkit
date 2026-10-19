@@ -18,7 +18,8 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import {
   ensureDiagramBackground,
@@ -30,6 +31,7 @@ import {
 } from './diagram-editor-utils';
 import { ImageViewer } from '@/components/media/image-viewer';
 import { getThemeTokens } from '@/lib/theme';
+import { extractMermaidImport, type MermaidImportCandidate } from './mermaid-import';
 
 type DiagramScheme = 'light' | 'dark';
 
@@ -102,8 +104,8 @@ async function rasterizeSvg(svg: string): Promise<Blob> {
 
 export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
   const labels = useMemo(() => kind === 'mermaid'
-    ? { title: 'Mermaid 实时编辑器', source: 'Mermaid 源码', extension: 'mmd' }
-    : { title: 'PlantUML 实时编辑器', source: 'PlantUML 源码', extension: 'puml' }, [kind]);
+    ? { title: 'Mermaid 实时编辑器', source: 'Mermaid 源码', extension: 'mmd', importExtensions: ['mmd', 'mermaid', 'txt', 'md', 'markdown'] }
+    : { title: 'PlantUML 实时编辑器', source: 'PlantUML 源码', extension: 'puml', importExtensions: ['puml'] }, [kind]);
   const { monacoTheme, scheme, skin = 'forge' } = useTheme();
   const [source, setSource] = useState(() => readLocalStorage(draftStorageKey(kind), getDiagramDefaultSource(kind)));
   const [debouncedSource, setDebouncedSource] = useState(source);
@@ -112,7 +114,11 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
   const [error, setError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [refreshRevision, setRefreshRevision] = useState(0);
-  const [pendingImport, setPendingImport] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<MermaidImportCandidate[] | null>(null);
+  const [selectedImportIndex, setSelectedImportIndex] = useState(0);
+  const [isReadingImport, setIsReadingImport] = useState(false);
+  const importTitleId = useId();
+  const selectedImport = pendingImport?.[selectedImportIndex];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const renderRequestRef = useRef(0);
 
@@ -172,20 +178,40 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
     toast.success('已替换当前草稿');
   }, []);
 
+  const prepareImport = useCallback(async (contents: string) => {
+    const candidates = kind === 'mermaid'
+      ? await extractMermaidImport(contents)
+      : [{ source: contents, line: null }];
+    setSelectedImportIndex(0);
+    setPendingImport(candidates);
+  }, [kind]);
+
   const handleImport = useCallback(async () => {
-    const opened = await openTextDocument(`${labels.title} 源文件`, [labels.extension]);
-    if (opened) {
-      setPendingImport(opened.contents);
-      return;
+    try {
+      const opened = await openTextDocument(`${labels.title} 源文件`, labels.importExtensions);
+      if (opened) {
+        await prepareImport(opened.contents);
+      } else if (!isTauri) {
+        fileInputRef.current?.click();
+      }
+    } catch (error) {
+      toast.error(`导入失败：${error instanceof Error ? error.message : String(error)}`);
     }
-    fileInputRef.current?.click();
-  }, [labels.extension, labels.title]);
+  }, [labels.importExtensions, labels.title, prepareImport]);
 
   const handleBrowserImport = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (file) setPendingImport(await file.text());
-  }, []);
+    if (!file) return;
+    setIsReadingImport(true);
+    try {
+      await prepareImport(await file.text());
+    } catch (error) {
+      toast.error(`导入失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsReadingImport(false);
+    }
+  }, [prepareImport]);
 
   const exportSource = useCallback(async () => {
     await saveBytesWithFeedback(
@@ -253,7 +279,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
           </label>
           <Button variant="ghost" size="sm" onClick={() => resetSource()} aria-label="新建图表"><FilePlus2 />新建</Button>
           <Button variant="ghost" size="sm" onClick={() => resetSource(true)} aria-label="清空图表"><Trash2 />清空</Button>
-          <LoadingButton variant="ghost" size="sm" onClick={handleImport} aria-label="导入源文件"><Upload />导入</LoadingButton>
+          <LoadingButton variant="ghost" size="sm" onClick={handleImport} loading={isReadingImport} aria-label="导入源文件"><Upload />导入</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportSource} aria-label="导出源文件"><FileText />导出</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportSvg} disabled={!preview} aria-label="导出 SVG"><Download />SVG</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportPng} disabled={!preview} aria-label="导出 PNG"><FileImage />PNG</LoadingButton>
@@ -300,18 +326,36 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
         </section>
       </div>
 
-      <input ref={fileInputRef} type="file" accept={`.${labels.extension}`} className="hidden" onChange={(event) => void handleBrowserImport(event)} />
-      {pendingImport !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border bg-background shadow-xl">
-            <div className="border-b px-4 py-3"><h2 className="text-sm font-semibold">确认替换当前草稿</h2></div>
-            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-xs">{pendingImport}</pre>
+      <input ref={fileInputRef} type="file" accept={labels.importExtensions.map((extension) => `.${extension}`).join(',')} className="hidden" onChange={(event) => void handleBrowserImport(event)} />
+      {pendingImport !== null && selectedImport && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onKeyDown={(event) => {
+          if (event.key === 'Escape') setPendingImport(null);
+        }}>
+          <div role="dialog" aria-modal="true" aria-labelledby={importTitleId} className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border bg-background shadow-xl">
+            <div className="border-b px-4 py-3"><h2 id={importTitleId} className="text-sm font-semibold">确认替换当前草稿</h2></div>
+            {pendingImport.length > 1 && (
+              <label className="flex flex-col gap-2 border-b px-4 py-3 text-sm">
+                检测到 {pendingImport.length} 个 Mermaid 代码块，请选择要导入的图表
+                <select
+                  aria-label="选择 Mermaid 代码块"
+                  className="w-full rounded border bg-background px-2 py-1.5 text-sm"
+                  value={selectedImportIndex}
+                  onChange={(event) => setSelectedImportIndex(Number(event.target.value))}
+                >
+                  {pendingImport.map((candidate, index) => (
+                    <option key={index} value={index}>图表 {index + 1}（第 {candidate.line} 行） · {candidate.source.split('\n')[0]}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-xs">{selectedImport.source}</pre>
             <div className="flex justify-end gap-2 border-t px-4 py-3">
-              <Button variant="outline" onClick={() => setPendingImport(null)}>取消</Button>
-              <Button onClick={() => replaceSource(pendingImport)}>确认替换</Button>
+              <Button autoFocus variant="outline" onClick={() => setPendingImport(null)}>取消</Button>
+              <Button onClick={() => replaceSource(selectedImport.source)}>确认替换</Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
