@@ -15,7 +15,7 @@ describe('atmosphere particles', () => {
     expect(normalizeAtmosphere('on')).toBe('on');
     expect(normalizeAtmosphere('low')).toBe('on');
     expect(normalizeAtmosphere('high')).toBe('on');
-    expect(normalizeAtmosphere(undefined)).toBe('on');
+    expect(normalizeAtmosphere(undefined)).toBe('off');
   });
 
   it('keeps the particle count after stepping', () => {

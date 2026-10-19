@@ -1,8 +1,62 @@
+import { useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ImageViewer } from '@/components/media/image-viewer';
 
 describe('ImageViewer', () => {
+  it('shows optional image information and navigates with buttons and arrow keys', () => {
+    function Gallery() {
+      const [index, setIndex] = useState(0);
+      return (
+        <ImageViewer
+          source={`data:image/png;base64,${index}`}
+          alt={`图片 ${index + 1}`}
+          mode="dialog"
+          description={`第 ${index + 1} 张原图`}
+          navigation={{
+            onPrevious: () => setIndex((value) => (value + 1) % 2),
+            onNext: () => setIndex((value) => (value + 1) % 2),
+          }}
+        />
+      );
+    }
+    render(<Gallery />);
+
+    expect(screen.getByText('第 1 张原图')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '下一张（→）' }));
+    expect(screen.getByRole('img', { name: '图片 2' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '上一张（←）' }));
+    expect(screen.getByRole('img', { name: '图片 1' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(screen.getByText('第 2 张原图')).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(screen.getByText('第 1 张原图')).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: '预览背景' }), { key: 'ArrowRight' });
+    expect(screen.getByText('第 1 张原图')).toBeInTheDocument();
+  });
+
+  it('keeps inline previews inside their host instead of creating a page overlay', () => {
+    const { container } = render(<ImageViewer source="data:image/png;base64,abc" alt="内嵌图片" mode="inline" />);
+
+    expect(container).toContainElement(screen.getByRole('region', { name: '图片预览区域' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('places shared preview dialogs above the tool stacking context', () => {
+    const { container } = render(
+      <div style={{ position: 'relative', zIndex: 10, overflow: 'hidden' }}>
+        <ImageViewer source="data:image/svg+xml,%3Csvg%3E%3C%2Fsvg%3E" alt="图表预览" mode="dialog" />
+      </div>,
+    );
+
+    const dialog = screen.getByRole('dialog', { name: '图片预览' });
+    expect(dialog.parentElement).toBe(document.body);
+    expect(container).not.toContainElement(dialog);
+    expect(within(dialog).queryByRole('button', { name: '上一张（←）' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '下一张（→）' })).not.toBeInTheDocument();
+  });
+
   it('zooms through the shared controls and resets to fit', () => {
     render(<ImageViewer source="data:image/png;base64,abc" alt="共享图片" mode="inline" />);
 

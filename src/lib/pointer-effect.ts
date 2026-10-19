@@ -1,7 +1,7 @@
 import type { PointerEffect, SkinId } from '@/types/tool';
 
 export const POINTER_EFFECT_IDS: PointerEffect[] = ['off', 'tassel', 'glow'];
-export const DEFAULT_POINTER_EFFECT: PointerEffect = 'glow';
+export const DEFAULT_POINTER_EFFECT: PointerEffect = 'off';
 export const MAX_POINTER_MOTIFS = 22;
 export const POINTER_REST_DISTANCE = 1.25;
 export const MOTIF_SPACING_SLOW = 30;

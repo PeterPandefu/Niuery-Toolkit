@@ -11,12 +11,12 @@ import {
 } from '@/lib/pointer-effect';
 
 describe('pointer effect', () => {
-  it('keeps unknown values as glow', () => {
+  it('disables unknown values while preserving valid choices', () => {
     expect(normalizePointerEffect('glow')).toBe('glow');
     expect(normalizePointerEffect('tassel')).toBe('tassel');
     expect(normalizePointerEffect('off')).toBe('off');
-    expect(normalizePointerEffect('high')).toBe('glow');
-    expect(normalizePointerEffect(undefined)).toBe('glow');
+    expect(normalizePointerEffect('high')).toBe('off');
+    expect(normalizePointerEffect(undefined)).toBe('off');
   });
 
   it('maps each skin to its motif', () => {

@@ -18,6 +18,19 @@ describe('useAppStore', () => {
   });
 
   describe('theme', () => {
+    it('starts with decorative effects disabled', () => {
+      expect(useAppStore.getInitialState()).toMatchObject({ atmosphere: 'off', pointerEffect: 'off', mascotEnabled: false });
+    });
+
+    it('uses disabled effects for missing legacy settings and preserves saved choices', async () => {
+      const { migrate, merge } = useAppStore.persist.getOptions();
+      expect(await migrate?.({}, 0)).toMatchObject({ atmosphere: 'off', pointerEffect: 'off', mascotEnabled: false });
+      expect(merge?.({}, useAppStore.getInitialState())).toMatchObject({ atmosphere: 'off', pointerEffect: 'off', mascotEnabled: false });
+      const saved = { atmosphere: 'on', pointerEffect: 'tassel', mascotEnabled: true };
+      expect(await migrate?.(saved, 0)).toMatchObject(saved);
+      expect(merge?.(saved, useAppStore.getInitialState())).toMatchObject(saved);
+    });
+
     it('defaults to system', () => {
       expect(useAppStore.getState().theme).toBe('system');
     });
@@ -46,20 +59,18 @@ describe('useAppStore', () => {
       useAppStore.getState().resetAppearance();
       expect(useAppStore.getState().skin).toBe('forge');
       expect(useAppStore.getState().theme).toBe('system');
-      expect(useAppStore.getState().atmosphere).toBe('on');
-      expect(useAppStore.getState().pointerEffect).toBe('glow');
-      expect(useAppStore.getState().mascotEnabled).toBe(true);
+      expect(useAppStore.getState().atmosphere).toBe('off');
+      expect(useAppStore.getState().pointerEffect).toBe('off');
+      expect(useAppStore.getState().mascotEnabled).toBe(false);
     });
 
-    it('defaults atmosphere to on and persists it', () => {
-      expect(useAppStore.getState().atmosphere).toBe('on');
-      useAppStore.getState().setAtmosphere('off');
+    it('persists an explicitly enabled atmosphere', () => {
+      useAppStore.getState().setAtmosphere('on');
       const persisted = useAppStore.persist.getOptions().partialize?.(useAppStore.getState());
-      expect(persisted).toMatchObject({ atmosphere: 'off' });
+      expect(persisted).toMatchObject({ atmosphere: 'on' });
     });
 
-    it('defaults pointer effect to glow and persists it', () => {
-      expect(useAppStore.getState().pointerEffect).toBe('glow');
+    it('persists an explicitly selected pointer effect', () => {
       useAppStore.getState().setPointerEffect('tassel');
       const persisted = useAppStore.persist.getOptions().partialize?.(useAppStore.getState());
       expect(persisted).toMatchObject({ pointerEffect: 'tassel' });

@@ -67,6 +67,7 @@ resource-packages/
 tmp_review_diff.txt
 
 # temp
-docs/
+docs/*
+!docs/releasing.md
 src-tauri/resources/chromium/*/
 !src-tauri/resources/chromium/README.md

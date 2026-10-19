@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DiagramEditor, type DiagramRenderer } from '@/tools/diagram/diagram-editor';
 
@@ -49,6 +49,23 @@ describe('DiagramEditor', () => {
     fireEvent.wheel(screen.getByRole('region', { name: '图片预览区域' }), { deltaY: -100 });
 
     expect(screen.getByText('125%')).toBeInTheDocument();
+  });
+
+  it.each(['mermaid', 'plantuml'] as const)('opens the %s full-screen preview above the tool and returns to the editor', async (kind) => {
+    const { container } = render(<DiagramEditor kind={kind} renderer={renderer} />);
+    const label = kind === 'mermaid' ? 'Mermaid 实时编辑器 预览' : 'PlantUML 实时编辑器 预览';
+    await screen.findByRole('img', { name: label });
+    fireEvent.click(screen.getByRole('button', { name: '全屏预览' }));
+    const dialog = screen.getByRole('dialog', { name: '图片预览' });
+    expect(dialog.parentElement).toBe(document.body);
+    expect(container).not.toContainElement(dialog);
+    fireEvent.wheel(within(dialog).getByRole('region', { name: '图片预览区域' }), { deltaY: -100 });
+    expect(within(dialog).getByText('125%')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '下一张（→）' })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: label })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '导出 SVG' })).toBeEnabled();
   });
 
   it('restores the valid starter diagram when the user creates a new document', async () => {

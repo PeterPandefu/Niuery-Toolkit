@@ -4,7 +4,7 @@ import { copyToClipboard } from '@/lib/utils';
 import { allPalettes } from './color-data';
 
 export default function UiPaletteTab() {
-  const [activePalette, setActivePalette] = useState(3); // Default to Ant Design
+  const [activePalette, setActivePalette] = useState(0); // 默认选中第一个色板（Flat UI）
   const palette = allPalettes[activePalette];
 
   const handleCopyColor = async (hex: string) => {
