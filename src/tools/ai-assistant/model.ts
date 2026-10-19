@@ -1,5 +1,15 @@
 import { nanoid } from 'nanoid';
-import type { AiAssistant, AiConversation, AiMessage, AiProvider, AiWorkspace } from './types';
+import type { AiAssistant, AiConversation, AiMessage, AiModel, AiProvider, AiWorkspace } from './types';
+
+/** Keep the first entry so existing aliases and image capabilities survive a refresh. */
+export function uniqueModels(models: AiModel[]): AiModel[] {
+  const result = new Map<string, AiModel>();
+  for (const model of models) {
+    const id = model.id.trim();
+    if (id && !result.has(id)) result.set(id, { ...model, id, name: model.name.trim() || id });
+  }
+  return [...result.values()];
+}
 
 export function createWorkspace(): AiWorkspace {
   const assistants: AiAssistant[] = [

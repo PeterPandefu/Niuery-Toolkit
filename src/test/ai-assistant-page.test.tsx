@@ -4,12 +4,14 @@ import i18n from '@/i18n';
 import type { AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant/types';
 import AiAssistantPage from '@/tools/ai-assistant';
 import { holdAiUpdate } from '@/tools/ai-assistant/update-lock';
+import { saveBytesWithFeedback } from '@/lib/file-save';
 
 const backend = vi.hoisted(() => ({
   load: vi.fn(), save: vi.fn(), saveProvider: vi.fn(), removeProvider: vi.fn(), listModels: vi.fn(),
   testConnection: vi.fn(), generate: vi.fn(), cancel: vi.fn(), openDataDirectory: vi.fn(), reset: vi.fn(),
 }));
 vi.mock('@/tools/ai-assistant/backend', () => ({ desktopAiBackend: backend }));
+vi.mock('@/lib/file-save', () => ({ saveBytesWithFeedback: vi.fn() }));
 
 function workspace(configured = true): AiWorkspace {
   return {
@@ -32,6 +34,38 @@ beforeEach(async () => {
 afterEach(cleanup);
 
 describe('AI assistant page', () => {
+  it('keeps model selection, parameters and working export controls in the message composer', async () => {
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    const composer = screen.getByRole('region', { name: 'Message composer' });
+    expect(within(composer).getByRole('combobox', { name: 'Current model' })).toHaveValue('provider::model');
+    fireEvent.click(within(composer).getByRole('button', { name: 'Conversation settings' }));
+    const settings = await screen.findByRole('dialog', { name: 'Conversation settings' });
+    fireEvent.change(within(settings).getByRole('spinbutton', { name: 'History rounds' }), { target: { value: '3' } });
+    fireEvent.click(within(settings).getByRole('button', { name: 'Save' }));
+    fireEvent.change(within(composer).getByRole('textbox', { name: 'Message' }), { target: { value: 'Export this conversation' } });
+    fireEvent.click(within(composer).getByRole('button', { name: 'Send' }));
+    await screen.findByText('Hello from test model');
+    expect(backend.generate.mock.calls[0][0].parameters.historyRounds).toBe(3);
+    fireEvent.click(within(composer).getByRole('button', { name: 'Export conversation' }));
+    fireEvent.click(within(composer).getByRole('button', { name: 'JSON' }));
+    await waitFor(() => expect(saveBytesWithFeedback).toHaveBeenCalledWith('Export this conversation.json', expect.any(Blob), 'JSON', ['json']));
+    expect(screen.queryByRole('group', { name: 'Export format' })).not.toBeInTheDocument();
+  });
+
+  it('dismisses export options with Escape and outside clicks and restores keyboard focus', async () => {
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    const trigger = screen.getByRole('button', { name: 'Export conversation' });
+    fireEvent.click(trigger);
+    expect(screen.getByRole('button', { name: 'Markdown' })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.queryByRole('group', { name: 'Export format' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(screen.getByRole('textbox', { name: 'Message' }));
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
   it('blocks an AI page opened during an update and resumes when the download fails', async () => {
     backend.load.mockResolvedValue(workspace(false));
     const release = holdAiUpdate();
@@ -47,7 +81,7 @@ describe('AI assistant page', () => {
   it('opens a usable default conversation after reset waits for its durable save', async () => {
     render(<AiAssistantPage />);
     await screen.findByRole('textbox', { name: 'Message' });
-    fireEvent.click(screen.getByRole('button', { name: 'AI settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Model service settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Reset AI assistant data' }));
     const confirmation = await screen.findByRole('dialog', { name: 'Reset AI assistant?' });
     let finishSave: (() => void) | undefined;
@@ -67,7 +101,7 @@ describe('AI assistant page', () => {
     expect(backend.generate).not.toHaveBeenCalled();
     expect(backend.listModels).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Configure model service' }));
-    expect(await screen.findByRole('dialog', { name: 'AI settings' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Model service settings' })).toBeInTheDocument();
   });
 
   it('creates conversations, sends a message and retains a draft when switching', async () => {
@@ -149,7 +183,7 @@ describe('AI assistant page', () => {
     backend.saveProvider.mockImplementation(async provider => ({ ...provider, hasApiKey: true }));
     render(<AiAssistantPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Configure model service' }));
-    const dialog = screen.getByRole('dialog', { name: 'AI settings' });
+    const dialog = screen.getByRole('dialog', { name: 'Model service settings' });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Service name' }), { target: { value: 'My API' } });
     fireEvent.change(within(dialog).getByLabelText('API Key'), { target: { value: 'test-secret-only' } });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Manual model ID' }), { target: { value: 'custom-model' } });
@@ -179,6 +213,27 @@ describe('AI assistant page', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
     await waitFor(() => expect(backend.generate).toHaveBeenCalledTimes(2));
     expect(backend.generate.mock.calls[1][0].providerId).toBe('second');
+  });
+
+  it('offers only explicitly enabled models in the chat selector after fetching and saving', async () => {
+    backend.saveProvider.mockImplementation(async provider => provider);
+    backend.listModels.mockResolvedValue([
+      { id: 'new-model', name: 'new-model', supportsImages: false },
+      { id: 'unused-model', name: 'unused-model', supportsImages: false },
+    ]);
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.click(screen.getByRole('button', { name: 'Model service settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch models' }));
+    const picker = await screen.findByRole('dialog', { name: 'Choose enabled models' });
+    fireEvent.click(within(picker).getByRole('button', { name: 'Clear selection' }));
+    fireEvent.click(within(picker).getByRole('checkbox', { name: 'Enable model: new-model' }));
+    fireEvent.click(within(picker).getByRole('button', { name: 'Apply selection' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save service' }));
+    await waitFor(() => expect(screen.getByRole('option', { name: 'Local test · new-model' })).toBeInTheDocument());
+    expect(screen.queryByRole('option', { name: 'Local test · Test model' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Local test · unused-model' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save service' })).toBeEnabled());
   });
 
   it('keeps the conversation usable after generation fails', async () => {

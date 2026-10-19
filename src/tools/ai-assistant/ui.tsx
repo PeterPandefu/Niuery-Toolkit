@@ -5,7 +5,7 @@ import { useAiText } from './ui-text';
 
 const dialogStack: HTMLDivElement[] = [];
 
-export function AiDialog({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose(): void; wide?: boolean }) {
+export function AiDialog({ title, description, children, onClose, wide = false, className = '' }: { title: string; description?: string; children: ReactNode; onClose(): void; wide?: boolean; className?: string }) {
   const id = useId();
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -29,8 +29,8 @@ export function AiDialog({ title, children, onClose, wide = false }: { title: st
     return () => { document.removeEventListener('keydown', listener, true); if (panel) { const index = dialogStack.indexOf(panel); if (index >= 0) dialogStack.splice(index, 1); } previous?.focus(); };
   }, []);
   return createPortal(<div className="ai-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} className={`ai-dialog ${wide ? 'ai-dialog-wide' : ''}`}>
-      <header><h2 id={id}>{title}</h2><button type="button" className="ai-icon-button" aria-label={t('关闭', 'Close')} onClick={onClose}><X size={18} /></button></header>
+    <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={id} aria-describedby={description ? `${id}-description` : undefined} className={`ai-dialog ${wide ? 'ai-dialog-wide' : ''} ${className}`}>
+      <header><div><h2 id={id}>{title}</h2>{description && <p id={`${id}-description`} className="ai-dialog-description">{description}</p>}</div><button type="button" className="ai-icon-button" aria-label={t('关闭', 'Close')} onClick={onClose}><X size={18} /></button></header>
       {children}
     </div>
   </div>, document.body);
