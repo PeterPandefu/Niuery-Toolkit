@@ -222,8 +222,16 @@ tauri::Builder::default()
 
 ## 17. build.rs 与 main.rs
 
-- [build.rs](../../src-tauri/build.rs)：Windows 目标下向 examples 追加 `/MANIFEST:EMBED` + comctl32 v6 依赖（resource_smoke 的 rfd 对话框需要），随后 `tauri_build::build()`；
+- [build.rs](../../src-tauri/build.rs)：Windows 目标下仅向 examples 和集成测试追加 `/MANIFEST:EMBED` + comctl32 v6 依赖（真实 rfd 对话框目标需要），主 Tauri 二进制不额外注入；随后 `tauri_build::build()`；
 - [main.rs](../../src-tauri/src/main.rs)：release 下 `windows_subsystem = "windows"`（隐藏控制台）→ `niuery_toolkit_lib::run()`。
+
+`windows_manifest_config` 集成测试默认执行，防止清单链接参数改为全局并干扰主程序。真实原生对话框测试需要 Windows 交互桌面，因此默认忽略；在仓库根目录显式运行：
+
+```powershell
+cargo test --manifest-path src-tauri/Cargo.toml --test windows_rfd_dialog -- --ignored --nocapture
+```
+
+该测试真实调用 `rfd::FileDialog`，确认当前进程的系统文件选择框可见，再自动取消并检查返回值为空。显示与取消阶段均设有超时；不会读取或写入所选文件。验证构建修改时，还应运行 `cargo build --manifest-path src-tauri/Cargo.toml`，覆盖主程序链接。
 
 ## 18. 外部进程集成方式汇总
 
