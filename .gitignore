@@ -63,6 +63,7 @@ coverage/
 resource-packages/
 
 # Verification screenshots (dev artifacts)
+/output/
 /*.png
 tmp_review_diff.txt
 
