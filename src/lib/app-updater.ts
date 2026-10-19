@@ -32,7 +32,11 @@ export async function checkForAppUpdate(): Promise<AvailableUpdate | null> {
 }
 
 export async function installAppUpdate(update: AvailableUpdate): Promise<void> {
-  await update.downloadAndInstall();
-  const { relaunch } = await import('@tauri-apps/plugin-process');
-  await relaunch();
+  const { prepareAiForUpdate } = await import('@/tools/ai-assistant/backend');
+  const release = await prepareAiForUpdate();
+  try {
+    await update.downloadAndInstall();
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('ai_restart_application');
+  } finally { release(); }
 }

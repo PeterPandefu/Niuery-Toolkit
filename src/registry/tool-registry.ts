@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import { TOOL_CATEGORY_ORDER, ToolDefinition, ToolCategory, ToolCapabilities } from '@/types/tool';
 import {
   ArrowLeftRight,
+  BotMessageSquare,
   Binary,
   Braces,
   Camera,
@@ -46,6 +47,7 @@ const toolRegistry = new Map<string, ToolDefinition>();
 const preloadPromises = new Map<string, Promise<unknown>>();
 
 const TOOL_CAPABILITIES: Partial<Record<string, ToolCapabilities>> = {
+  'ai-assistant': { network: 'hybrid', permissions: ['file', 'clipboard'] },
   'sticky-note': { network: 'offline', permissions: ['file', 'nativeWindow'], desktopOnly: true },
   'clipboard-history': { network: 'offline', permissions: ['clipboard'], desktopOnly: true },
   'image-studio': { network: 'offline', permissions: ['file', 'clipboard'] },
@@ -110,6 +112,17 @@ export function getAvailableCategories(): ToolCategory[] {
 }
 
 // ==================== 注册所有工具 ====================
+
+registerTool({
+  id: 'ai-assistant',
+  name: 'AI 助手',
+  icon: BotMessageSquare,
+  category: 'text',
+  component: lazy(() => import('@/tools/ai-assistant')),
+  preload: () => import('@/tools/ai-assistant'),
+  keywords: ['ai', 'chat', 'assistant', 'openai', 'ollama', 'llm', 'cherry', '人工智能', '助手', '对话', '模型'],
+  description: '多模型 AI 对话、助手角色与本地会话管理',
+});
 
 // === 转换器 ===
 registerTool({

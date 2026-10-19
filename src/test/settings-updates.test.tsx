@@ -61,7 +61,7 @@ describe('software update status', () => {
     await checkUpdates();
     expect(screen.getByText(i18n.t('updates.available', { version: '1.2.1' }))).toBeInTheDocument();
     await act(async () => fireEvent.click(screen.getByRole('button', { name: i18n.t('updates.install') })));
-    expect(screen.getByText('Download failed')).toBeInTheDocument();
+    expect(await screen.findByText('Download failed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: i18n.t('updates.install') })).toBeEnabled();
     expect(screen.queryByText(i18n.t('updates.noUpdate'))).not.toBeInTheDocument();
   });

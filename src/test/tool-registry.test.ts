@@ -5,8 +5,8 @@ import zh from '@/i18n/locales/zh.json';
 import en from '@/i18n/locales/en.json';
 
 describe('工具注册表', () => {
-  it('完整注册 50 个工具', () => {
-    expect(getAllTools()).toHaveLength(50);
+  it('完整注册 51 个工具', () => {
+    expect(getAllTools()).toHaveLength(51);
   });
 
   it('按任务导向的稳定顺序返回 10 个分类', () => {
@@ -16,7 +16,7 @@ describe('工具注册表', () => {
   it.each([
     ['data', 12],
     ['security', 9],
-    ['text', 10],
+    ['text', 11],
     ['generator', 4],
     ['image', 3],
     ['canvas', 3],

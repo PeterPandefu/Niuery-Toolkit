@@ -204,6 +204,7 @@
     "language": "Language Translation"
   },
   "tools": {
+    "ai-assistant": "AI Assistant",
     "json-yaml": "JSON ↔ YAML",
     "xml-json": "XML ↔ JSON",
     "timestamp": "Timestamp",

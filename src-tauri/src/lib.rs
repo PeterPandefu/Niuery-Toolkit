@@ -1,3 +1,4 @@
+mod ai_assistant;
 mod capture_guard;
 mod chromium;
 mod clipboard;
@@ -328,6 +329,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .manage(ai_assistant::AiState::default())
         .manage(CaptureGuardState::default())
         .manage(WsServerState::default())
         .manage(ScreenshotState::default())
@@ -337,6 +339,19 @@ pub fn run() {
         .manage(HotkeyState::default())
         .manage(CloseBehaviorState::default())
         .invoke_handler(tauri::generate_handler![
+            ai_assistant::ai_load_workspace,
+            ai_assistant::ai_save_workspace,
+            ai_assistant::ai_save_provider,
+            ai_assistant::ai_remove_provider,
+            ai_assistant::ai_list_models,
+            ai_assistant::ai_test_connection,
+            ai_assistant::ai_generate,
+            ai_assistant::ai_cancel,
+            ai_assistant::ai_open_data_directory,
+            ai_assistant::ai_reset,
+            ai_assistant::ai_set_exit_listener,
+            ai_assistant::ai_complete_exit,
+            ai_assistant::ai_restart_application,
             resources::list_resources,
             resources::install_resource,
             resources::cancel_resource_download,
@@ -493,7 +508,7 @@ pub fn run() {
                         }
                     }
                     "restart" => {
-                        app.restart();
+                        ai_assistant::request_restart(app);
                     }
                     "quit" => {
                         app.exit(0);
@@ -556,7 +571,11 @@ pub fn run() {
 
                 match close_to_exit {
                     Some(true) => {
-                        // 用户选择了退出，不阻止关闭
+                        // Keep the webview alive until the AI workspace confirms its final save.
+                        if ai_assistant::has_exit_listener(app) {
+                            api.prevent_close();
+                            app.exit(0);
+                        }
                     }
                     Some(false) => {
                         // 最小化到托盘
@@ -598,7 +617,10 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_, event| {
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = &event {
+                if ai_assistant::defer_exit(app, *code) { api.prevent_exit(); }
+            }
             if let tauri::RunEvent::Exit = event {
                 #[cfg(all(debug_assertions, windows))]
                 dev_server::kill_spawned();

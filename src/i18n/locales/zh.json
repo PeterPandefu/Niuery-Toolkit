@@ -204,6 +204,7 @@
     "language": "语言翻译"
   },
   "tools": {
+    "ai-assistant": "AI 助手",
     "json-yaml": "JSON ↔ YAML",
     "xml-json": "XML ↔ JSON",
     "timestamp": "时间戳转换",

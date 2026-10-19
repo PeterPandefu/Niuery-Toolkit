@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { ToolPanel } from '@/components/layout/ToolPanel';
 import { useAppStore } from '@/store/app-store';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
@@ -38,6 +38,17 @@ describe('ToolPanel recent tools', () => {
     expect(section).not.toBeNull();
     expect(within(section!).getByText('打开工具后会显示在这里。')).toBeInTheDocument();
     expect(within(section!).queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('opens the AI assistant through the same tool lifecycle as other tools', () => {
+    render(<ToolPanel toolId={null} onOpenSettings={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'AI 助手' }));
+
+    expect(useAppStore.getState().activeToolId).toBe('ai-assistant');
+    expect(useAppStore.getState().activeCategory).toBe('text');
+    expect(useToolLifecycleStore.getState().activeTools).toContain('ai-assistant');
+    expect(useAppStore.getState().recentToolUsage['ai-assistant']?.count).toBe(1);
   });
 
   it('shows no more than six tools ordered by frequency then recency', () => {

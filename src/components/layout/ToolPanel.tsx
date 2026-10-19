@@ -11,7 +11,7 @@ import { LocalizedToolErrorBoundary } from '@/components/shared/ToolErrorBoundar
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ToolCapabilityNotice } from '@/components/shared/ToolCapabilityNotice';
 import { openTool } from '@/lib/tool-navigation';
-import { ArrowUpRight, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, Sun } from 'lucide-react';
+import { ArrowUpRight, BotMessageSquare, Languages, LayoutDashboard, Loader2, Monitor, Moon, Pin, Power, Search, Settings, Sun } from 'lucide-react';
 import { markPerformance, measurePerformance } from '@/lib/performance-diagnostics';
 import { AtmosphereLayer } from '@/components/layout/SkinAtmosphere';
 import { WindowControls } from '@/components/layout/AppTitleBar';
@@ -272,6 +272,7 @@ export function ToolPanel({ toolId, onOpenSettings }: ToolPanelProps) {
           )}
           {tool && <ToolPowerSwitch toolId={tool.id} />}
           <span className="mx-1 hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+          <Button variant="ghost" size="icon" className={cn('h-8 w-8', toolId === 'ai-assistant' && 'bg-primary/12 text-primary')} onClick={() => handleSelectTool('ai-assistant')} aria-label={t('tools.ai-assistant', 'AI 助手')} aria-pressed={toolId === 'ai-assistant'} title={t('tools.ai-assistant', 'AI 助手')}><BotMessageSquare /></Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSearchOpen(true)} aria-label={t('app.searchTools')} title="Ctrl+K"><Search /></Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => i18n.changeLanguage(isChinese ? 'en' : 'zh')} aria-label={isChinese ? '切换为英语' : 'Switch to Chinese'} title={isChinese ? 'English' : '中文'}><Languages /></Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cycleTheme} aria-label={t(`theme.${theme}`)} title={t(`theme.${theme}`)}><ThemeIcon /></Button>
