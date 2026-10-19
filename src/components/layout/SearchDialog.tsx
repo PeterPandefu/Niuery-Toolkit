@@ -4,7 +4,7 @@ import Fuse from 'fuse.js';
 import { cn } from '@/lib/utils';
 import { getRecentToolIds, useAppStore } from '@/store/app-store';
 import { getAllTools, getAvailableCategories, preloadTool } from '@/registry/tool-registry';
-import { buildToolSearchText, matchesSearchText } from '@/lib/pinyin-search';
+import { buildToolSearchText, getNameMatchRank, matchesSearchText } from '@/lib/pinyin-search';
 import { EmptyState } from '@/components/shared/EmptyState';
 import type { ToolCategory } from '@/types/tool';
 import zhLocale from '@/i18n/locales/zh.json';
@@ -41,6 +41,7 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
           ...tool,
           localizedName,
           categoryLabel,
+          searchNames: [localizedName, tool.name, zhName],
           searchText: buildToolSearchText([tool.id, localizedName, tool.name, zhName, tool.description, tool.keywords, categoryLabel, zhCategory]),
         };
       }),
@@ -73,7 +74,12 @@ export function SearchDialog({ onSelectTool }: SearchDialogProps) {
         tool.localizedName.toLowerCase().includes(needle) ||
         matchesSearchText(tool.searchText, needle)
     );
-    if (direct.length > 0) return direct;
+    if (direct.length > 0) {
+      return direct
+        .map((tool) => ({ tool, rank: getNameMatchRank(tool.searchNames, needle) }))
+        .sort((a, b) => a.rank - b.rank)
+        .map(({ tool }) => tool);
+    }
     const fuseForPool =
       categoryFilter === 'all'
         ? fuse
