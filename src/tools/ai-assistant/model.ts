@@ -33,6 +33,10 @@ export function providerTarget(provider: Pick<AiProvider, 'id' | 'baseUrl'>): st
   return `${provider.id}:${provider.baseUrl.trim().replace(/\/+$/, '')}`;
 }
 
+export function shouldShowThinking(message: AiMessage, providers: AiProvider[]): boolean {
+  return providers.find(provider => provider.id === message.providerId)?.models.find(model => model.id === message.modelId)?.showThinking !== false;
+}
+
 /** Only complete historical user/answer pairs are eligible for transmission. */
 export function buildContext(conversation: AiConversation): AiMessage[] {
   const { messages } = conversation;
@@ -56,23 +60,30 @@ export function buildContext(conversation: AiConversation): AiMessage[] {
 export function exportConversation(conversation: AiConversation, format: 'markdown' | 'json'): string {
   // Explicitly select fields, so future transient state or credentials cannot enter archives.
   const attachment = (value: AiMessage['attachments'][number]) => ({
-    id: value.id, name: value.name, kind: value.kind, mimeType: value.mimeType, size: value.size, data: value.data,
+    id: value.id, name: value.name, kind: value.kind, mimeType: value.mimeType, size: value.size, data: value.data, sourceDocument: value.sourceDocument,
+  });
+  const archiveMessage = (message: AiMessage): AiMessage => ({
+    id: message.id, role: message.role, content: message.content, attachments: message.attachments.map(attachment), createdAt: message.createdAt, status: message.status,
+    providerId: message.providerId, modelId: message.modelId, error: message.error, thinking: message.thinking, finishReason: message.finishReason,
+    usage: message.usage && { inputTokens: message.usage.inputTokens, outputTokens: message.usage.outputTokens, totalTokens: message.usage.totalTokens }, firstTokenMs: message.firstTokenMs, durationMs: message.durationMs,
+    versions: message.versions?.map(version => ({ content: version.content, thinking: version.thinking, createdAt: version.createdAt, status: version.status, modelId: version.modelId, providerId: version.providerId, error: version.error, usage: version.usage && { inputTokens: version.usage.inputTokens, outputTokens: version.usage.outputTokens, totalTokens: version.usage.totalTokens }, finishReason: version.finishReason, firstTokenMs: version.firstTokenMs, durationMs: version.durationMs })), selectedVersion: message.selectedVersion,
   });
   const archive: AiConversation = {
     id: conversation.id, assistantId: conversation.assistantId, title: conversation.title,
     systemPrompt: conversation.systemPrompt, providerId: conversation.providerId, modelId: conversation.modelId,
     parameters: { historyRounds: conversation.parameters.historyRounds, temperature: conversation.parameters.temperature, maxOutputTokens: conversation.parameters.maxOutputTokens },
-    messages: conversation.messages.map(message => ({
-      id: message.id, role: message.role, content: message.content, attachments: message.attachments.map(attachment),
-      createdAt: message.createdAt, status: message.status, providerId: message.providerId, modelId: message.modelId, error: message.error,
-    })),
+    messages: conversation.messages.map(archiveMessage),
     draft: conversation.draft, draftAttachments: conversation.draftAttachments.map(attachment),
-    approvedTargets: [...conversation.approvedTargets], updatedAt: conversation.updatedAt,
+    approvedTargets: [...conversation.approvedTargets], updatedAt: conversation.updatedAt, excludedMessageIds: conversation.excludedMessageIds, pinned: conversation.pinned, archived: conversation.archived,
+    parentConversationId: conversation.parentConversationId, summary: conversation.summary,
+    tasks: conversation.tasks?.map(task => ({ id: task.id, kind: task.kind, createdAt: task.createdAt, prompt: task.prompt, results: task.results.map(result => ({ label: result.label, target: result.target, message: archiveMessage(result.message) })) })),
   };
   if (format === 'json') return JSON.stringify(archive, null, 2);
+  const exportThinking = (text?: string) => text ? `\n\n<details><summary>思考过程 / Thinking</summary>\n<pre>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>\n</details>` : '';
   return `# ${conversation.title}\n\n${conversation.messages.map(message => {
     const metadata = message.role === 'assistant' ? `\n\n模型：${message.modelId ?? '未记录'} · 状态：${message.status}` : '';
     const attachments = message.attachments.length ? `\n\n附件：${message.attachments.map(file => file.name).join('、')}` : '';
-    return `## ${message.role === 'user' ? '用户' : '助手'}\n\n${message.content}${attachments}${metadata}`;
-  }).join('\n\n---\n\n')}\n`;
+    const thinking = exportThinking(message.thinking);
+    return `## ${message.role === 'user' ? '用户' : '助手'}\n\n${message.content}${thinking}${attachments}${metadata}`;
+  }).join('\n\n---\n\n')}${conversation.summary ? `\n\n## 接续摘要\n\n${conversation.summary}` : ''}${(conversation.tasks ?? []).map(task => `\n\n## ${task.kind === 'comparison' ? '模型对比' : '会话摘要'}\n\n${task.prompt}\n\n${task.results.map(result => `### ${result.label}\n\n${result.message.content}${exportThinking(result.message.thinking)}\n\n状态：${result.message.status}`).join('\n\n')}`).join('')}\n`;
 }

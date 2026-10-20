@@ -35,6 +35,68 @@ beforeEach(async () => {
 afterEach(cleanup);
 
 describe('AI assistant page', () => {
+  it('uses each recorded model thinking preference for old replies and task results', async () => {
+    const state = workspace();
+    state.providers[0].models[0].showThinking = false;
+    state.providers[0].models.push({ id: 'shown', name: 'Shown', supportsImages: false, showThinking: true });
+    const chat = newConversation(state.assistants[0]);
+    chat.modelId = 'shown'; chat.messages = [{ id: 'hidden', role: 'assistant', providerId: 'provider', modelId: 'model', content: 'Old answer', thinking: 'Hidden thought', attachments: [], status: 'complete', createdAt: 1 }];
+    chat.tasks = [{ id: 't', kind: 'comparison', prompt: 'Test', createdAt: 1, results: [{ label: 'Hidden model', target: 'provider:http://localhost', message: { ...chat.messages[0], id: 'hidden-task' } }, { label: 'Shown model', target: 'provider:http://localhost', message: { ...chat.messages[0], id: 'shown-task', modelId: 'shown', thinking: 'Visible thought' } }] }];
+    state.conversations = [chat]; state.activeConversationId = chat.id; backend.load.mockResolvedValue(state);
+    render(<AiAssistantPage />);
+    await screen.findByText('Shown model');
+    expect(screen.getAllByRole('region', { name: 'Thinking' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Show thinking' }));
+    expect(screen.getByText('Visible thought')).toBeVisible();
+    expect(screen.queryByText('Hidden thought')).not.toBeInTheDocument();
+  });
+  it('forks an old question and keeps the entire original conversation', async () => {
+    const state = workspace(); const chat = newConversation(state.assistants[0]); chat.title = 'Original';
+    chat.messages = [{ id: 'q', role: 'user', content: 'Question', attachments: [], status: 'complete', createdAt: 1 }, { id: 'a', role: 'assistant', content: 'Answer', attachments: [], status: 'complete', createdAt: 2 }];
+    state.conversations = [chat]; state.activeConversationId = chat.id; backend.load.mockResolvedValue(state);
+    render(<AiAssistantPage />); await screen.findByText('Answer', { selector: '.ai-markdown p' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Fork from here' })[0]);
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Question');
+    expect(screen.getByRole('button', { name: 'Open conversation: Original' })).toBeInTheDocument();
+    expect(backend.generate).not.toHaveBeenCalled();
+  });
+  it('pins, archives and restores a conversation without deleting its contents', async () => {
+    const state = workspace(); const chat = newConversation(state.assistants[0]); chat.title = 'Keep me';
+    state.conversations = [chat]; state.activeConversationId = chat.id; backend.load.mockResolvedValue(state);
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.click(screen.getByRole('button', { name: 'Pin: Keep me' }));
+    expect(screen.getByRole('button', { name: 'Unpin: Keep me' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Archive: Keep me' }));
+    expect(screen.queryByRole('button', { name: 'Open conversation: Keep me' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show archived conversations' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Unarchive: Keep me' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show active conversations' }));
+    expect(screen.getByRole('button', { name: 'Open conversation: Keep me' })).toBeInTheDocument();
+    await waitFor(() => expect(backend.save.mock.calls[backend.save.mock.calls.length - 1]?.[0].conversations[0]).toMatchObject({ pinned: true, archived: false, title: 'Keep me' }));
+  });
+  it('searches another assistant message and opens its conversation at the match', async () => {
+    const state = workspace();
+    state.assistants.push({ ...state.assistants[0], id: 'other', name: 'Other assistant' });
+    const chat = newConversation(state.assistants[1]);
+    chat.title = 'Database'; chat.messages = [{ id: 'match', role: 'assistant', content: 'UNIQUE constraint violation', status: 'complete', attachments: [], createdAt: 1 }];
+    state.conversations = [chat]; backend.load.mockResolvedValue(state);
+    render(<AiAssistantPage />);
+    await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search conversations' }), { target: { value: 'unique' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Open conversation: Database' }));
+    expect(screen.getByRole('combobox', { name: 'Assistant' })).toHaveValue('other');
+    expect(screen.getByText('UNIQUE constraint violation', { selector: '.ai-markdown p' })).toBeInTheDocument();
+  });
+  it('quotes a reply into the draft without sending another request', async () => {
+    render(<AiAssistantPage />);
+    const input = await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.change(input, { target: { value: 'Hello' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Quote message' }));
+    expect(input).toHaveValue('> Hello from test model\n\n');
+    expect(backend.generate).toHaveBeenCalledTimes(1);
+  });
   it('groups assistant management under one settings button and supports dismissing it', async () => {
     render(<AiAssistantPage />);
     await screen.findByRole('textbox', { name: 'Message' });

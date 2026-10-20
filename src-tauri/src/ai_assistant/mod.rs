@@ -398,6 +398,10 @@ async fn fetch_models(provider: &Provider, key: Option<&str>) -> Result<Vec<Mode
             }
             .and_then(serde_json::Value::as_str);
             if let Some(id) = id {
+                if let Some(existing) = provider.models.iter().find(|model| model.id == id) {
+                    result.push(existing.clone());
+                    continue;
+                }
                 result.push(Model {
                     id: id.into(),
                     name: id.into(),
@@ -405,6 +409,12 @@ async fn fetch_models(provider: &Provider, key: Option<&str>) -> Result<Vec<Mode
                         .models
                         .iter()
                         .any(|m| m.id == id && m.supports_images),
+                    context_window: None,
+                    max_output_tokens: None,
+                    supports_temperature: None,
+                    output_token_parameter: None,
+                    stream_usage: None,
+                    show_thinking: None,
                 });
             }
         }
@@ -434,6 +444,63 @@ pub async fn ai_test_connection(
     let (provider, key) = provider(&app, &state, &provider_id).await?;
     let models = fetch_models(&provider, key.as_deref()).await?;
     Ok(format!("连接成功，发现 {} 个模型", models.len()))
+}
+
+async fn test_model(
+    provider: &Provider,
+    key: Option<&str>,
+    model_id: &str,
+) -> Result<String, String> {
+    if !provider.models.iter().any(|model| model.id == model_id) {
+        return Err("请选择已启用模型".into());
+    }
+    let request: Request = serde_json::from_value(serde_json::json!({
+        "requestId":nanoid::nanoid!(),"conversationId":"diagnostic","messageId":"diagnostic","providerId":provider.id,"modelId":model_id,
+        "systemPrompt":"","parameters":{"historyRounds":0,"maxOutputTokens":16},
+        "messages":[{"id":"diagnostic","role":"user","content":"Reply with OK.","attachments":[],"createdAt":0,"status":"complete"}]
+    })).map_err(|_| "无法创建模型测试".to_string())?;
+    let text_seen = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let seen = text_seen.clone();
+    let channel = Channel::<StreamEvent>::new(move |body| {
+        if let tauri::ipc::InvokeResponseBody::Json(value) = body {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(&value) {
+                if value["type"] == "delta"
+                    && value["text"]
+                        .as_str()
+                        .is_some_and(|text| !text.trim().is_empty())
+                {
+                    seen.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+        }
+        Ok(())
+    });
+    let (_sender, mut cancel) = watch::channel(false);
+    let started = std::time::Instant::now();
+    tokio::time::timeout(
+        Duration::from_secs(60),
+        stream_with_provider(provider, key, &request, &channel, &mut cancel),
+    )
+    .await
+    .map_err(|_| "模型生成测试超时（60 秒）".to_string())??;
+    if !text_seen.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("模型连接成功，但未返回可见正文，请检查模型能力和参数".into());
+    }
+    Ok(format!(
+        "模型生成测试成功（{} ms），未发送会话历史",
+        started.elapsed().as_millis()
+    ))
+}
+
+#[tauri::command]
+pub async fn ai_test_model(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+    provider_id: String,
+    model_id: String,
+) -> Result<String, String> {
+    let (provider, key) = provider(&app, &state, &provider_id).await?;
+    test_model(&provider, key.as_deref(), &model_id).await
 }
 
 enum Outcome {
@@ -509,8 +576,23 @@ async fn stream_with_provider(
                 .send(request.event("delta", Some(delta), None))
                 .map_err(|_| "AI 页面连接已关闭，生成已取消".to_string())?;
         }
+        let thinking = decoder.take_thinking();
+        for text in thinking {
+            channel
+                .send(request.event("thinking", Some(text), None))
+                .map_err(|_| "AI 页面连接已关闭".to_string())?;
+        }
         if let Some(error) = decoder.take_error() {
             return Err(error);
+        }
+        let metadata = decoder.metadata();
+        if metadata.finish_reason.is_some() || metadata.usage.is_some() {
+            let mut event = request.event("metadata", None, None);
+            event.finish_reason = metadata.finish_reason;
+            event.usage = metadata.usage;
+            channel
+                .send(event)
+                .map_err(|_| "AI 页面连接已关闭".to_string())?;
         }
         if decoder.done {
             return Ok(Outcome::Done);

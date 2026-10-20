@@ -50,6 +50,27 @@ describe('AI conversation domain', () => {
     expect(archive.messages[1].content).toBe('world');
     expect(exportConversation(chat, 'markdown')).toContain('## 助手');
   });
+  it('exports summary and model comparison results to Markdown and excludes unknown credentials from JSON', () => {
+    const chat = { ...conversation(), summary: 'Use SQLite', tasks: [{ id: 'task', kind: 'comparison' as const, prompt: 'Choose a database', createdAt: 1, results: [{ label: 'Model A', target: 'p:http://localhost', message: { ...message('assistant', 'SQLite is suitable'), apiKey: 'secret' } }] }] };
+    const markdown = exportConversation(chat, 'markdown');
+    expect(markdown).toContain('Use SQLite'); expect(markdown).toContain('Model A'); expect(markdown).toContain('SQLite is suitable');
+    expect(exportConversation(chat, 'json')).not.toContain('secret');
+  });
+  it('exports model thinking separately from the final answer', () => {
+    const chat = conversation();
+    chat.messages = [{ ...message('assistant', 'Final answer'), thinking: 'Private reasoning returned by the model' }];
+    expect(exportConversation(chat, 'json')).toContain('Private reasoning returned by the model');
+    expect(exportConversation(chat, 'markdown')).toContain('思考过程');
+  });
+  it('exports thinking for comparison results without allowing raw HTML to escape the fold', () => {
+    const chat = conversation();
+    chat.tasks = [{ id: 't', kind: 'comparison', prompt: 'Question', createdAt: 1, results: [{ label: 'Model', target: 'local', message: { ...message('assistant', 'Answer'), thinking: '</details><script>bad()</script>\n\nThought' } }] }];
+    const exported = exportConversation(chat, 'markdown');
+    expect(exported).toContain('思考过程');
+    expect(exported).not.toContain('</details><script>bad()</script>');
+    expect(exported).toContain('&lt;/details&gt;');
+    expect(JSON.parse(exportConversation(chat, 'json')).tasks[0].results[0].message.thinking).toContain('Thought');
+  });
 
   it('provider target includes the configured address and normalizes trailing slashes', () => {
     expect(providerTarget({ id: 'p1', baseUrl: ' https://example.com/v1/// ' })).toBe('p1:https://example.com/v1');
@@ -65,7 +86,8 @@ describe('AI attachment validation', () => {
     expect(attachment.data).toBe('你好');
     expect(attachment.kind).toBe('text');
     await expect(readAttachment(new File([new Uint8Array([0xff, 0xfe])], 'bad.txt'))).rejects.toThrow(/UTF-8/);
-    await expect(readAttachment(new File(['pdf'], 'file.pdf', { type: 'application/pdf' }))).rejects.toThrow(/格式|支持/);
+    await expect(readAttachment(new File(['pdf'], 'file.pdf', { type: 'application/pdf' }))).rejects.toThrow(/无效|Invalid/);
+    await expect(readAttachment(new File(['word'], 'file.docx'))).rejects.toThrow(/格式|支持/);
     await expect(readAttachment(new File([new Uint8Array([0, 1, 2])], 'binary.txt'))).rejects.toThrow(/二进制/);
   });
 

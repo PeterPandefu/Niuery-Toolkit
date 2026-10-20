@@ -31,6 +31,7 @@ export function AiSettings({ providers, backend, onSave, onRemove, onClearHistor
   const [dirty, setDirty] = useState(false);
   const [catalog, setCatalog] = useState<AiModel[] | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [testModelId, setTestModelId] = useState('');
   function edit(next: AiProvider) {
     if (next.baseUrl !== provider.baseUrl || next.kind !== provider.kind) setCatalog(null);
     setProvider(next); setDirty(true); setFeedback('');
@@ -49,6 +50,10 @@ export function AiSettings({ providers, backend, onSave, onRemove, onClearHistor
     const url = new URL(provider.baseUrl);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error(t('请输入不含凭据、参数或片段的 HTTP(S) 地址', 'Enter an HTTP(S) URL without embedded credentials, query, or fragment.'));
     const ids = provider.models.map(model => model.id.trim());
+    for (const model of provider.models) {
+      if ([model.contextWindow, model.maxOutputTokens].some(value => value !== undefined && (!Number.isSafeInteger(value) || value < 1 || value > 10_000_000))) throw new Error(t('模型容量必须为正整数', 'Model capacities must be positive integers.'));
+      if (model.contextWindow && model.maxOutputTokens && model.maxOutputTokens >= model.contextWindow) throw new Error(t('最大输出必须小于上下文容量', 'Maximum output must be less than context capacity.'));
+    }
     if (ids.some(id => !id) || new Set(ids).size !== ids.length) throw new Error(t('模型 ID 不能为空或重复', 'Model IDs must be nonempty and unique.'));
     return { ...provider, name: provider.name.trim(), baseUrl: provider.baseUrl.trim().replace(/\/+$/, ''), models: provider.models.map(model => ({ ...model, id: model.id.trim(), name: model.name.trim() || model.id.trim() })) };
   }
@@ -86,6 +91,8 @@ export function AiSettings({ providers, backend, onSave, onRemove, onClearHistor
             <div className="ai-settings-network"><button type="button" disabled={working} onClick={() => void run(async () => { const saved = await save(); setFeedback(await backend.testConnection(saved.id)); })}>{working ? <Loader2 size={15} className="ai-spin" aria-hidden="true" /> : <Unplug size={15} aria-hidden="true" />}{t('测试连接', 'Test connection')}</button><p>{t('测试和获取模型会保存配置并连接此地址，不发送聊天内容。', 'Testing or fetching models saves this configuration and connects without sending chat content.')}</p></div>
           </section>
           <section className="ai-settings-section ai-models" aria-labelledby="ai-models-heading">
+            <div className="ai-form-row"><label>{t('待测试模型', 'Model to test')}<select value={provider.models.some(model => model.id === testModelId) ? testModelId : provider.models[0]?.id ?? ''} onChange={event => setTestModelId(event.target.value)} disabled={working}>{provider.models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label><button type="button" disabled={working || !provider.models.length || !backend.testModel} onClick={() => void run(async () => { const saved = await save(); const id = saved.models.some(model => model.id === testModelId) ? testModelId : saved.models[0]?.id; if (id) setFeedback(await backend.testModel!(saved.id, id)); })}>{t('测试所选模型', 'Test selected model')}</button></div>
+            <p className="ai-field-hint">{t('主动发送一条简短测试消息，可能产生少量费用，不发送会话历史。', 'Sends a short test message and may incur a small charge. No conversation history is sent.')}</p>
             <div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Box size={18} aria-hidden="true" /></span><div><h3 id="ai-models-heading">{t('已启用模型', 'Enabled models')}<span className="ai-count-badge">{provider.models.length}</span></h3><p>{t('只显示你选择的模型，随时添加或停用', 'Keep only the models you choose, and change them anytime')}</p></div></div>
             <div className="ai-model-actions"><button type="button" disabled={working} onClick={() => void run(async () => { const saved = await save(); const fetched = uniqueModels(await backend.listModels(saved.id)); setCatalog(fetched); setPickerOpen(true); setFeedback(t(`已发现 ${fetched.length} 个模型，请选择启用`, `Found ${fetched.length} models. Choose which to enable.`)); })}><RefreshCw size={15} className={working ? 'ai-spin' : undefined} aria-hidden="true" />{t('获取模型列表', 'Fetch models')}</button>{catalog && <button type="button" disabled={working} onClick={() => setPickerOpen(true)}>{t('选择模型', 'Choose models')}</button>}<span className="ai-field-hint">{t('获取后由你勾选启用', 'You choose which models to enable')}</span></div>
             <div className="ai-enabled-models">{provider.models.map((model, index) => <AiEnabledModel key={`${provider.id}-${index}`} model={model} disabled={working} onChange={next => edit({ ...provider, models: provider.models.map((item, at) => at === index ? next : item) })} onDisable={() => edit({ ...provider, models: provider.models.filter((_, at) => at !== index) })} />)}

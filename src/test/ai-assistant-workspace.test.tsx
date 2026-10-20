@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createWorkspace, newConversation, providerTarget } from '@/tools/ai-assistant/model';
 import { useAiWorkspace } from '@/tools/ai-assistant/use-ai-workspace';
+import { createComparisonTask } from '@/tools/ai-assistant/tasks';
 import type { AiBackend, AiFlushHandler, AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant/types';
 
 function fixture() {
@@ -30,7 +31,7 @@ function createBackend(workspace = fixture()) {
     event(type: AiStreamEvent['type'], text?: string, overrides?: Partial<AiStreamEvent>) {
       if (!request || !emit) throw new Error('generation not started');
       emit({ requestId: request.requestId, conversationId: request.conversationId, messageId: request.messageId, type, text, ...overrides });
-      if (type !== 'delta') resolveGenerate?.();
+      if (type !== 'delta' && type !== 'thinking' && type !== 'metadata') resolveGenerate?.();
     },
   };
 }
@@ -42,6 +43,160 @@ async function setup(workspace = fixture()) {
 }
 
 describe('AI workspace lifecycle', () => {
+  it('keeps reset workspace intact when a cancelled comparison returns late', async () => {
+    const workspace = fixture(); workspace.providers[0].models.push({ id: 'm2', name: 'Second', supportsImages: false });
+    const { result, fake, chatId } = await setup(workspace);
+    const plan = createComparisonTask(workspace.conversations[0], workspace.providers, [{ providerId: 'p1', modelId: 'm1' }, { providerId: 'p1', modelId: 'm2' }]);
+    act(() => { void result.current.runTask(chatId, plan); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    await act(async () => { await result.current.reset(); });
+    await act(async () => { fake.event('delta', 'Late output'); fake.event('done'); });
+    expect(result.current.workspace.conversations).toEqual([]);
+    expect(result.current.workspace.providers).toEqual([]);
+    expect(result.current.workspace.assistants).toHaveLength(3);
+    expect(fake.backend.generate).toHaveBeenCalledTimes(1);
+    expect(fake.saved[fake.saved.length - 1].conversations).toEqual([]);
+  });
+  it('flushes a comparison and marks all unsent results interrupted before native exit', async () => {
+    const workspace = fixture(); workspace.providers[0].models.push({ id: 'm2', name: 'Second', supportsImages: false });
+    const fake = createBackend(workspace); let exit: AiFlushHandler | undefined;
+    fake.backend.onExitRequested = async handler => { exit = handler; return () => {}; };
+    const { result } = renderHook(() => useAiWorkspace(fake.backend));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const chat = workspace.conversations[0]; const plan = createComparisonTask(chat, workspace.providers, [{ providerId: 'p1', modelId: 'm1' }, { providerId: 'p1', modelId: 'm2' }]);
+    act(() => { void result.current.runTask(chat.id, plan); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    act(() => fake.event('delta', 'Visible partial'));
+    await act(async () => { await exit!(); });
+    expect(fake.saved[fake.saved.length - 1].conversations[0].tasks?.[0].results.map(result => result.message.status)).toEqual(['interrupted', 'interrupted']);
+    expect(fake.saved[fake.saved.length - 1].conversations[0].tasks?.[0].results[0].message.content).toBe('Visible partial');
+    act(() => fake.event('done'));
+  });
+  it('does not contact a model if a comparison cannot be saved before sending', async () => {
+    const workspace = fixture(); workspace.providers[0].models.push({ id: 'm2', name: 'Second', supportsImages: false });
+    const { result, fake, chatId } = await setup(workspace);
+    vi.mocked(fake.backend.save).mockRejectedValue(new Error('disk full'));
+    const plan = createComparisonTask(workspace.conversations[0], workspace.providers, [{ providerId: 'p1', modelId: 'm1' }, { providerId: 'p1', modelId: 'm2' }]);
+    await act(async () => { await result.current.runTask(chatId, plan); });
+    expect(fake.request).toBeUndefined(); expect(result.current.busy).toBeNull();
+    expect(result.current.workspace.conversations[0].draft).toBe('Hello');
+    expect(result.current.saveError).toContain('disk full');
+  });
+  it('runs comparisons sequentially, isolates failure, and saves each result outside chat history', async () => {
+    const workspace = fixture(); workspace.providers[0].models.push({ id: 'm2', name: 'Second', supportsImages: false });
+    const { result, fake, chatId } = await setup(workspace);
+    const plan = createComparisonTask(workspace.conversations[0], workspace.providers, [{ providerId: 'p1', modelId: 'm1' }, { providerId: 'p1', modelId: 'm2' }]);
+    act(() => { void result.current.runTask(chatId, plan); });
+    await waitFor(() => expect(fake.request?.modelId).toBe('m1'));
+    act(() => { fake.event('delta', 'Partial'); fake.event('error', undefined, { error: 'first failed' }); });
+    await waitFor(() => expect(fake.request?.modelId).toBe('m2'));
+    act(() => { fake.event('delta', 'Second answer'); fake.event('done'); });
+    await waitFor(() => expect(result.current.busy).toBeNull());
+    const chat = result.current.workspace.conversations[0];
+    expect(chat.messages).toHaveLength(0);
+    expect(chat.draft).toBe('Hello');
+    expect(chat.tasks?.[0].results.map(value => [value.message.content, value.message.status])).toEqual([['Partial', 'failed'], ['Second answer', 'complete']]);
+    expect(fake.saved[fake.saved.length - 1].conversations[0].tasks?.[0].results[1].message.content).toBe('Second answer');
+  });
+  it('stops a comparison and never sends remaining requests', async () => {
+    const workspace = fixture(); workspace.providers[0].models.push({ id: 'm2', name: 'Second', supportsImages: false });
+    const { result, fake, chatId } = await setup(workspace);
+    const plan = createComparisonTask(workspace.conversations[0], workspace.providers, [{ providerId: 'p1', modelId: 'm1' }, { providerId: 'p1', modelId: 'm2' }]);
+    act(() => { void result.current.runTask(chatId, plan); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    act(() => fake.event('delta', 'Partial'));
+    await act(async () => { await result.current.stop(); });
+    act(() => fake.event('done'));
+    expect(fake.backend.generate).toHaveBeenCalledTimes(1);
+    expect(result.current.workspace.conversations[0].tasks?.[0].results.map(value => value.message.status)).toEqual(['stopped', 'stopped']);
+  });
+  it('retains successful answer versions and uses the chosen version in subsequent context', async () => {
+    const workspace = fixture();
+    workspace.conversations[0].messages = [
+      { id: 'u', role: 'user', content: 'Question', attachments: [], status: 'complete', createdAt: 1 },
+      { id: 'a', role: 'assistant', content: 'First', attachments: [], status: 'complete', createdAt: 2 },
+    ];
+    const { result, fake, chatId } = await setup(workspace);
+    act(() => { void result.current.regenerate(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    act(() => { fake.event('delta', 'Second'); fake.event('done'); });
+    const answer = result.current.workspace.conversations[0].messages[1];
+    expect(answer.versions?.map(version => version.content)).toEqual(['First', 'Second']);
+    expect(answer.selectedVersion).toBe(1);
+  });
+  it('blocks oversized input before persistence or network and preserves the draft', async () => {
+    const workspace = fixture();
+    workspace.providers[0].models[0].contextWindow = 100;
+    workspace.providers[0].models[0].maxOutputTokens = 20;
+    workspace.conversations[0].draft = 'x'.repeat(1000);
+    const { result, fake, chatId } = await setup(workspace);
+    await act(async () => { await result.current.send(chatId); });
+    expect(fake.request).toBeUndefined();
+    expect(result.current.error).toMatch(/上下文/);
+    expect(result.current.workspace.conversations[0].draft).toHaveLength(1000);
+    expect(result.current.workspace.conversations[0].messages).toHaveLength(0);
+  });
+
+  it('persists finish reason, measured usage and generation timing without ending on metadata', async () => {
+    const { result, fake, chatId } = await setup();
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    act(() => {
+      fake.event('delta', 'Answer');
+      fake.event('metadata', undefined, { finishReason: 'length', usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 } });
+    });
+    expect(result.current.busy).not.toBeNull();
+    act(() => fake.event('done'));
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({
+      content: 'Answer', status: 'complete', finishReason: 'length', usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+      firstTokenMs: expect.any(Number), durationMs: expect.any(Number),
+    });
+  });
+  it('stores thinking stream events separately and never includes them in the next request context', async () => {
+    const workspace = fixture();
+    workspace.conversations[0].messages = [{ id: 'u', role: 'user', content: 'Question', attachments: [], status: 'complete', createdAt: 1 }, { id: 'a', role: 'assistant', content: 'Old answer', thinking: 'Old thinking', versions: [{ content: 'Old answer', thinking: 'Stored alternative thinking', status: 'complete', createdAt: 2 }], attachments: [], status: 'complete', createdAt: 2 }];
+    workspace.conversations[0].draft = 'Follow up';
+    const { result, fake, chatId } = await setup(workspace);
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    expect(fake.request?.messages.some(message => message.thinking)).toBe(false);
+    expect(JSON.stringify(fake.request)).not.toContain('Stored alternative thinking');
+    act(() => { fake.event('thinking', 'New thought'); fake.event('delta', 'New answer'); fake.event('done'); });
+    expect(result.current.workspace.conversations[0].messages[1].thinking).toBe('Old thinking');
+    expect(result.current.workspace.conversations[0].messages[3]).toMatchObject({ thinking: 'New thought', content: 'New answer' });
+  });
+  it('keeps thinking-only generation active and persists the partial thinking on stop', async () => {
+    const { result, fake, chatId } = await setup();
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    await act(async () => { fake.event('thinking', 'Checking'); });
+    expect(result.current.busy).not.toBeNull();
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ thinking: 'Checking', content: '', status: 'streaming' });
+    await act(async () => { await result.current.stop(); });
+    expect(fake.saved[fake.saved.length - 1].conversations[0].messages[1]).toMatchObject({ thinking: 'Checking', status: 'stopped' });
+    act(() => fake.event('thinking', 'late'));
+    expect(result.current.workspace.conversations[0].messages[1].thinking).toBe('Checking');
+  });
+  it('retains thinking for task results through failure and normal completion', async () => {
+    const workspace = fixture(); workspace.providers[0].models.push({ id: 'm2', name: 'Second', supportsImages: false });
+    const { result, fake, chatId } = await setup(workspace);
+    const plan = createComparisonTask(workspace.conversations[0], workspace.providers, [{ providerId: 'p1', modelId: 'm1' }, { providerId: 'p1', modelId: 'm2' }]);
+    act(() => { void result.current.runTask(chatId, plan); });
+    await waitFor(() => expect(fake.request?.modelId).toBe('m1'));
+    act(() => { fake.event('thinking', 'Partial thought'); fake.event('error', undefined, { error: 'network failed' }); });
+    await waitFor(() => expect(fake.request?.modelId).toBe('m2'));
+    await act(async () => { fake.event('thinking', 'Second thought'); });
+    expect(result.current.busy).not.toBeNull();
+    await act(async () => { fake.event('delta', 'Second answer'); fake.event('done'); });
+    await waitFor(() => expect(result.current.busy).toBeNull());
+    expect(fake.saved[fake.saved.length - 1].conversations[0].tasks?.[0].results.map(result => [result.message.thinking, result.message.content, result.message.status])).toEqual([['Partial thought', '', 'failed'], ['Second thought', 'Second answer', 'complete']]);
+  });
+  it('recovers interrupted thinking and versioned thoughts after reload', async () => {
+    const workspace = fixture();
+    workspace.conversations[0].messages = [{ id: 'a', role: 'assistant', content: '', thinking: 'Visible before exit', attachments: [], status: 'streaming', createdAt: 2 }];
+    const { result } = await setup(workspace);
+    expect(result.current.workspace.conversations[0].messages[0]).toMatchObject({ thinking: 'Visible before exit', status: 'interrupted' });
+  });
   it('flushes the visible partial reply and draft before acknowledging native exit', async () => {
     const workspace = fixture();
     const fake = createBackend(workspace);

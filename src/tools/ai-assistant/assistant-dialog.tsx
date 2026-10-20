@@ -15,7 +15,7 @@ export function AssistantDialog({ assistant, providers, onSave, onClose }: { ass
     <label>{t('系统提示词', 'System prompt')}<textarea rows={5} value={value.systemPrompt} onChange={event => setValue({ ...value, systemPrompt: event.target.value })} /></label>
     <div className="ai-form-row"><label>{t('默认服务', 'Default service')}<select value={value.providerId ?? ''} onChange={event => setValue({ ...value, providerId: event.target.value || undefined, modelId: undefined })}><option value="">{t('未选择', 'Not selected')}</option>{providers.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label>{t('默认模型', 'Default model')}<select value={value.modelId ?? ''} onChange={event => setValue({ ...value, modelId: event.target.value || undefined })}><option value="">{t('未选择', 'Not selected')}</option>{provider?.models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}</select></label></div>
-    <ParameterFields value={value.parameters} onChange={parameters => setValue({ ...value, parameters })} />
+    <ParameterFields value={value.parameters} model={provider?.models.find(model => model.id === value.modelId)} onChange={parameters => setValue({ ...value, parameters })} />
     {assistant && <p className="ai-muted">{t('修改仅影响之后新建的会话，已有会话保留配置快照。', 'Changes apply to new conversations. Existing conversations retain their settings.')}</p>}
     <footer><button type="button" onClick={onClose}>{t('取消', 'Cancel')}</button><button type="submit" className="ai-primary">{t('保存', 'Save')}</button></footer>
   </form></AiDialog>;

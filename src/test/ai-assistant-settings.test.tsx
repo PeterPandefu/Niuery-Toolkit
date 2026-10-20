@@ -15,7 +15,7 @@ function setup(providers = [provider()]) {
   const backend: AiBackend = {
     load: vi.fn(), save: vi.fn(), saveProvider: vi.fn(), removeProvider: vi.fn(),
     listModels: vi.fn().mockResolvedValue([model('existing'), model('new-model'), model('new-model'), model('other')]),
-    testConnection: vi.fn().mockResolvedValue('Connected'), generate: vi.fn(), cancel: vi.fn(),
+    testConnection: vi.fn().mockResolvedValue('Connected'), testModel: vi.fn().mockResolvedValue('Generation OK (50 ms)'), generate: vi.fn(), cancel: vi.fn(),
     openDataDirectory: vi.fn(), reset: vi.fn(),
   };
   render(<AiSettings providers={providers} backend={backend} onSave={onSave} onRemove={vi.fn()} onClearHistory={vi.fn()} onReset={vi.fn()} onClose={vi.fn()} />);
@@ -26,6 +26,22 @@ beforeEach(async () => { await i18n.changeLanguage('en'); });
 afterEach(cleanup);
 
 describe('AI service model selection', () => {
+  it('saves the per-model thinking display preference without changing generation capabilities', async () => {
+    const { onSave } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit model: existing' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show model thinking' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save service' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].models[0]).toMatchObject({ showThinking: false, supportsImages: true });
+  });
+  it('actively tests a selected model separately from fetching the model catalog', async () => {
+    const { backend } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Test selected model' }));
+    expect(await screen.findByText('Generation OK (50 ms)')).toBeInTheDocument();
+    expect(backend.testModel).toHaveBeenCalledWith('service', 'existing');
+    expect(backend.listModels).not.toHaveBeenCalled();
+    expect(backend.testConnection).not.toHaveBeenCalled();
+  });
   it('fetches candidates without enabling them and applies only the models selected by the user', async () => {
     const { onSave } = setup();
     fireEvent.click(screen.getByRole('button', { name: 'Fetch models' }));
@@ -74,7 +90,7 @@ describe('AI service model selection', () => {
 
   it('shows one summary for equal IDs and names, with explicitly labelled editing on demand', () => {
     setup([provider([model('same-model')])]);
-    expect(screen.getAllByText('same-model')).toHaveLength(1);
+    expect(screen.getAllByText('same-model', { selector: 'strong' })).toHaveLength(1);
     expect(screen.queryByRole('textbox', { name: 'Model ID' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Edit model: same-model' }));
     expect(screen.getByRole('textbox', { name: 'Model ID' })).toHaveValue('same-model');

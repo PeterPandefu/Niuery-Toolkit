@@ -347,6 +347,7 @@ pub fn run() {
             ai_assistant::ai_remove_provider,
             ai_assistant::ai_list_models,
             ai_assistant::ai_test_connection,
+            ai_assistant::ai_test_model,
             ai_assistant::ai_generate,
             ai_assistant::ai_cancel,
             ai_assistant::ai_open_data_directory,

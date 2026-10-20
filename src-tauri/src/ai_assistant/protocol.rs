@@ -32,6 +32,21 @@ pub fn validate_provider(provider: &mut Provider) -> Result<(), String> {
     if provider.name.trim().is_empty() {
         return Err("请填写服务名称".into());
     }
+    for model in &provider.models {
+        if model.context_window == Some(0)
+            || model.max_output_tokens == Some(0)
+            || model
+                .context_window
+                .zip(model.max_output_tokens)
+                .is_some_and(|(context, output)| output >= context)
+            || model
+                .output_token_parameter
+                .as_deref()
+                .is_some_and(|value| !matches!(value, "max_tokens" | "max_completion_tokens"))
+        {
+            return Err("模型容量或输出参数无效".into());
+        }
+    }
     Ok(())
 }
 
@@ -100,6 +115,11 @@ pub fn validate_attachments(attachments: &[Attachment]) -> Result<(), String> {
 }
 
 pub fn payload(request: &Request, provider: &Provider) -> Result<Value, String> {
+    let model = provider
+        .models
+        .iter()
+        .find(|model| model.id == request.model_id)
+        .ok_or("当前模型未启用")?;
     if request.model_id.trim().is_empty() {
         return Err("请选择模型".into());
     }
@@ -165,21 +185,39 @@ pub fn payload(request: &Request, provider: &Provider) -> Result<Value, String> 
     let mut body = json!({"model":request.model_id,"messages":messages,"stream":true});
     if provider.kind == "ollama" {
         let mut options = json!({});
-        if let Some(value) = request.parameters.temperature {
+        if let Some(value) = request
+            .parameters
+            .temperature
+            .filter(|_| model.supports_temperature != Some(false))
+        {
             options["temperature"] = json!(value);
         }
         if let Some(value) = request.parameters.max_output_tokens {
-            options["num_predict"] = json!(value);
+            options["num_predict"] = json!(value.min(model.max_output_tokens.unwrap_or(value)));
         }
         if options.as_object().is_some_and(|o| !o.is_empty()) {
             body["options"] = options;
         }
     } else {
-        if let Some(value) = request.parameters.temperature {
+        if let Some(value) = request
+            .parameters
+            .temperature
+            .filter(|_| model.supports_temperature != Some(false))
+        {
             body["temperature"] = json!(value);
         }
         if let Some(value) = request.parameters.max_output_tokens {
-            body["max_tokens"] = json!(value);
+            let parameter = model
+                .output_token_parameter
+                .as_deref()
+                .unwrap_or("max_tokens");
+            if !matches!(parameter, "max_tokens" | "max_completion_tokens") {
+                return Err("模型输出参数名称无效".into());
+            }
+            body[parameter] = json!(value.min(model.max_output_tokens.unwrap_or(value)));
+        }
+        if model.stream_usage == Some(true) {
+            body["stream_options"] = json!({"include_usage":true});
         }
     }
     Ok(body)
@@ -191,6 +229,8 @@ pub struct Decoder {
     ollama: bool,
     pub done: bool,
     pending_error: Option<String>,
+    metadata: StreamMetadata,
+    thinking: Vec<String>,
 }
 impl Decoder {
     pub fn new(kind: &str) -> Self {
@@ -200,6 +240,8 @@ impl Decoder {
             ollama: kind == "ollama",
             done: false,
             pending_error: None,
+            metadata: StreamMetadata::default(),
+            thinking: Vec::new(),
         }
     }
     pub fn push(&mut self, bytes: &[u8]) -> Result<Vec<String>, String> {
@@ -255,6 +297,39 @@ impl Decoder {
         if value.get("error").is_some() {
             return Err("模型服务返回错误，请检查模型、上下文长度和参数后重试".into());
         }
+        let finish = if self.ollama {
+            value.get("done_reason")
+        } else {
+            value.pointer("/choices/0/finish_reason")
+        };
+        if let Some(reason) = finish.and_then(Value::as_str) {
+            self.metadata.finish_reason = Some(reason.to_string());
+        }
+        let counts = if self.ollama {
+            value
+                .get("prompt_eval_count")
+                .and_then(Value::as_u64)
+                .zip(value.get("eval_count").and_then(Value::as_u64))
+        } else {
+            value
+                .pointer("/usage/prompt_tokens")
+                .and_then(Value::as_u64)
+                .zip(
+                    value
+                        .pointer("/usage/completion_tokens")
+                        .and_then(Value::as_u64),
+                )
+        };
+        if let Some((input_tokens, output_tokens)) = counts {
+            self.metadata.usage = Some(Usage {
+                input_tokens,
+                output_tokens,
+                total_tokens: value
+                    .pointer("/usage/total_tokens")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(input_tokens.saturating_add(output_tokens)),
+            });
+        }
         let content = if self.ollama {
             value.pointer("/message/content").and_then(Value::as_str)
         } else {
@@ -262,6 +337,21 @@ impl Decoder {
                 .pointer("/choices/0/delta/content")
                 .and_then(Value::as_str)
         };
+        let reasoning = if self.ollama {
+            value.pointer("/message/thinking").and_then(Value::as_str)
+        } else {
+            value
+                .pointer("/choices/0/delta/reasoning_content")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    value
+                        .pointer("/choices/0/delta/reasoning")
+                        .and_then(Value::as_str)
+                })
+        };
+        if let Some(text) = reasoning.filter(|text| !text.is_empty()) {
+            self.thinking.push(text.to_string());
+        }
         if let Some(text) = content {
             if !text.is_empty() {
                 result.push(text.into());
@@ -298,9 +388,15 @@ impl Decoder {
         }
         Ok(result)
     }
+    pub fn metadata(&self) -> StreamMetadata {
+        self.metadata.clone()
+    }
+    pub fn take_thinking(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.thinking)
+    }
     // Deliver successfully decoded tokens before the terminal error from this same batch.
     fn partial_error(&mut self, result: Vec<String>, error: String) -> Result<Vec<String>, String> {
-        if result.is_empty() {
+        if result.is_empty() && self.thinking.is_empty() {
             return Err(error);
         }
         self.pending_error = Some(error);

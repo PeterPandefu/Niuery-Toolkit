@@ -1,6 +1,186 @@
 use super::*;
 
 #[test]
+fn ai_assistant_rejects_invalid_model_capacity_metadata() {
+    let mut provider = provider_at("http://localhost", "openai");
+    provider.models[0].context_window = Some(0);
+    assert!(protocol::validate_provider(&mut provider).is_err());
+    provider.models[0].context_window = Some(100);
+    provider.models[0].max_output_tokens = Some(101);
+    assert!(protocol::validate_provider(&mut provider).is_err());
+}
+
+#[test]
+fn ai_assistant_organization_metadata_survives_disk_reload() {
+    let root = std::env::temp_dir().join(format!("niuery-ai-test-{}", nanoid::nanoid!()));
+    let mut value = serde_json::to_value(workspace()).unwrap();
+    value["templates"] = serde_json::json!([{"id":"t1","name":"Prompt","content":"Review {{input}}","favorite":true}]);
+    value["conversations"][0]["pinned"] = serde_json::json!(true);
+    value["conversations"][0]["archived"] = serde_json::json!(true);
+    let workspace: Workspace = serde_json::from_value(value).unwrap();
+    storage::save(&root, &workspace).unwrap();
+    let restored = storage::load(&root).unwrap().unwrap();
+    assert_eq!(restored.templates.unwrap()[0].content, "Review {{input}}");
+    assert_eq!(restored.conversations[0].pinned, Some(true));
+    assert_eq!(restored.conversations[0].archived, Some(true));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn ai_assistant_deep_features_survive_disk_reload_and_exported_pdf_text() {
+    let root = std::env::temp_dir().join(format!("niuery-ai-test-{}", nanoid::nanoid!()));
+    let mut value = serde_json::to_value(workspace()).unwrap();
+    let message = serde_json::json!({"id":"a","role":"assistant","content":"Second","status":"complete","createdAt":2,"attachments":[],"usage":{"inputTokens":10,"outputTokens":20,"totalTokens":30},"finishReason":"length","firstTokenMs":500,"durationMs":1000,"versions":[{"content":"First","createdAt":1,"status":"complete"},{"content":"Second","createdAt":2,"status":"complete"}],"selectedVersion":1});
+    value["conversations"][0]["messages"] = serde_json::json!([message.clone()]);
+    value["conversations"][0]["summary"] = serde_json::json!("Keep SQLite");
+    value["conversations"][0]["parentConversationId"] = serde_json::json!("parent");
+    value["conversations"][0]["tasks"] = serde_json::json!([{"id":"task","kind":"comparison","createdAt":1,"prompt":"Question","results":[{"label":"Model","target":"p:http://localhost","message":message}]}]);
+    value["conversations"][0]["draftAttachments"][0]["sourceDocument"] =
+        serde_json::json!({"name":"report.pdf","pages":1});
+    value["conversations"][0]["draftAttachments"][0]["name"] = serde_json::json!("report.pdf.txt");
+    let workspace: Workspace = serde_json::from_value(value).unwrap();
+    storage::save(&root, &workspace).unwrap();
+    let restored = storage::load(&root).unwrap().unwrap();
+    assert_eq!(
+        serde_json::to_value(restored).unwrap(),
+        serde_json::to_value(workspace).unwrap()
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn ai_assistant_model_diagnostic_uses_generation_without_conversation_history() {
+    let (base, server) = mock_server(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\ndata: {\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n\n", false).await;
+    assert!(test_model(
+        &provider_at(&base, "openai"),
+        Some("diagnostic-key"),
+        "model"
+    )
+    .await
+    .unwrap()
+    .contains("成功"));
+    let request = String::from_utf8(server.await.unwrap()).unwrap();
+    assert!(request.starts_with("POST /v1/chat/completions"));
+    assert!(request.contains("Reply with OK."));
+    assert!(!request.contains("question"));
+    let (base, server) = mock_server(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\ndata: [DONE]\n\n", false).await;
+    assert!(test_model(&provider_at(&base, "openai"), None, "model")
+        .await
+        .unwrap_err()
+        .contains("正文"));
+    server.await.unwrap();
+}
+
+#[test]
+fn ai_assistant_stream_retains_finish_reason_and_actual_usage() {
+    let mut decoder = protocol::Decoder::new("openai");
+    decoder.push(b"data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"length\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":20,\"total_tokens\":30}}\n\ndata: [DONE]\n\n").unwrap();
+    let metadata = decoder.metadata();
+    assert_eq!(metadata.finish_reason.as_deref(), Some("length"));
+    assert_eq!(metadata.usage.unwrap().total_tokens, 30);
+    let mut local = protocol::Decoder::new("ollama");
+    local.push(b"{\"message\":{\"content\":\"ok\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":4,\"eval_count\":6}\n").unwrap();
+    assert_eq!(local.metadata().usage.unwrap().total_tokens, 10);
+}
+
+#[test]
+fn ai_assistant_stream_extracts_thinking_separately_from_answer() {
+    let mut decoder = protocol::Decoder::new("openai");
+    decoder.push(b"data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"check constraints\",\"content\":\"answer\"}}]}\n\n").unwrap();
+    assert_eq!(decoder.take_thinking(), vec!["check constraints"]);
+    assert_eq!(
+        decoder.push(b"data: [DONE]\n\n").unwrap(),
+        Vec::<String>::new()
+    );
+    let mut ollama = protocol::Decoder::new("ollama");
+    ollama
+        .push(b"{\"message\":{\"thinking\":\"plan\",\"content\":\"done\"},\"done\":false}\n")
+        .unwrap();
+    assert_eq!(ollama.take_thinking(), vec!["plan"]);
+}
+
+#[test]
+fn ai_assistant_thinking_survives_same_chunk_error_and_utf8_splits() {
+    let mut decoder = protocol::Decoder::new("openai");
+    for byte in "data: {\"choices\":[{\"delta\":{\"reasoning\":\"检查约束\"}}]}\n\n".as_bytes()
+    {
+        assert!(decoder.push(&[*byte]).unwrap().is_empty());
+    }
+    assert_eq!(decoder.take_thinking(), vec!["检查约束"]);
+    assert!(decoder.push(b"data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"preserve\"}}]}\n\ndata: {\"error\":\"failed\"}\n\n").is_ok());
+    assert_eq!(decoder.take_thinking(), vec!["preserve"]);
+    assert!(decoder.take_error().is_some());
+}
+
+#[test]
+fn ai_assistant_thinking_and_versions_survive_storage_without_request_replay() {
+    let root = std::env::temp_dir().join(format!("niuery-ai-test-{}", nanoid::nanoid!()));
+    let mut input = serde_json::to_value(workspace()).unwrap();
+    input["conversations"][0]["messages"] = serde_json::json!([{"id":"a","role":"assistant","content":"answer","thinking":"thought","attachments":[],"createdAt":1,"status":"complete","versions":[{"content":"answer","thinking":"old thought","createdAt":1,"status":"complete"}]}]);
+    let value: Workspace = serde_json::from_value(input).unwrap();
+    storage::save(&root, &value).unwrap();
+    let restored = storage::load(&root).unwrap().unwrap();
+    assert_eq!(
+        restored.conversations[0].messages[0].thinking.as_deref(),
+        Some("thought")
+    );
+    let mut request = request();
+    request.messages = restored.conversations[0].messages.clone();
+    assert!(
+        !protocol::payload(&request, &provider_at("http://localhost", "openai"))
+            .unwrap()
+            .to_string()
+            .contains("thought")
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn ai_assistant_http_delivers_thinking_even_before_same_chunk_error() {
+    let (base, server) = mock_server(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\ndata: {\"choices\":[{\"delta\":{\"reasoning_content\":\"preserved thought\"}}]}\n\ndata: {\"error\":\"failed\"}\n\n", false).await;
+    let events = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let capture = events.clone();
+    let channel = Channel::new(move |body| {
+        if let tauri::ipc::InvokeResponseBody::Json(body) = body {
+            capture
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str::<serde_json::Value>(&body).unwrap());
+        }
+        Ok(())
+    });
+    let (_sender, mut cancel) = watch::channel(false);
+    assert!(stream_with_provider(
+        &provider_at(&base, "openai"),
+        None,
+        &request(),
+        &channel,
+        &mut cancel
+    )
+    .await
+    .is_err());
+    let events = events.lock().unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0]["type"], "thinking");
+    assert_eq!(events[0]["text"], "preserved thought");
+    server.await.unwrap();
+}
+
+#[test]
+fn ai_assistant_payload_honors_model_capabilities() {
+    let mut provider = provider_at("http://localhost:11434", "openai");
+    provider.models[0] = serde_json::from_value(serde_json::json!({"id":"model","name":"Model","supportsImages":false,"contextWindow":1000,"maxOutputTokens":20,"supportsTemperature":false,"outputTokenParameter":"max_completion_tokens","streamUsage":true})).unwrap();
+    let mut input = request();
+    input.parameters.temperature = Some(0.5);
+    input.parameters.max_output_tokens = Some(30);
+    let payload = protocol::payload(&input, &provider).unwrap();
+    assert_eq!(payload["max_completion_tokens"], 20);
+    assert!(payload.get("max_tokens").is_none());
+    assert!(payload.get("temperature").is_none());
+    assert_eq!(payload["stream_options"]["include_usage"], true);
+}
+
+#[test]
 fn ai_assistant_streams_split_utf8_and_multiline_sse() {
     let mut decoder = protocol::Decoder::new("openai");
     let stream =
@@ -86,9 +266,30 @@ async fn mock_server(
     let address = listener.local_addr().unwrap();
     let task = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.unwrap();
-        let mut request = vec![0; 65536];
-        let count = stream.read(&mut request).await.unwrap();
-        request.truncate(count);
+        let mut request = Vec::new();
+        loop {
+            let mut chunk = [0u8; 8192];
+            let count = stream.read(&mut chunk).await.unwrap();
+            if count == 0 {
+                break;
+            }
+            request.extend_from_slice(&chunk[..count]);
+            if let Some(end) = request.windows(4).position(|value| value == b"\r\n\r\n") {
+                let headers = String::from_utf8_lossy(&request[..end]);
+                let length = headers
+                    .lines()
+                    .find_map(|line| {
+                        line.to_ascii_lowercase()
+                            .strip_prefix("content-length:")
+                            .and_then(|value| value.trim().parse::<usize>().ok())
+                    })
+                    .unwrap_or(0);
+                if request.len() >= end + 4 + length {
+                    break;
+                }
+            }
+            assert!(request.len() < 1024 * 1024);
+        }
         stream.write_all(response).await.unwrap();
         if hold {
             tokio::time::sleep(Duration::from_secs(3)).await;

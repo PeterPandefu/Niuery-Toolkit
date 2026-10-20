@@ -30,6 +30,7 @@ function readBytes(file: File): Promise<ArrayBuffer> {
 
 export async function readAttachment(file: File): Promise<AiAttachment> {
   const extension = file.name.toLowerCase().split('.').pop() ?? '';
+  if (extension === 'pdf') { const attachment = await (await import('./documents')).readPdfAttachment(file); validateAttachments([attachment]); return attachment; }
   const imageType = IMAGE_EXTENSIONS[extension] ?? (IMAGE_TYPES.has(file.type) ? file.type : undefined);
   const isText = !imageType && TEXT_EXTENSIONS.has(extension);
   if (!imageType && !isText) throw new Error('不支持此附件格式，请选择 PNG、JPEG、WebP 图片或纯文本／代码文件。');

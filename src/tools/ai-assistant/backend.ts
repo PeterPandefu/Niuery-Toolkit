@@ -90,6 +90,10 @@ export const desktopAiBackend: AiBackend = {
     if (!inDesktop()) throw desktopRequired();
     return invoke('ai_test_connection', { providerId });
   },
+  async testModel(providerId, modelId) {
+    if (!inDesktop()) throw desktopRequired();
+    return invoke('ai_test_model', { providerId, modelId });
+  },
   async generate(request, onEvent) {
     if (!inDesktop()) throw desktopRequired();
     const onEventChannel = new Channel<AiStreamEvent>();
