@@ -53,6 +53,7 @@ const TOOL_CAPABILITIES: Partial<Record<string, ToolCapabilities>> = {
   'mind-map': { network: 'offline', permissions: ['file'] },
   'excalidraw-board': { network: 'offline', permissions: ['file'] },
   'tldraw-board': { network: 'offline', permissions: ['file'] },
+  'flow-board': { network: 'offline', permissions: ['file'] },
   'screenshot-editor': { network: 'offline', permissions: ['file', 'clipboard', 'screen'] },
   'screen-recorder': { network: 'offline', permissions: ['file', 'screen', 'microphone', 'systemAudio'], desktopOnly: true },
   'system-monitor': { network: 'offline', permissions: ['system'], desktopOnly: true },
@@ -533,6 +534,17 @@ registerTool({
   preload: () => import('@/tools/graphic/tldraw-board'),
   keywords: ['tldraw', 'whiteboard', 'board', '白板', '画布', '绘图', '离线'],
   description: '离线 Tldraw 无限白板：本地 .tldr 保存、打开与 SVG 导出',
+});
+
+registerTool({
+  id: 'flow-board',
+  name: 'React Flow 图表',
+  icon: Workflow,
+  category: 'canvas',
+  component: lazy(() => import('@/tools/graphic/flow-board')),
+  preload: () => import('@/tools/graphic/flow-board'),
+  keywords: ['react flow', 'flow', 'diagram', 'graph', '流程图', '图表', '节点', '画布', '离线'],
+  description: '结构化图表编辑器：自定义节点、连线、JSON、SVG 与 PNG 导出',
 });
 
 registerTool({

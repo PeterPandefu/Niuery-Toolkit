@@ -245,6 +245,7 @@
     "icon-generator": "App Icon Generator",
     "excalidraw-board": "Excalidraw Board",
     "tldraw-board": "Tldraw Board",
+    "flow-board": "React Flow Diagram",
     "screenshot-editor": "Screenshot & Annotate",
     "screen-recorder": "Screen Recorder",
     "socket-tool": "WebSocket Debugger",

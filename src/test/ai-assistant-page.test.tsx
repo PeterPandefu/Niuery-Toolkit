@@ -107,12 +107,15 @@ describe('AI assistant page', () => {
     state.conversations = [chat]; state.activeConversationId = chat.id; backend.load.mockResolvedValue(state);
     render(<AiAssistantPage />);
     await screen.findByRole('textbox', { name: 'Message' });
-    fireEvent.click(screen.getByRole('button', { name: 'Pin: Keep me' }));
-    expect(screen.getByRole('button', { name: 'Unpin: Keep me' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Archive: Keep me' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Pin' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Unpin' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
     expect(screen.queryByRole('button', { name: 'Open conversation: Keep me' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Show archived conversations' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Unarchive: Keep me' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unarchive' }));
     fireEvent.click(screen.getByRole('button', { name: 'Show active conversations' }));
     expect(screen.getByRole('button', { name: 'Open conversation: Keep me' })).toBeInTheDocument();
     await waitFor(() => expect(backend.save.mock.calls[backend.save.mock.calls.length - 1]?.[0].conversations[0]).toMatchObject({ pinned: true, archived: false, title: 'Keep me' }));
@@ -460,14 +463,14 @@ describe('AI assistant page', () => {
     fireEvent.click(within(picker).getByRole('button', { name: 'Apply selection' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save service' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save service' })).toBeEnabled());
-  });
-
-  it('keeps the conversation usable after generation fails', async () => {
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Model service settings' })).getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByRole('combobox', { name: 'Current model' }));
     expect(screen.getByRole('option', { name: 'new-model' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Test model' })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'unused-model' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the conversation usable after generation fails', async () => {
     backend.generate.mockRejectedValue(new Error('Rate limited: try again later'));
     render(<AiAssistantPage />);
     const input = await screen.findByRole('textbox', { name: 'Message' });

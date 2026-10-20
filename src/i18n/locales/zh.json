@@ -245,6 +245,7 @@
     "icon-generator": "应用图标生成",
     "excalidraw-board": "Excalidraw 白板",
     "tldraw-board": "Tldraw 白板",
+    "flow-board": "React Flow 图表",
     "screenshot-editor": "截图与标注",
     "screen-recorder": "屏幕录制",
     "socket-tool": "WebSocket 调试",

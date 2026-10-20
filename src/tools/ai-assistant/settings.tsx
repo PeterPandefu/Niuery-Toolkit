@@ -1,8 +1,8 @@
 import { Select } from '@/components/ui/select';
 import { useState } from 'react';
 import { nanoid } from 'nanoid';
-import { Box, Check, Database, KeyRound, Loader2, Plus, RefreshCw, Server, Unplug } from 'lucide-react';
-import type { AiBackend, AiModel, AiProvider } from './types';
+import { Archive, Box, Check, Database, KeyRound, Loader2, Plus, RefreshCw, Server, Unplug } from 'lucide-react';
+import type { AiBackend, AiConversation, AiModel, AiProvider } from './types';
 import { AiDialog, AiError } from './ui';
 import { useAiText } from './ui-text';
 import { AiEnabledModel, AiModelPicker } from './model-settings';
@@ -10,15 +10,18 @@ import { uniqueModels } from './model';
 
 interface SettingsProps {
   providers: AiProvider[];
+  conversations?: AiConversation[];
   backend: AiBackend;
   onSave(provider: AiProvider, apiKey?: string): Promise<unknown>;
   onRemove(id: string): Promise<unknown>;
   onClearHistory(): Promise<unknown>;
   onReset(): Promise<unknown>;
+  onUnarchive?(id: string): void;
+  onSelectConversation?(item: AiConversation): void;
   onClose(): void;
 }
 
-export function AiSettings({ providers, backend, onSave, onRemove, onClearHistory, onReset, onClose }: SettingsProps) {
+export function AiSettings({ providers, conversations = [], backend, onSave, onRemove, onClearHistory, onReset, onUnarchive = () => {}, onSelectConversation = () => {}, onClose }: SettingsProps) {
   const t = useAiText();
   const makeProvider = (): AiProvider => ({ id: nanoid(), name: '', kind: 'openai', baseUrl: 'https://api.openai.com/v1', hasApiKey: false, models: [], enabled: true });
   const [provider, setProvider] = useState<AiProvider>(providers[0] ?? makeProvider());
@@ -33,6 +36,7 @@ export function AiSettings({ providers, backend, onSave, onRemove, onClearHistor
   const [catalog, setCatalog] = useState<AiModel[] | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [testModelId, setTestModelId] = useState('');
+  const [tab, setTab] = useState<'services' | 'archive'>('services');
   function edit(next: AiProvider) {
     if (next.baseUrl !== provider.baseUrl || next.kind !== provider.kind) setCatalog(null);
     setProvider(next); setDirty(true); setFeedback('');
@@ -71,8 +75,14 @@ export function AiSettings({ providers, backend, onSave, onRemove, onClearHistor
     if (!provider.models.some(model => model.id === id)) edit({ ...provider, models: [...provider.models, { id, name: id, supportsImages: false }] });
     setManualId('');
   }
-  return <AiDialog title={t('模型服务设置', 'Model service settings')} description={t('连接模型服务，让常用模型触手可及。', 'Connect your services and keep your favourite models close.')} onClose={working ? () => {} : onClose} className="ai-settings-dialog" wide>
-    <div className="ai-settings-layout">
+  const archived = conversations.filter(item => item.archived).sort((a, b) => b.updatedAt - a.updatedAt);
+  return <AiDialog title={t('设置', 'Settings')} description={t('管理模型服务与本地归档会话。', 'Manage model services and archived local conversations.')} onClose={working ? () => {} : onClose} className="ai-settings-dialog" wide>
+    <div className="ai-settings-shell">
+      <nav className="ai-settings-nav" aria-label={t('设置分类', 'Settings sections')}>
+        <button type="button" className={tab === 'services' ? 'is-active' : ''} aria-current={tab === 'services' ? 'page' : undefined} onClick={() => setTab('services')}><span className="ai-settings-nav-icon"><Server size={16} aria-hidden="true" /></span><strong>{t('模型服务', 'Model services')}</strong></button>
+        <button type="button" className={tab === 'archive' ? 'is-active' : ''} aria-current={tab === 'archive' ? 'page' : undefined} onClick={() => setTab('archive')}><span className="ai-settings-nav-icon"><Archive size={16} aria-hidden="true" /></span><strong>{t('归档', 'Archive')}</strong></button>
+      </nav>
+      {tab === 'archive' ? <section className="ai-archive-panel" aria-labelledby="ai-archive-heading"><div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Archive size={18} aria-hidden="true" /></span><div><h3 id="ai-archive-heading">{t('已归档会话', 'Archived conversations')}</h3><p>{t('归档的会话会保留在本机，可随时恢复。', 'Archived conversations stay on this device and can be restored anytime.')}</p></div></div>{archived.length ? <div className="ai-archive-list">{archived.map(item => <article key={item.id} className="ai-archive-item"><button type="button" className="ai-archive-item-main" onClick={() => onSelectConversation(item)}><strong>{item.title || t('未命名会话', 'Untitled conversation')}</strong><span>{new Date(item.updatedAt).toLocaleString()} · {item.messages.length} {t('条消息', 'messages')}</span></button><button type="button" onClick={() => onUnarchive(item.id)}>{t('取消归档', 'Unarchive')}</button></article>)}</div> : <div className="ai-archive-empty"><Archive size={28} aria-hidden="true" /><strong>{t('暂无归档会话', 'No archived conversations')}</strong><span>{t('在会话操作中归档的内容会显示在这里。', 'Conversations archived from the conversation menu appear here.')}</span></div>}</section> : <div className="ai-settings-layout">
       <nav className="ai-provider-list" aria-label={t('模型服务', 'Model services')}>
         <div className="ai-provider-caption">{t('模型服务', 'MODEL SERVICES')}<span>{providers.length}</span></div>
         <div className="ai-provider-items">{providers.map(item => <button type="button" key={item.id} disabled={working} aria-current={provider.id === item.id ? 'true' : undefined} className={provider.id === item.id ? 'is-active' : ''} onClick={() => select(item)}><span className="ai-provider-icon"><Server size={17} aria-hidden="true" /></span><span className="ai-provider-name"><strong>{item.name}</strong><small>{item.kind === 'ollama' ? 'Ollama' : 'OpenAI'} · {t(`${item.models.length} 个模型`, `${item.models.length} models`)}</small></span><span className={`ai-provider-dot ${item.enabled ? 'is-enabled' : ''}`} aria-label={item.enabled ? t('已启用', 'Enabled') : t('已停用', 'Disabled')} /></button>)}</div>
@@ -104,6 +114,7 @@ export function AiSettings({ providers, backend, onSave, onRemove, onClearHistor
         </div>
         <footer className="ai-settings-footer"><div className="ai-settings-feedback"><AiError error={error} />{!error && <span role="status" className={feedback ? 'ai-feedback' : 'ai-muted'}>{feedback ? <><Check size={14} aria-hidden="true" />{feedback}</> : dirty ? t('有未保存的修改', 'Unsaved changes') : t('配置仅保存在本机', 'Configuration is stored locally')}</span>}</div><div className="ai-button-row">{providers.some(item => item.id === provider.id) && <button type="button" className="ai-danger" disabled={working} onClick={() => setConfirm('provider')}>{t('删除服务', 'Delete service')}</button>}<button type="submit" className="ai-primary" disabled={working}>{working && <Loader2 size={15} className="ai-spin" aria-hidden="true" />}{working ? t('处理中…', 'Working…') : t('保存服务', 'Save service')}</button></div></footer>
       </form>
+     </div>}
     </div>
     {pickerOpen && catalog && <AiModelPicker models={catalog} enabled={provider.models} onClose={() => setPickerOpen(false)} onApply={models => { edit({ ...provider, models }); setPickerOpen(false); }} />}
     {confirm && <AiDialog title={confirm === 'provider' ? t('删除服务？', 'Delete service?') : confirm === 'history' ? t('清空所有历史？', 'Clear all history?') : t('重置 AI 助手？', 'Reset AI assistant?')} onClose={() => setConfirm(null)}><div className="ai-form"><p>{confirm === 'provider' ? t('删除此服务及系统凭据，保留聊天历史。', 'Delete this service and its system credential. Chat history is retained.') : confirm === 'history' ? t('删除全部会话、草稿和附件，保留助手、服务配置及密钥。此操作无法撤销。', 'Delete all conversations, drafts and attachments. Assistants, services and keys are retained. This cannot be undone.') : t('删除全部 AI 会话、附件、助手、服务配置及系统凭据，不影响其他工具。此操作无法撤销。', 'Delete all AI conversations, attachments, assistants, services and system credentials. Other tools are unaffected. This cannot be undone.')}</p><footer><button type="button" onClick={() => setConfirm(null)}>{t('取消', 'Cancel')}</button><button type="button" className="ai-danger" onClick={() => { const action = confirm; setConfirm(null); void run(async () => { if (action === 'provider') { await onRemove(provider.id); switchTo(providers.find(item => item.id !== provider.id) ?? makeProvider()); } else if (action === 'history') { await onClearHistory(); setFeedback(t('历史已清空', 'History cleared')); } else { await onReset(); onClose(); } }); }}>{t('确认删除', 'Confirm deletion')}</button></footer></div></AiDialog>}
