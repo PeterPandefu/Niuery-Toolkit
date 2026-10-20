@@ -1,6 +1,8 @@
 import { useId, useMemo, useState } from 'react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import { toast } from 'sonner';
 import { useAuiState, type TextMessagePartProps, type ReasoningMessagePartProps } from '@assistant-ui/react';
 import { useAiText } from '../ui-text';
@@ -12,7 +14,15 @@ export function AiTextPart({ text }: TextMessagePartProps) {
     md.renderer.rules.image = (tokens, index) => `<span class="ai-blocked-image">[${md.utils.escapeHtml(tokens[index].content || blocked)} · ${md.utils.escapeHtml(blocked)}]</span>`;
     md.renderer.rules.fence = (tokens, index) => { const token = tokens[index]; const language = token.info.trim().split(/\s+/)[0]; const html = language && hljs.getLanguage(language) ? hljs.highlight(token.content, { language, ignoreIllegals: true }).value : md.utils.escapeHtml(token.content); const block = blocks.push(token.content) - 1; return `<div class="ai-code-block"><div class="ai-code-header"><span>${md.utils.escapeHtml(language || 'text')}</span><button type="button" data-ai-code="${block}" aria-label="${copyLabel}">${copyLabel}</button></div><pre><code class="hljs">${html}</code></pre></div>`; };
     const original = md.renderer.rules.link_open; md.renderer.rules.link_open = (tokens, index, options, env, self) => { tokens[index].attrSet('target', '_blank'); tokens[index].attrSet('rel', 'noopener noreferrer'); return original ? original(tokens, index, options, env, self) : self.renderToken(tokens, index, options); };
-    return { html: md.render(text), blocks };
+    const mathBlocks: string[] = [];
+    const source = text.replace(/\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|(?<!\\)\$([^$\n]+?)\$/g, (_match, blockDollar, blockBracket, inlineParen, inlineDollar) => {
+      const value = blockDollar ?? blockBracket ?? inlineParen ?? inlineDollar ?? '';
+      const displayMode = blockDollar !== undefined || blockBracket !== undefined;
+      const index = mathBlocks.push(katex.renderToString(value.trim(), { displayMode, throwOnError: false })) - 1;
+      return `MATHPLACEHOLDER${index}ENDMATH`;
+    });
+    const html = md.render(source).replace(/MATHPLACEHOLDER(\d+)ENDMATH/g, (_match, index) => mathBlocks[Number(index)] ?? '');
+    return { html, blocks };
   }, [text, copyLabel, blocked]);
   return <div className="ai-markdown ai-answer" dangerouslySetInnerHTML={{ __html: rendered.html }} onClick={event => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-ai-code]'); if (button) void navigator.clipboard.writeText(rendered.blocks[Number(button.dataset.aiCode)]).then(() => { button.textContent = t('已复制', 'Copied'); toast.success(t('已复制', 'Copied')); }, () => toast.error(t('复制失败，请检查剪贴板权限', 'Could not copy. Check clipboard permissions.'))); }} />;
 }

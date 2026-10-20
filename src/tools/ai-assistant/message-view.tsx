@@ -3,7 +3,7 @@ import { ActionBarPrimitive, MessagePrimitive } from '@assistant-ui/react';
 import { AiReadonlyMessage } from './runtime/thread-view';
 import { useHasAiRuntime } from './runtime/runtime-context';
 import { AiTextPart, AiReasoningPart } from './runtime/message-parts';
-import { BotMessageSquare, Copy, Pencil, RefreshCw, User } from 'lucide-react';
+import { BotMessageSquare, Clock3, Copy, Hash, Pencil, RefreshCw, User, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AiAttachment, AiMessage } from './types';
 import { iconLabel, useAiText } from './ui-text';
@@ -36,8 +36,11 @@ function RuntimeMessageView({ message, disabled, lastAssistant, onEdit, onRegene
       {message.error && <p role="alert" className="ai-error-text">{message.error}</p>}
       {message.status === 'complete' && message.finishReason === 'length' && <p role="status" className="ai-error-text">{t('已达到输出上限，回答可能不完整。可提高输出上限后重新生成。', 'Output limit reached. The answer may be incomplete. Increase the limit and regenerate.')}</p>}
       {message.status === 'complete' && message.finishReason === 'content_filter' && <p role="status">{t('回复因服务内容过滤而结束。', 'The service ended this reply due to content filtering.')}</p>}
-      {message.usage && <p className="ai-muted">{t('实际用量', 'Actual usage')}: {message.usage.inputTokens} / {message.usage.outputTokens} / {message.usage.totalTokens} tokens {t('（输入／输出／总计）', '(input / output / total)')}</p>}
-      {message.durationMs !== undefined && <p className="ai-muted">{t('首字／总耗时', 'First token / duration')}: {message.firstTokenMs === undefined ? '—' : (message.firstTokenMs / 1000).toFixed(2)} / {(message.durationMs / 1000).toFixed(2)} s</p>}
+      {(message.usage || message.durationMs !== undefined) && <div className="ai-message-metrics" aria-label={t('回复指标', 'Response metrics')}>
+        {message.usage && <><span title={t('输入 token', 'Input tokens')}><Hash size={12} aria-hidden="true" />{message.usage.inputTokens}</span><span title={t('输出 token', 'Output tokens')}><Hash size={12} aria-hidden="true" />{message.usage.outputTokens}</span><span title={t('总 token', 'Total tokens')}><Hash size={12} aria-hidden="true" />{message.usage.totalTokens}</span></>}
+        {message.firstTokenMs !== undefined && <span title={t('首字耗时', 'Time to first token')}><Zap size={12} aria-hidden="true" />{(message.firstTokenMs / 1000).toFixed(2)}s</span>}
+        {message.durationMs !== undefined && <span title={t('总耗时', 'Total duration')}><Clock3 size={12} aria-hidden="true" />{(message.durationMs / 1000).toFixed(2)}s</span>}
+      </div>}
       <ActionBarPrimitive.Root className="ai-message-actions"><button type="button" {...iconLabel(copied ? t('已复制', 'Copied') : t('复制消息', 'Copy message'))} onClick={() => void copy(message.content)}><Copy size={13} /><span>{copied ? t('已复制', 'Copied') : t('复制', 'Copy')}</span></button>
         {onFork && <button type="button" disabled={disabled} aria-label={t('从此处分叉', 'Fork from here')} onClick={() => onFork(message)}>{t('分叉', 'Fork')}</button>}
         {message.versions && message.versions.length > 1 && onVersion && <label>{t('回复版本', 'Answer version')}<select disabled={disabled} aria-label={t('回复版本', 'Answer version')} value={message.selectedVersion ?? message.versions.length - 1} onChange={event => onVersion(Number(event.target.value))}>{message.versions.map((version, index) => <option key={index} value={index}>{index + 1}/{message.versions!.length} · {version.modelId ?? ''}</option>)}</select></label>}

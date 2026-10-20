@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Copy, Pencil, Plus, Settings, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { iconLabel, useAiText } from './ui-text';
 
 export function AssistantActions({ canDelete, onNew, onEdit, onDuplicate, onDelete }: {
@@ -32,7 +32,7 @@ export function AssistantActions({ canDelete, onNew, onEdit, onDuplicate, onDele
       event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus();
     }
   }}>
-    <button ref={trigger} type="button" className="ai-icon-button" {...iconLabel(t('助手设置', 'Assistant settings'))} aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(!open)}><Settings size={17} aria-hidden="true" /></button>
+    <button ref={trigger} type="button" className="ai-icon-button" {...iconLabel(t('助手设置', 'Assistant settings'))} aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(!open)}><SlidersHorizontal size={17} aria-hidden="true" /></button>
     {open && <div id={id} className="ai-assistant-options" role="group" aria-label={t('助手操作', 'Assistant actions')}>
       <span>{t('管理助手', 'MANAGE ASSISTANT')}</span>
       <button type="button" onClick={() => choose(onNew)}><Plus size={15} aria-hidden="true" />{t('新建助手', 'New assistant')}</button>
