@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
 import { openTextDocument } from '@/lib/local-documents';
@@ -336,7 +337,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
             {pendingImport.length > 1 && (
               <label className="flex flex-col gap-2 border-b px-4 py-3 text-sm">
                 检测到 {pendingImport.length} 个 Mermaid 代码块，请选择要导入的图表
-                <select
+                <Select
                   aria-label="选择 Mermaid 代码块"
                   className="w-full rounded border bg-background px-2 py-1.5 text-sm"
                   value={selectedImportIndex}
@@ -345,7 +346,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
                   {pendingImport.map((candidate, index) => (
                     <option key={index} value={index}>图表 {index + 1}（第 {candidate.line} 行） · {candidate.source.split('\n')[0]}</option>
                   ))}
-                </select>
+                </Select>
               </label>
             )}
             <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-4 font-mono text-xs">{selectedImport.source}</pre>

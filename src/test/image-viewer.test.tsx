@@ -100,14 +100,16 @@ describe('ImageViewer', () => {
     expect(background).toHaveValue('transparent');
     expect(viewport).not.toHaveClass('bg-black/90');
 
-    fireEvent.change(background, { target: { value: 'white' } });
+    fireEvent.click(background);
+    fireEvent.click(screen.getByRole('option', { name: '白色' }));
     expect(viewport).toHaveStyle({ backgroundColor: '#ffffff' });
 
     fireEvent.click(screen.getByRole('button', { name: '全屏预览' }));
     const dialog = screen.getByRole('dialog', { name: '图片预览' });
     expect(within(dialog).getByRole('region', { name: '图片预览区域' })).toHaveStyle({ backgroundColor: '#ffffff' });
 
-    fireEvent.change(within(dialog).getByRole('combobox', { name: '预览背景' }), { target: { value: 'dark' } });
+    fireEvent.click(within(dialog).getByRole('combobox', { name: '预览背景' }));
+    fireEvent.click(within(dialog).getByRole('option', { name: '深色' }));
     fireEvent.click(within(dialog).getByTitle('关闭预览（Esc）'));
 
     expect(background).toHaveValue('dark');
@@ -117,7 +119,8 @@ describe('ImageViewer', () => {
   it('applies a user-selected custom background color', () => {
     render(<ImageViewer source="data:image/svg+xml,%3Csvg%3E%3C%2Fsvg%3E" alt="自定义背景 SVG" mode="inline" />);
 
-    fireEvent.change(screen.getByRole('combobox', { name: '预览背景' }), { target: { value: 'custom' } });
+    fireEvent.click(screen.getByRole('combobox', { name: '预览背景' }));
+    fireEvent.click(screen.getByRole('option', { name: '自定义' }));
     fireEvent.change(screen.getByLabelText('自定义预览背景色'), { target: { value: '#fef3c7' } });
 
     expect(screen.getByRole('region', { name: '图片预览区域' })).toHaveStyle({ backgroundColor: '#fef3c7' });

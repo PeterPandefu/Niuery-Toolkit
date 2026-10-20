@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -47,7 +48,8 @@ export function RequestPanel({ request, onChange, onSend, onCancel, loading }: R
     <div className="flex h-full flex-col">
       {/* URL Bar */}
       <div className="flex items-center gap-2 border-b px-4 py-2.5">
-        <select
+        <Select
+          aria-label="HTTP 方法"
           value={request.method}
           onChange={(e) => onChange({ method: e.target.value as HttpMethod })}
           className={cn(
@@ -58,7 +60,7 @@ export function RequestPanel({ request, onChange, onSend, onCancel, loading }: R
           {HTTP_METHODS.map((m) => (
             <option key={m} value={m}>{m}</option>
           ))}
-        </select>
+        </Select>
 
         <input
           value={request.url}

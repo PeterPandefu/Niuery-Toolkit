@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -267,7 +268,8 @@ export default function ApiTester() {
         <div className="mx-1 h-4 w-px bg-border" />
 
         {/* Environment Selector */}
-        <select
+        <Select
+          aria-label="请求环境"
           value={activeEnvId || ''}
           onChange={(e) => useApiTesterStore.getState().setActiveEnv(e.target.value || null)}
           className="h-7 rounded-md border bg-background px-2 text-xs outline-none"
@@ -276,7 +278,7 @@ export default function ApiTester() {
           {environments.map((env) => (
             <option key={env.id} value={env.id}>{env.name}</option>
           ))}
-        </select>
+        </Select>
 
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEnvDialogOpen(true)}>
           管理环境

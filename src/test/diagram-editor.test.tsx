@@ -118,8 +118,10 @@ describe('DiagramEditor', () => {
     render(<DiagramEditor kind="mermaid" renderer={renderer} />);
     fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
     const selector = await screen.findByRole('combobox', { name: '选择 Mermaid 代码块' });
-    expect(within(selector).getAllByRole('option')).toHaveLength(2);
-    fireEvent.change(selector, { target: { value: '1' } });
+    fireEvent.click(selector);
+    const list = screen.getByRole('listbox', { name: '选择 Mermaid 代码块' });
+    expect(within(list).getAllByRole('option')).toHaveLength(2);
+    fireEvent.click(within(list).getAllByRole('option')[1]);
     expect(screen.getByText((_, element) => element?.tagName === 'PRE' && element.textContent === 'sequenceDiagram\nAlice->>Bob: Second')).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: '确认替换' }));

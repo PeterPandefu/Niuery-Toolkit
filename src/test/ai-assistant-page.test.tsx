@@ -169,7 +169,7 @@ describe('AI assistant page', () => {
     fireEvent.click(within(editor).getByRole('button', { name: 'Cancel' }));
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate assistant' }));
-    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Assistant' }) as HTMLSelectElement).selectedOptions[0].textContent).toBe('General assistant copy'));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Assistant' })).toHaveTextContent('General assistant copy'));
     expect(screen.queryByRole('group', { name: 'Assistant actions' })).not.toBeInTheDocument();
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole('button', { name: 'Delete assistant' }));
@@ -389,7 +389,8 @@ describe('AI assistant page', () => {
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Assistant name' }), { target: { value: 'Reviewer' } });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'System prompt' }), { target: { value: 'Review code' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect((screen.getByRole('combobox', { name: 'Assistant' }) as HTMLSelectElement).selectedOptions[0].textContent).toBe('Reviewer'));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Assistant' })).toHaveTextContent('Reviewer'));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Assistant' }));
     expect(screen.getByRole('option', { name: 'Reviewer' })).toBeInTheDocument();
   });
 
@@ -432,7 +433,8 @@ describe('AI assistant page', () => {
     fireEvent.change(input, { target: { value: 'Existing history' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await screen.findByText('Hello from test model');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Current model' }), { target: { value: 'second::model' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Current model' }));
+    fireEvent.click(within(screen.getByRole('listbox', { name: 'Current model' })).getAllByRole('option', { name: 'Test model' })[1]);
     fireEvent.change(input, { target: { value: 'Next question' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     const dialog = await screen.findByRole('dialog', { name: 'Send history to this service?' });
@@ -457,13 +459,15 @@ describe('AI assistant page', () => {
     fireEvent.click(within(picker).getByRole('checkbox', { name: 'Enable model: new-model' }));
     fireEvent.click(within(picker).getByRole('button', { name: 'Apply selection' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save service' }));
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Local test · new-model' })).toBeInTheDocument());
-    expect(screen.queryByRole('option', { name: 'Local test · Test model' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Local test · unused-model' })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save service' })).toBeEnabled());
   });
 
   it('keeps the conversation usable after generation fails', async () => {
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Model service settings' })).getByRole('button', { name: 'Close' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Current model' }));
+    expect(screen.getByRole('option', { name: 'new-model' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Test model' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'unused-model' })).not.toBeInTheDocument();
     backend.generate.mockRejectedValue(new Error('Rate limited: try again later'));
     render(<AiAssistantPage />);
     const input = await screen.findByRole('textbox', { name: 'Message' });

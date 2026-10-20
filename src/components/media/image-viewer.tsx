@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Expand, Maximize, Minimize, Minus, Plus, X } from 'lucide-react';
@@ -97,7 +98,7 @@ function ViewerControls({
       </Button>
       <label className="flex h-7 items-center gap-1 rounded px-1 text-xs hover:bg-accent">
         <span className="sr-only">预览背景</span>
-        <select
+        <Select
           aria-label="预览背景"
           className="h-6 max-w-20 bg-transparent text-xs outline-none"
           value={background}
@@ -107,7 +108,7 @@ function ViewerControls({
           <option value="white">白色</option>
           <option value="dark">深色</option>
           <option value="custom">自定义</option>
-        </select>
+        </Select>
       </label>
       {background === 'custom' && (
         <input
@@ -193,14 +194,15 @@ export function ImageViewer({
     if (mode !== 'dialog' || !open) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (event.target instanceof HTMLElement && event.target.closest('[role=combobox][aria-expanded=true]')) return;
         event.stopPropagation();
         setOpen(false);
         onClose?.();
         return;
       }
-      // Arrow keys still belong to selects and editable fields when focused.
+      // 方向键优先交给下拉选择器和可编辑字段。
       const target = event.target;
-      if (target instanceof HTMLElement && target.closest('input, select, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+      if (target instanceof HTMLElement && target.closest('input, select, textarea, [role=combobox], [contenteditable]:not([contenteditable="false"])')) return;
       if (navigation && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
         event.preventDefault();
         event.stopPropagation();

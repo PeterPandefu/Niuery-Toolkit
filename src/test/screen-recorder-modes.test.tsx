@@ -36,13 +36,17 @@ async function openMode(mode: string) {
   fireEvent.click(screen.getByRole('button', { name: mode }));
 }
 function noCountdown() {
-  fireEvent.change(screen.getByLabelText('倒计时'), { target: { value: '0' } });
+  chooseOption('倒计时', '立即开始');
+}
+function chooseOption(label: string, name: string | RegExp) {
+  fireEvent.click(screen.getByRole('combobox', { name: label }));
+  fireEvent.click(screen.getByRole('option', { name }));
 }
 
 describe('录屏模式', () => {
   it('全屏录制选定的副显示器，不要求框选区域', async () => {
     await openMode('全屏录制');
-    fireEvent.change(screen.getByLabelText('录制显示器'), { target: { value: 'secondary' } });
+    chooseOption('录制显示器', /副显示器/);
     noCountdown();
     fireEvent.click(screen.getByRole('button', { name: '开始录制' }));
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('start_recording', {
@@ -55,7 +59,7 @@ describe('录屏模式', () => {
     await openMode('窗口录制');
     expect(screen.getByRole('button', { name: '开始录制' })).toBeDisabled();
     fireEvent.change(screen.getByLabelText('搜索窗口'), { target: { value: '记事本' } });
-    fireEvent.change(screen.getByLabelText('录制窗口'), { target: { value: '42' } });
+    chooseOption('录制窗口', /演示文档/);
     noCountdown();
     fireEvent.click(screen.getByRole('button', { name: '开始录制' }));
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('start_recording', {
@@ -65,7 +69,7 @@ describe('录屏模式', () => {
 
   it('刷新保留有效窗口，失效后清空选择并禁用启动', async () => {
     await openMode('窗口录制');
-    fireEvent.change(screen.getByLabelText('录制窗口'), { target: { value: '42' } });
+    chooseOption('录制窗口', /演示文档/);
     fireEvent.click(screen.getByRole('button', { name: '刷新来源' }));
     await waitFor(() => expect(screen.getByLabelText('录制窗口')).toHaveValue('42'));
     currentWindows = [];
@@ -89,7 +93,7 @@ describe('录屏模式', () => {
 
   it('目标自动停止后进入可导出的预览并显示保留原因', async () => {
     await openMode('窗口录制');
-    fireEvent.change(screen.getByLabelText('录制窗口'), { target: { value: '42' } });
+    chooseOption('录制窗口', /演示文档/);
     noCountdown();
     fireEvent.click(screen.getByRole('button', { name: '开始录制' }));
     await screen.findByText('正在录制');

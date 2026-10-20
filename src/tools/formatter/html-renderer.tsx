@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
 import { useCallback, useMemo, useRef, useState } from 'react';
@@ -141,7 +142,7 @@ export default function HtmlRenderer() {
           <Button variant="ghost" size="sm" onClick={() => void exportSnapshot()} aria-label="导出离线快照"><FileText />快照</Button>
           <Button variant="ghost" size="sm" onClick={() => void captureBaseline()} aria-label="保存视觉基线">基线</Button>
           <Button variant="ghost" size="sm" onClick={() => void compareBaseline()} disabled={!baselinePng} aria-label="比较视觉基线">比较</Button>
-          <select
+          <Select
             className="h-8 rounded border bg-background px-2 text-xs"
             value={`${viewport.width}x${viewport.height}`}
             onChange={(event) => {
@@ -153,7 +154,7 @@ export default function HtmlRenderer() {
             <option value="1440x10000">桌面长图</option>
             <option value="1024x768">平板 1024×768</option>
             <option value="390x844">手机 390×844</option>
-          </select>
+          </Select>
           <LoadingButton variant="ghost" size="sm" onClick={() => void render('pdf')} loading={isRendering} aria-label="导出 PDF"><FileText />PDF</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={() => void render('png')} loading={isRendering} aria-label="导出 PNG"><FileImage />PNG</LoadingButton>
           <Button variant="ghost" size="icon" onClick={() => setSource(DEFAULT_HTML)} aria-label="恢复示例"><Download className="h-4 w-4" /></Button>

@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -115,7 +116,8 @@ export function MockDialog({ open, onClose }: MockDialogProps) {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-muted-foreground">HTTP 方法</label>
-                    <select
+                    <Select
+                      aria-label="HTTP 方法"
                       value={selectedRule.method}
                       onChange={(e) => updateMockRule(selectedRule.id, { method: e.target.value as HttpMethod | '*' })}
                       className="h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus:ring-1 focus:ring-ring"
@@ -124,7 +126,7 @@ export function MockDialog({ open, onClose }: MockDialogProps) {
                       {HTTP_METHODS.map((m) => (
                         <option key={m} value={m}>{m}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 </div>
 

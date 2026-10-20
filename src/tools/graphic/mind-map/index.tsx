@@ -1,3 +1,4 @@
+import { Select } from '@/components/ui/select';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, FilePlus2, FolderOpen, Library, Plus, Redo2, Save, Undo2, ZoomIn } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -306,25 +307,25 @@ export default function MindMapTool() {
         </Button>
         <label className="ml-1 flex items-center gap-1 text-xs text-muted-foreground">
           {t('mindMap.layout')}
-          <select
+          <Select
             className="h-8 rounded border border-border bg-background px-1 text-foreground"
             value={document.layout ?? 'logicalStructure'}
             disabled={Boolean(focusedUid)}
             onChange={(event) => updateLayout(event.target.value)}
           >
             {LAYOUTS.map((layout) => <option key={layout.value} value={layout.value}>{t(`mindMap.${layout.key}`)}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
           {t('mindMap.appearance')}
-          <select
+          <Select
             className="h-8 rounded border border-border bg-background px-1 text-foreground"
             value={currentAppearance}
             disabled={Boolean(focusedUid)}
             onChange={(event) => updateAppearance(event.target.value)}
           >
             {APPEARANCES.map((appearance) => <option key={appearance.value} value={appearance.value}>{t(`mindMap.${appearance.key}`)}</option>)}
-          </select>
+          </Select>
         </label>
         <span className="mx-1 h-5 w-px bg-border" />
         <Button variant="ghost" size="sm" disabled={Boolean(focusedUid)} onClick={() => surfaceRef.current?.command('INSERT_CHILD_NODE')}>
