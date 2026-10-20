@@ -18,6 +18,12 @@ describe('useAppStore', () => {
   });
 
   describe('theme', () => {
+    it('将两个旧工具的固定入口迁移到占用解除并去重', async () => {
+      const { migrate, merge } = useAppStore.persist.getOptions();
+      const saved = { pinnedTools: ['file-unlocker', 'json-formatter', 'port-process-killer', 'resource-unlocker'] };
+      expect(await migrate?.(saved, 7)).toMatchObject({ pinnedTools: ['resource-unlocker', 'json-formatter'] });
+      expect(merge?.(saved, useAppStore.getInitialState())).toMatchObject({ pinnedTools: ['resource-unlocker', 'json-formatter'] });
+    });
     it('starts with decorative effects disabled', () => {
       expect(useAppStore.getInitialState()).toMatchObject({ atmosphere: 'off', pointerEffect: 'off', mascotEnabled: false });
     });

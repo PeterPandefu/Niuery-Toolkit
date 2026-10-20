@@ -5,7 +5,23 @@ use std::path::PathBuf;
 #[serde(rename_all = "camelCase")]
 pub struct ProcessTarget {
     pub pid: u32,
+    #[serde(with = "creation_time_string")]
     pub creation_time: u64,
+}
+
+// Windows 创建时间超过 JavaScript 安全整数范围，IPC 必须保留完整精度。
+mod creation_time_string {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(value: &u64, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&value.to_string())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+        String::deserialize(deserializer)?
+            .parse()
+            .map_err(serde::de::Error::custom)
+    }
 }
 
 pub fn validate_port(port: u32) -> Result<u16, String> {
@@ -170,6 +186,32 @@ pub fn find_file_lock_owners(path: String) -> Result<Vec<ProcessOwner>, String> 
     }
 }
 
+/// 查询目录及其后代的占用；不跟随目录链接，避免扫描到目标目录之外。
+#[tauri::command]
+pub async fn find_folder_lock_owners(path: String) -> Result<Vec<ProcessOwner>, String> {
+    tauri::async_runtime::spawn_blocking(move || folder_lock_owners(&path))
+        .await
+        .map_err(|error| format!("文件夹占用查询失败：{error}"))?
+}
+
+pub fn folder_lock_owners(path: &str) -> Result<Vec<ProcessOwner>, String> {
+    if path.trim().is_empty() {
+        return Err("请选择要解除占用的文件夹".into());
+    }
+    let path = std::fs::canonicalize(path).map_err(|error| format!("无法访问文件夹：{error}"))?;
+    if !path.is_dir() {
+        return Err("请选择文件夹，不能选择文件".into());
+    }
+    #[cfg(windows)]
+    {
+        windows_api::folder_owners(&path)
+    }
+    #[cfg(not(windows))]
+    {
+        Err("该工具仅支持 Windows 桌面端".into())
+    }
+}
+
 #[tauri::command]
 pub fn terminate_processes(
     targets: Vec<ProcessTarget>,
@@ -205,6 +247,10 @@ mod windows_api {
         MIB_UDP6ROW_OWNER_PID, MIB_UDPROW_OWNER_PID, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
     };
     use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6};
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE,
+        FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
     use windows::Win32::System::RestartManager::{
         RmEndSession, RmGetList, RmRegisterResources, RmStartSession, CCH_RM_SESSION_KEY,
         RM_PROCESS_INFO,
@@ -214,6 +260,114 @@ mod windows_api {
         TerminateProcess, WaitForSingleObject, PROCESS_NAME_FORMAT,
         PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
     };
+
+    #[repr(C)]
+    struct IoStatusBlock {
+        status: usize,
+        information: usize,
+    }
+
+    #[link(name = "ntdll")]
+    extern "system" {
+        fn NtQueryInformationFile(
+            file: HANDLE,
+            status: *mut IoStatusBlock,
+            information: *mut core::ffi::c_void,
+            length: u32,
+            class: u32,
+        ) -> i32;
+    }
+
+    // FileProcessIdsUsingFileInformation 返回持有该文件或目录句柄的进程。
+    // 使用按指针宽度对齐的缓冲区，兼容 Windows 的 ULONG_PTR 数组。
+    fn path_owner_pids(path: &PathBuf) -> Result<Vec<u32>, String> {
+        let wide = wide_path(path);
+        let handle = ProcessHandle(
+            unsafe {
+                CreateFileW(
+                    PCWSTR(wide.as_ptr()),
+                    FILE_READ_ATTRIBUTES.0,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                    None,
+                    OPEN_EXISTING,
+                    FILE_FLAG_BACKUP_SEMANTICS,
+                    None,
+                )
+            }
+            .map_err(|error| format!("无法检查占用（{}）：{error}", path.display()))?,
+        );
+        let mut capacity = 64;
+        loop {
+            let mut buffer = vec![0_usize; capacity];
+            let mut status = IoStatusBlock {
+                status: 0,
+                information: 0,
+            };
+            let code = unsafe {
+                NtQueryInformationFile(
+                    handle.0,
+                    &mut status,
+                    buffer.as_mut_ptr().cast(),
+                    (buffer.len() * size_of::<usize>()) as u32,
+                    47,
+                )
+            };
+            if matches!(code as u32, 0x8000_0005 | 0xC000_0004) && capacity < 1_048_576 {
+                capacity *= 2;
+                continue;
+            }
+            if code < 0 {
+                return Err(format!(
+                    "无法检查占用（{}，Windows 状态 {:#X}）",
+                    path.display(),
+                    code as u32
+                ));
+            }
+            let count = buffer[0] as u32 as usize;
+            if count >= buffer.len() {
+                return Err("文件夹占用查询返回的数据不完整，请重新查询".into());
+            }
+            return Ok(buffer[1..1 + count]
+                .iter()
+                .filter_map(|pid| u32::try_from(*pid).ok())
+                .filter(|pid| *pid != std::process::id())
+                .collect());
+        }
+    }
+
+    pub fn folder_owners(path: &PathBuf) -> Result<Vec<ProcessOwner>, String> {
+        let mut pending = vec![path.clone()];
+        let mut pids = std::collections::BTreeSet::new();
+        let mut scanned = 0;
+        while let Some(path) = pending.pop() {
+            scanned += 1;
+            if scanned > 100_000 {
+                return Err("文件夹超过 100000 个项目，请选择更小的文件夹后重试".into());
+            }
+            pids.extend(path_owner_pids(&path)?);
+            if path.is_dir() {
+                for entry in std::fs::read_dir(&path)
+                    .map_err(|error| format!("无法读取文件夹（{}）：{error}", path.display()))?
+                {
+                    let entry = entry.map_err(|error| format!("无法读取文件夹项目：{error}"))?;
+                    let metadata = std::fs::symlink_metadata(entry.path())
+                        .map_err(|error| format!("无法读取文件属性：{error}"))?;
+                    use std::os::windows::fs::MetadataExt;
+                    // 跳过重解析点，包括符号链接、联接点和云端占位文件。
+                    if metadata.file_attributes() & 0x400 == 0 {
+                        if scanned + pending.len() >= 100_000 {
+                            return Err("文件夹超过 100000 个项目，请选择更小的文件夹后重试".into());
+                        }
+                        pending.push(entry.path());
+                    }
+                }
+            }
+        }
+        Ok(pids
+            .into_iter()
+            .map(|pid| owner_for_pid(pid, None))
+            .collect())
+    }
 
     const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
     const ERROR_MORE_DATA: u32 = 234;

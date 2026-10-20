@@ -252,8 +252,7 @@
     "translator": "多语言翻译",
     "pdf-toolkit": "PDF 处理",
     "system-monitor": "系统监控",
-    "port-process-killer": "端口进程终止",
-    "file-unlocker": "文件占用解除",
+    "resource-unlocker": "占用解除",
     "mind-map": "思维导图"
   },
   "actions": {

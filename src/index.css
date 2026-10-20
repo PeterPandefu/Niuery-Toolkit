@@ -482,7 +482,7 @@
 .recording-capture-border {
   position: fixed;
   inset: 0;
-  border: 3px solid #d36a32;
+  border: var(--recording-border-width, 0px) solid #d36a32;
   background: transparent;
   pointer-events: none;
   animation: recording-capture-breathe 1.2s ease-in-out infinite;

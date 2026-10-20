@@ -37,7 +37,6 @@ import {
   Wind,
   Activity,
   FileLock2,
-  Network,
   Workflow,
   PenTool,
 } from 'lucide-react';
@@ -57,8 +56,7 @@ const TOOL_CAPABILITIES: Partial<Record<string, ToolCapabilities>> = {
   'screenshot-editor': { network: 'offline', permissions: ['file', 'clipboard', 'screen'] },
   'screen-recorder': { network: 'offline', permissions: ['file', 'screen', 'microphone', 'systemAudio'], desktopOnly: true },
   'system-monitor': { network: 'offline', permissions: ['system'], desktopOnly: true },
-  'port-process-killer': { network: 'offline', permissions: ['system'], desktopOnly: true },
-  'file-unlocker': { network: 'offline', permissions: ['file', 'system'], desktopOnly: true },
+  'resource-unlocker': { network: 'offline', permissions: ['file', 'system'], desktopOnly: true },
   'socket-tool': { network: 'hybrid', permissions: ['localNetwork'], desktopOnly: true },
   'api-tester': { network: 'network', permissions: [] },
   translator: { network: 'network', permissions: [] },
@@ -588,23 +586,13 @@ registerTool({
 });
 
 registerTool({
-  id: 'port-process-killer',
-  name: '端口进程终止',
-  icon: Network,
-  category: 'system',
-  component: lazy(() => import('@/tools/system/port-process-killer')),
-  keywords: ['port', 'process', 'kill', 'tcp', 'udp', '端口', '进程', '结束', '占用'],
-  description: '查找并结束占用指定本地端口的进程',
-});
-
-registerTool({
-  id: 'file-unlocker',
-  name: '文件占用解除',
+  id: 'resource-unlocker',
+  name: '占用解除',
   icon: FileLock2,
   category: 'system',
-  component: lazy(() => import('@/tools/system/file-unlocker')),
-  keywords: ['file', 'unlock', 'lock', 'process', '文件', '占用', '解锁', '进程'],
-  description: '查找并关闭占用指定文件的进程',
+  component: lazy(() => import('@/tools/system/resource-unlocker')),
+  keywords: ['port', 'process', 'kill', 'tcp', 'udp', 'file', 'folder', 'directory', 'unlock', 'lock', '端口', '文件', '文件夹', '目录', '占用', '解锁', '进程', '结束'],
+  description: '查找并结束占用端口、文件或文件夹的进程',
 });
 
 // === 网络工具 ===

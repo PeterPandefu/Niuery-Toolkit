@@ -171,7 +171,7 @@ tauri::Builder::default()
 
 `OpenedTextFile{path, contents}` / `OpenedBinaryFile{path, contents(base64)}` / `RecoverySnapshot{id, tool, content, document_path?, updated_at}`。辅助：`safe_segment`（`[A-Za-z0-9_-]{1,128}` **防路径注入**）。
 
-命令（7）：`open_text_file_dialog` / `open_binary_file_dialog` / `pick_existing_file`（**只取路径不读内容**，适配被锁定文件）/ `write_recovery_snapshot` / `list_recovery_snapshots`（顺带清理 >30 天旧快照，按 updated_at 倒序）/ `discard_recovery_snapshot` / `save_file_dialog(bytes, default_name, filter_name, extensions)`（**前端产物统一落盘出口**）。
+命令（8）：`open_text_file_dialog` / `open_binary_file_dialog` / `pick_existing_file` / `pick_existing_folder`（**只取路径不读内容**，适配被锁定文件）/ `write_recovery_snapshot` / `list_recovery_snapshots`（顺带清理 >30 天旧快照，按 updated_at 倒序）/ `discard_recovery_snapshot` / `save_file_dialog(bytes, default_name, filter_name, extensions)`（**前端产物统一落盘出口**）。
 
 ## 11. plantuml.rs — PlantUML 常驻 JVM 池（306 行）
 
@@ -190,13 +190,14 @@ tauri::Builder::default()
 - `render_html_to_png(app, html, width?, height?)`：+ `--hide-scrollbars --window-size={w|1440},{h|10000} --screenshot=`；
 - `run_chromium`：50ms 轮询 try_wait，**30 秒超时 kill**；读产物后删临时目录。
 
-## 13. process_tools.rs — 端口/文件占用（679 行，Windows-only）
+## 13. process_tools.rs — 端口、文件及文件夹占用（仅 Windows）
 
-- `ProcessTarget{pid: u32, creation_time: u64}`（**创建时间防 PID 复用误杀**）；`ProcessOwner{target, name, executable_path?, endpoints}`；`TerminationStatus`：Terminated/AlreadyExited/AccessDenied/Protected/IdentityChanged/Failed；
+- `ProcessTarget{pid: u32, creation_time: u64}`（**创建时间防 PID 复用误杀**，IPC 中 `creationTime` 使用十进制字符串，避免 JavaScript 整数精度丢失）；`ProcessOwner{target, name, executable_path?, endpoints}`；`TerminationStatus`：Terminated/AlreadyExited/AccessDenied/Protected/IdentityChanged/Failed；
 - 纯函数：`validate_port`、`matches_process_identity`、`is_protected_target`（pid 0/4/自身/critical）、`is_process_gone_hresult`（0x80070057）、`group_port_rows`、`map_termination_attempts`、`canonical_regular_file`；
-- 命令（3）：
+- 命令（4）：
   - `find_port_owners(port)`：`GetExtendedTcpTable/GetExtendedUdpTable`（TCP4/6 + UDP4/6，两次调用模式：先查字节数再取数据）；
   - `find_file_lock_owners(path)`：**Restart Manager**（`RmStartSession/RmRegisterResources/RmGetList` 两段式，RAII 会话保证 RmEndSession）；
+  - `find_folder_lock_owners(path)`：阻塞线程中递归查询目录和文件的 `FileProcessIdsUsingFileInformation`，覆盖工作目录及子文件占用，按 PID 去重；跳过重解析点，最多扫描 100000 个项目；访问失败时返回明确错误，避免把未完成扫描当成已解除占用；
   - `terminate_processes(targets)`：OpenProcess → GetProcessTimes 比对创建时间（不符→IdentityChanged）→ IsProcessCritical（→Protected）→ TerminateProcess → WaitForSingleObject 5s。
 
 ## 14. sticky_note.rs — 悬浮便签（1256 行）
@@ -221,8 +222,16 @@ tauri::Builder::default()
 
 ## 17. build.rs 与 main.rs
 
-- [build.rs](../../src-tauri/build.rs)：Windows 目标下向 examples 追加 `/MANIFEST:EMBED` + comctl32 v6 依赖（resource_smoke 的 rfd 对话框需要），随后 `tauri_build::build()`；
+- [build.rs](../../src-tauri/build.rs)：Windows 目标下仅向 examples 和集成测试追加 `/MANIFEST:EMBED` + comctl32 v6 依赖（真实 rfd 对话框目标需要），主 Tauri 二进制不额外注入；随后 `tauri_build::build()`；
 - [main.rs](../../src-tauri/src/main.rs)：release 下 `windows_subsystem = "windows"`（隐藏控制台）→ `niuery_toolkit_lib::run()`。
+
+`windows_manifest_config` 集成测试默认执行，防止清单链接参数改为全局并干扰主程序。真实原生对话框测试需要 Windows 交互桌面，因此默认忽略；在仓库根目录显式运行：
+
+```powershell
+cargo test --manifest-path src-tauri/Cargo.toml --test windows_rfd_dialog -- --ignored --nocapture
+```
+
+该测试真实调用 `rfd::FileDialog`，确认当前进程的系统文件选择框可见，再自动取消并检查返回值为空。显示与取消阶段均设有超时；不会读取或写入所选文件。验证构建修改时，还应运行 `cargo build --manifest-path src-tauri/Cargo.toml`，覆盖主程序链接。
 
 ## 18. 外部进程集成方式汇总
 

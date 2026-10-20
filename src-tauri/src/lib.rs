@@ -3,6 +3,8 @@ mod capture_guard;
 mod chromium;
 mod clipboard;
 mod file_saver;
+#[cfg(test)]
+mod file_dialog_tests;
 mod hotkey;
 mod plantuml;
 pub mod process_tools;
@@ -414,6 +416,7 @@ pub fn run() {
             system_monitor::get_system_stats,
             process_tools::find_port_owners,
             process_tools::find_file_lock_owners,
+            process_tools::find_folder_lock_owners,
             process_tools::terminate_processes,
             file_saver::save_file_dialog,
             chromium::render_html_to_pdf,
@@ -421,6 +424,7 @@ pub fn run() {
             file_saver::open_text_file_dialog,
             file_saver::open_binary_file_dialog,
             file_saver::pick_existing_file,
+            file_saver::pick_existing_folder,
             file_saver::write_recovery_snapshot,
             file_saver::list_recovery_snapshots,
             file_saver::discard_recovery_snapshot,
