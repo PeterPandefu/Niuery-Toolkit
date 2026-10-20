@@ -36,7 +36,7 @@ it('follows task streaming until the user scrolls up', async () => {
   Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 1000 }); Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 200 });
   const { act } = await import('@testing-library/react');
   await act(async () => { emit!({ requestId: request!.requestId, conversationId: request!.conversationId, messageId: request!.messageId, type: 'delta', text: 'First' }); });
-  expect(scroller.scrollTop).toBe(1000);
+  await waitFor(() => expect(scroller.scrollTop).toBe(1000));
   scroller.scrollTop = 10; fireEvent.scroll(scroller);
   await act(async () => { emit!({ requestId: request!.requestId, conversationId: request!.conversationId, messageId: request!.messageId, type: 'delta', text: 'Second' }); });
   expect(scroller.scrollTop).toBe(10);

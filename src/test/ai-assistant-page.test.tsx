@@ -35,6 +35,48 @@ beforeEach(async () => {
 afterEach(cleanup);
 
 describe('AI assistant page', () => {
+  it('sends a captured draft once after consent and keeps changes made while consent is open', async () => {
+    const state = workspace(); const chat = newConversation(state.assistants[0]);
+    chat.title = 'History'; chat.messages = [{ id: 'q', role: 'user', content: 'Old', attachments: [], status: 'complete', createdAt: 1 }, { id: 'a', role: 'assistant', content: 'Answer', attachments: [], status: 'complete', createdAt: 2 }];
+    chat.approvedTargets = ['old-target']; state.conversations = [chat]; state.activeConversationId = chat.id; backend.load.mockResolvedValue(state);
+    render(<AiAssistantPage />); const input = await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.change(input, { target: { value: 'Captured' } }); fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Send history to this service?' });
+    fireEvent.change(input, { target: { value: 'Next draft' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(backend.generate).toHaveBeenCalledTimes(1));
+    const request = backend.generate.mock.calls[0][0] as AiRequest;
+    expect(request.messages[request.messages.length - 1].content).toBe('Captured');
+    expect(input).toHaveValue('Next draft');
+  });
+  it('keeps history and draft untouched when cross-service consent is cancelled', async () => {
+    const state = workspace(); const chat = newConversation(state.assistants[0]);
+    chat.messages = [{ id: 'q', role: 'user', content: 'Old question', attachments: [], status: 'complete', createdAt: 1 }];
+    chat.approvedTargets = ['old']; chat.draft = 'Keep draft'; state.conversations = [chat]; state.activeConversationId = chat.id;
+    backend.load.mockResolvedValue(state);
+    render(<AiAssistantPage />); await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Send history to this service?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Keep draft');
+    expect(screen.getAllByRole('article', { name: 'User message' })).toHaveLength(1);
+    expect(backend.generate).not.toHaveBeenCalled();
+  });
+  it('reveals and scrolls to a search result outside the current history page', async () => {
+    const state = workspace(); const chat = newConversation(state.assistants[0]); chat.title = 'Long history';
+    chat.messages = Array.from({ length: 201 }, (_, index) => ({ id: `history-${index}`, role: 'assistant' as const, content: index === 0 ? 'Unique hidden target' : `History ${index}`, attachments: [], status: 'complete' as const, createdAt: index + 1 }));
+    state.conversations = [chat]; state.activeConversationId = chat.id; backend.load.mockResolvedValue(state);
+    const original = HTMLElement.prototype.scrollIntoView; const scroll = vi.fn(); HTMLElement.prototype.scrollIntoView = scroll;
+    try {
+      render(<AiAssistantPage />); await screen.findByRole('textbox', { name: 'Message' });
+      expect(screen.queryByText('Unique hidden target')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByRole('textbox', { name: 'Search conversations' }), { target: { value: 'Unique hidden target' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Open conversation: Long history' }));
+      await waitFor(() => expect(document.querySelector('[data-ai-message="history-0"]')).toHaveClass('ai-search-hit'));
+      expect(scroll).toHaveBeenCalledWith({ block: 'center' });
+    } finally { HTMLElement.prototype.scrollIntoView = original; }
+  });
   it('uses each recorded model thinking preference for old replies and task results', async () => {
     const state = workspace();
     state.providers[0].models[0].showThinking = false;
@@ -173,13 +215,13 @@ describe('AI assistant page', () => {
     const search = screen.getByRole('textbox', { name: 'Search conversations' });
     fireEvent.change(search, { target: { value: 'Previous' } });
     fireEvent.click(screen.getByRole('button', { name: 'New conversation' }));
-    expect(input).toHaveValue('Unsent question');
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Unsent question');
     expect(screen.getByRole('button', { name: 'Remove attachment: notes.txt' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open conversation: 新会话' }).closest('.ai-conversation-row')).toHaveClass('is-active');
     expect(screen.getAllByRole('button', { name: /^Open conversation:/ })).toHaveLength(2);
     expect(search).toHaveValue('');
     fireEvent.click(screen.getByRole('button', { name: 'New conversation' }));
-    expect(input).toHaveValue('Unsent question');
+    expect(screen.getByRole('textbox', { name: 'Message' })).toHaveValue('Unsent question');
     expect(screen.getAllByRole('button', { name: /^Open conversation:/ })).toHaveLength(2);
     fireEvent.click(screen.getByRole('button', { name: 'Open conversation: Previous conversation' }));
     expect(input).toHaveValue('History draft');
@@ -429,7 +471,7 @@ describe('AI assistant page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(screen.getAllByText('Rate limited: try again later').length).toBeGreaterThan(0));
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Regenerate' })).toBeEnabled());
     expect(screen.getByRole('article', { name: 'User message' })).toHaveTextContent('Retain this question');
   });
 });

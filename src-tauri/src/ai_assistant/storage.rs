@@ -285,13 +285,13 @@ pub fn validate(workspace: &Workspace) -> Result<()> {
         if !ids.insert(conversation.id.clone()) {
             return Err("会话标识重复".into());
         }
-        super::protocol::validate_attachments(&conversation.draft_attachments)?;
+        super::validation::validate_attachments(&conversation.draft_attachments)?;
         for message in &conversation.messages {
-            super::protocol::validate_attachments(&message.attachments)?;
+            super::validation::validate_attachments(&message.attachments)?;
         }
     }
     for provider in &workspace.providers {
-        super::protocol::validate_provider(&mut provider.clone())?;
+        super::validation::validate_provider(&mut provider.clone())?;
     }
     Ok(())
 }

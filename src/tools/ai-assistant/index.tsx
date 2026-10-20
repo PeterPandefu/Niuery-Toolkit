@@ -1,10 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUpRight, BotMessageSquare, Check, Code2, Languages, Lightbulb, Menu, MessageSquare, Paperclip, Pencil, Plus, Search, Send, Settings2, ShieldCheck, SlidersHorizontal, Square, Trash2 } from 'lucide-react';
 import { nanoid } from 'nanoid';
+import { ThreadPrimitive, MessageNotSentError, isMessageNotSentError, type AssistantRuntime } from '@assistant-ui/react';
+import { AiThread, LoadEarlierMessages } from './runtime/thread-view';
+import { ConversationMessages, type ConversationMessageActions } from './runtime/conversation-messages';
 import { saveBytesWithFeedback } from '@/lib/file-save';
 import { desktopAiBackend } from './backend';
 import { useAiWorkspace } from './use-ai-workspace';
-import { buildContext, exportConversation, newConversation, providerTarget, shouldShowThinking } from './model';
+import { buildContext, exportConversation, newConversation, providerTarget } from './model';
 import { buildBudgetedContext } from './context';
 import { searchConversations, quoteDraft } from './organization';
 import { PromptTemplates } from './prompt-templates';
@@ -18,12 +21,12 @@ import { AssistantDialog } from './assistant-dialog';
 import { AssistantActions } from './assistant-actions';
 import { ConversationSettings } from './conversation-settings';
 import { ConversationExport } from './conversation-export';
-import { AttachmentPreview, MessageView } from './message-view';
+import { AttachmentPreview } from './message-view';
 import { AiDialog, AiError } from './ui';
 import { iconLabel, useAiText } from './ui-text';
 import './ai-assistant.css';
 
-type ConfirmAction = { title: string; description: string; action(): void | Promise<void>; alternative?: { label: string; action(): void } };
+type ConfirmAction = { title: string; description: string; action(): unknown | Promise<unknown>; cancel?(): void; alternative?: { label: string; action(): void } };
 
 export default function AiAssistantPage() {
   const t = useAiText();
@@ -39,6 +42,7 @@ export default function AiAssistantPage() {
   const [taskDialog, setTaskDialog] = useState<'summary' | 'comparison' | null>(null);
   const [summarySeed, setSummarySeed] = useState<string>();
   const [messageTarget, setMessageTarget] = useState<string>();
+  const [messageTargetRevision, setMessageTargetRevision] = useState(0);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [localError, setLocalError] = useState<unknown>();
   const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
@@ -48,6 +52,7 @@ export default function AiAssistantPage() {
   const [edit, setEdit] = useState<{ id: string; content: string } | null>(null);
   const [followBottom, setFollowBottom] = useState(true);
   const [readingFiles, setReadingFiles] = useState(false);
+  const runtimeRef = useRef<AssistantRuntime | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -65,12 +70,45 @@ export default function AiAssistantPage() {
   const lastMessage = conversation?.messages[conversation.messages.length - 1];
   const latestAssistantId = lastMessage?.role === 'assistant' ? lastMessage.id : undefined;
 
+  const messageActionRef = useRef<ConversationMessageActions | null>(null);
+  const messageActions = useMemo<ConversationMessageActions>(() => ({
+    edit: message => messageActionRef.current?.edit(message),
+    fork: message => messageActionRef.current?.fork(message),
+    quote: text => messageActionRef.current?.quote(text),
+    version: (id, index) => messageActionRef.current?.version(id, index),
+  }), []);
+  useLayoutEffect(() => {
+    messageActionRef.current = {
+      edit: message => setEdit({ id: message.id, content: message.content }),
+      fork: message => { if (conversation) addConversation(forkConversation(conversation, message.id)); },
+      quote: text => { if (conversation) patchConversation({ draft: quoteDraft(conversation.draft, text) }); inputRef.current?.focus(); },
+      version: (id, index) => { if (conversation) patchConversation({ messages: conversation.messages.map(item => item.id === id ? selectAnswerVersion(item, index) : item) }); },
+    };
+  });
+
   useEffect(() => {
-    if (!messageTarget) return;
-    const node = [...(scrollRef.current?.querySelectorAll<HTMLElement>('[data-ai-message]') ?? [])].find(node => node.dataset.aiMessage === messageTarget);
-    node?.scrollIntoView?.({ block: 'center' });
-    if (node) { node.classList.add('ai-search-hit'); const timer = setTimeout(() => node.classList.remove('ai-search-hit'), 2500); return () => clearTimeout(timer); }
-  }, [messageTarget, conversation?.id]);
+    if (!messageTarget || !scrollRef.current) return;
+    const viewport = scrollRef.current;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let frame: number | undefined;
+    let observer: MutationObserver | undefined;
+    const reveal = () => {
+      const node = [...viewport.querySelectorAll<HTMLElement>('[data-ai-message]')].find(node => node.dataset.aiMessage === messageTarget);
+      if (!node) return false;
+      observer?.disconnect();
+      frame = requestAnimationFrame(() => {
+        node.scrollIntoView?.({ block: 'center' });
+        node.classList.add('ai-search-hit');
+        timer = setTimeout(() => node.classList.remove('ai-search-hit'), 2500);
+      });
+      return true;
+    };
+    if (!reveal()) {
+      observer = new MutationObserver(reveal);
+      observer.observe(viewport, { childList: true, subtree: true });
+    }
+    return () => { observer?.disconnect(); if (timer) clearTimeout(timer); if (frame !== undefined) cancelAnimationFrame(frame); };
+  }, [messageTarget, messageTargetRevision, conversation?.id]);
 
   function createConversation(selected: AiAssistant = assistant) {
     const created = newConversation(selected);
@@ -94,9 +132,6 @@ export default function AiAssistantPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error, conversation?.id, assistant?.id]);
 
-  useEffect(() => {
-    if (followBottom && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [conversation?.messages, conversation?.tasks, followBottom]);
 
   useLayoutEffect(() => {
     const input = inputRef.current;
@@ -143,9 +178,9 @@ export default function AiAssistantPage() {
   function patchConversation(change: Partial<AiConversation>, id = conversation?.id) {
     api.update(value => ({ ...value, conversations: value.conversations.map(item => item.id === id ? { ...item, ...change, updatedAt: Date.now() } : item) }));
   }
-  async function run(action: () => void | Promise<void>) {
+  async function run(action: () => unknown | Promise<unknown>) {
     setLocalError(undefined);
-    try { await action(); } catch (error) { setLocalError(error); }
+    try { await action(); } catch (error) { if (!isMessageNotSentError(error)) setLocalError(error); }
   }
   function selectConversation(item: AiConversation) {
     api.update(value => ({ ...value, activeConversationId: item.id, activeAssistantId: item.assistantId }));
@@ -163,18 +198,37 @@ export default function AiAssistantPage() {
     const existing = workspace.conversations.filter(item => item.assistantId === id).sort((a, b) => b.updatedAt - a.updatedAt)[0];
     if (existing) selectConversation(existing); else createConversation(selected);
   }
-  function confirmTarget(action: () => void | Promise<void>) {
-    if (!conversation || !provider) return;
+  async function confirmTarget(action: () => unknown | Promise<unknown>) {
+    if (!conversation || !provider) throw new MessageNotSentError('Select a model');
     const target = providerTarget(provider);
     if (conversation.messages.some(message => message.role === 'user') && !conversation.approvedTargets.includes(target)) {
-      setConfirm({ title: t('向此服务发送历史？', 'Send history to this service?'), description: t(`本次将向 ${provider.name}（${provider.baseUrl}）发送消息及选定历史，包括其中的附件。`, `This sends the message and selected history, including its attachments, to ${provider.name} (${provider.baseUrl}).`), action: async () => { patchConversation({ approvedTargets: [...conversation.approvedTargets, target] }); await action(); }, alternative: { label: t('改为新建会话', 'Start a new conversation'), action: () => { const next = createConversation(assistant); patchConversation({ providerId: provider.id, modelId: model?.id, draft: conversation.draft, draftAttachments: conversation.draftAttachments }, next.id); } } });
-    } else void run(action);
+      const accepted = await new Promise<boolean>(resolve => {
+        setConfirm({
+          title: t('向此服务发送历史？', 'Send history to this service?'),
+          description: t(`本次将向 ${provider.name}（${provider.baseUrl}）发送消息及选定历史，包括其中的附件。`, `This sends the message and selected history, including its attachments, to ${provider.name} (${provider.baseUrl}).`),
+          cancel: () => resolve(false),
+          action: () => {
+            api.update(value => ({ ...value, conversations: value.conversations.map(chat => chat.id === conversation.id ? { ...chat, approvedTargets: [...new Set([...chat.approvedTargets, target])] } : chat) }));
+            resolve(true);
+          },
+          alternative: { label: t('改为新建会话', 'Start a new conversation'), action: () => {
+            resolve(false);
+            const next = createConversation(assistant);
+            patchConversation({ providerId: provider.id, modelId: model?.id, draft: conversation.draft, draftAttachments: conversation.draftAttachments }, next.id);
+          } },
+        });
+      });
+      if (!accepted) throw new MessageNotSentError('Cancelled');
+    }
+    await action();
   }
+  function closeConfirm() { confirm?.cancel?.(); setConfirm(null); }
+
   function send() {
     if (!conversation || busy || readingFiles) return;
     setFollowBottom(true);
     if (!provider || !model) { setLocalError(t('请选择有效的模型服务与模型', 'Select a valid model service and model.')); return; }
-    confirmTarget(() => api.send(conversation.id));
+    runtimeRef.current?.thread.append({ role: 'user', content: [{ type: 'text', text: conversation.draft }] });
   }
   async function addFiles(files: File[]) {
     if (!conversation || !files.length) return;
@@ -225,25 +279,52 @@ export default function AiAssistantPage() {
       </div>
       <button type="button" className="ai-archive-toggle" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}>{showArchived ? t('返回活跃会话', 'Show active conversations') : t('查看归档', 'Show archived conversations')}</button>
       <nav className="ai-conversations" aria-label={t('会话', 'Conversations')}>
-        {searchConversations(workspace.conversations, search, assistant?.id, showArchived).map(({ conversation: item, messageId, excerpt }) => <div key={item.id} className={`ai-conversation-row ${item.id === conversation?.id ? 'is-active' : ''}`}><button type="button" aria-label={`${t('打开会话', 'Open conversation')}: ${item.title}`} onClick={() => { selectConversation(item); setFollowBottom(!messageId); setMessageTarget(messageId); }}><MessageSquare size={14} /><span>{item.pinned ? '★ ' : ''}{item.title}{search.trim() && <small className="ai-search-excerpt">{workspace.assistants.find(assistant => assistant.id === item.assistantId)?.name} · {excerpt}</small>}</span>{busy?.conversationId === item.id && <span className="ai-generating-dot" />}</button><div className="ai-conversation-actions"><button type="button" className="ai-icon-button" aria-label={`${item.pinned ? t('取消置顶', 'Unpin') : t('置顶', 'Pin')}: ${item.title}`} onClick={() => patchConversation({ pinned: !item.pinned }, item.id)}>☆</button><button type="button" className="ai-icon-button" aria-label={`${item.archived ? t('取消归档', 'Unarchive') : t('归档', 'Archive')}: ${item.title}`} onClick={() => patchConversation({ archived: !item.archived }, item.id)}>↧</button><button type="button" className="ai-icon-button" {...iconLabel(`${t('重命名会话', 'Rename conversation')}: ${item.title}`)} onClick={() => setRename(item)}><Pencil size={12} /></button><button type="button" className="ai-icon-button" disabled={busy?.conversationId === item.id} {...iconLabel(`${t('删除会话', 'Delete conversation')}: ${item.title}`)} onClick={() => removeConversation(item)}><Trash2 size={12} /></button></div></div>)}
+        {searchConversations(workspace.conversations, search, assistant?.id, showArchived).map(({ conversation: item, messageId, excerpt }) => <div key={item.id} className={`ai-conversation-row ${item.id === conversation?.id ? 'is-active' : ''}`}><button type="button" aria-label={`${t('打开会话', 'Open conversation')}: ${item.title}`} onClick={() => { selectConversation(item); setFollowBottom(!messageId); setMessageTarget(messageId); if (messageId) setMessageTargetRevision(value => value + 1); }}><MessageSquare size={14} /><span>{item.pinned ? '★ ' : ''}{item.title}{search.trim() && <small className="ai-search-excerpt">{workspace.assistants.find(assistant => assistant.id === item.assistantId)?.name} · {excerpt}</small>}</span>{busy?.conversationId === item.id && <span className="ai-generating-dot" />}</button><div className="ai-conversation-actions"><button type="button" className="ai-icon-button" aria-label={`${item.pinned ? t('取消置顶', 'Unpin') : t('置顶', 'Pin')}: ${item.title}`} onClick={() => patchConversation({ pinned: !item.pinned }, item.id)}>☆</button><button type="button" className="ai-icon-button" aria-label={`${item.archived ? t('取消归档', 'Unarchive') : t('归档', 'Archive')}: ${item.title}`} onClick={() => patchConversation({ archived: !item.archived }, item.id)}>↧</button><button type="button" className="ai-icon-button" {...iconLabel(`${t('重命名会话', 'Rename conversation')}: ${item.title}`)} onClick={() => setRename(item)}><Pencil size={12} /></button><button type="button" className="ai-icon-button" disabled={busy?.conversationId === item.id} {...iconLabel(`${t('删除会话', 'Delete conversation')}: ${item.title}`)} onClick={() => removeConversation(item)}><Trash2 size={12} /></button></div></div>)}
       </nav>
       <div className="ai-sidebar-footer"><span><ShieldCheck size={13} aria-hidden="true" />{t('会话保存在本机', 'Conversations saved locally')}</span><button type="button" className="ai-settings-button" {...iconLabel(t('模型服务设置', 'Model service settings'))} disabled={!!busy} onClick={() => setSettings(true)}><Settings2 size={16} aria-hidden="true" /></button></div>
     </aside>
-    <main className="ai-chat">
+    <AiThread targetMessageId={messageTarget} key={conversation?.id ?? 'empty'} runtimeRef={runtimeRef} messages={conversation?.messages ?? []} providers={workspace.providers} running={!!currentBusy} disabled={loading || updating} sendDisabled={!!busy || readingFiles} activeRunId={busy?.requestId} actions={{
+      append: async appended => {
+        if (!conversation || !provider || !model) throw new MessageNotSentError('Select a model');
+        const capturedId = conversation.id; const capturedTarget = providerTarget(provider);
+        const content = appended.content.filter(part => part.type === 'text').map(part => part.text).join('\n');
+        const attachments = conversation.draftAttachments.map(file => ({ ...file }));
+        const action = async () => { const outcome = await api.send(capturedId, { content, attachments, expectedTarget: capturedTarget }); if (outcome.type === 'not-sent') throw new MessageNotSentError(outcome.reason); };
+        await confirmTarget(action);
+      },
+      reload: async parentId => {
+        if (!conversation || !latestAssistantId) return;
+        const latestIndex = conversation.messages.findIndex(message => message.id === latestAssistantId);
+        if (conversation.messages[latestIndex - 1]?.id !== parentId) throw new MessageNotSentError('Fork this question before regenerating');
+        await confirmTarget(async () => { const outcome = await api.regenerate(conversation.id, { expectedTarget: provider ? providerTarget(provider) : undefined }); if (outcome.type === 'not-sent') throw new MessageNotSentError(outcome.reason); });
+      },
+      edit: async appended => {
+        if (!conversation || !provider || !appended.sourceId) throw new MessageNotSentError('Select a message');
+        const messageId = appended.sourceId;
+        const content = appended.content.filter(part => part.type === 'text').map(part => part.text).join('\n');
+        const expectedTarget = providerTarget(provider);
+        await confirmTarget(async () => {
+          const outcome = await api.send(conversation.id, { editMessageId: messageId, content, expectedTarget });
+          if (outcome.type === 'not-sent') throw new MessageNotSentError(outcome.reason);
+        });
+      },
+      cancel: api.stop,
+    }}><main className="ai-chat">
       <header className="ai-chat-header"><button type="button" className="ai-icon-button ai-mobile-menu" {...iconLabel(t('会话列表', 'Conversations'))} onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={18} /></button><div className="ai-chat-heading"><h2>{conversation?.title || t('新会话', 'New conversation')}</h2><span>{assistant?.name}</span></div>{currentBusy && <span className="ai-chat-progress" role="status"><span className="ai-generating-dot" />{t('正在生成', 'Generating')}</span>}</header>
       {saveError && <div className="ai-save-error"><AiError error={saveError} /><button type="button" onClick={() => api.update(value => ({ ...value }))}>{t('重试保存', 'Retry save')}</button></div>}
       {typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window) && <p className="ai-preview-notice">{t('浏览器预览：模型连接、系统密钥和本地持久化请在桌面应用中使用。', 'Browser preview: use the desktop app for model connections, system credentials and local persistence.')}</p>}
-      <div className="ai-messages" ref={scrollRef} onScroll={event => { const node = event.currentTarget; setFollowBottom(node.scrollHeight - node.scrollTop - node.clientHeight < 80); }}>
+      <ThreadPrimitive.Viewport className="ai-messages" ref={scrollRef} onScroll={event => { const node = event.currentTarget; setFollowBottom(node.scrollHeight - node.scrollTop - node.clientHeight < 80); }}>
+        <LoadEarlierMessages />
         {!conversation?.messages.length ? <div className="ai-welcome"><div className="ai-welcome-icon"><BotMessageSquare size={30} strokeWidth={1.6} /></div><span className="ai-section-caption">{t('想法，从这里开始', 'A LITTLE SPACE TO THINK')}</span><h1>{t('今天，想一起做点什么？', 'What shall we work on today?')}</h1><p>{assistant?.description || t('提个问题，整理思路，或一起解决代码难题。', 'Ask a question, shape an idea, or work through some code.')}</p>{!availableProviders.length ? <div className="ai-welcome-setup"><button type="button" className="ai-primary" onClick={() => setSettings(true)}><Plus size={16} />{t('配置模型服务', 'Configure model service')}</button><span>{t('连接服务并启用模型，即可开始对话', 'Connect a service and enable a model to get started')}</span></div> : <div className="ai-suggestions">{[
           { Icon: Lightbulb, title: t('理清思路', 'Think it through'), text: t('帮我梳理一个问题的思路', 'Help me think through a problem'), hint: t('把复杂问题拆成清晰步骤', 'Break a problem into clear steps') },
           { Icon: Code2, title: t('读懂代码', 'Understand code'), text: t('解释一段代码的实现逻辑', 'Explain how a piece of code works'), hint: t('理解逻辑，找到改进方向', 'Understand the logic and improve it') },
           { Icon: Languages, title: t('润色表达', 'Find the words'), text: t('把这段文字翻译得更自然', 'Translate a passage naturally'), hint: t('让文字更自然、更准确', 'Make your writing feel natural') },
-        ].map(({ Icon, title, text, hint }) => <button type="button" key={text} onClick={() => { patchConversation({ draft: text }); inputRef.current?.focus(); }}><Icon size={19} strokeWidth={1.6} /><strong>{title}</strong><span>{hint}</span><ArrowUpRight size={14} className="ai-suggestion-arrow" /></button>)}</div>}<p className="ai-welcome-note"><ShieldCheck size={13} />{t('会话保存在本机，发送时才会连接所选模型服务', 'Conversations stay on this device until you send them to your selected service')}</p></div> : conversation.messages.map(message => <MessageView key={message.id} message={message} showThinking={shouldShowThinking(message, workspace.providers)} disabled={!!busy} lastAssistant={message.id === latestAssistantId} onEdit={message => setEdit({ id: message.id, content: message.content })} onFork={message => addConversation(forkConversation(conversation, message.id))} onVersion={index => patchConversation({ messages: conversation.messages.map(item => item.id === message.id ? selectAnswerVersion(item, index) : item) })} onQuote={text => { patchConversation({ draft: quoteDraft(conversation.draft, text) }); inputRef.current?.focus(); }} onRegenerate={() => confirmTarget(() => api.regenerate(conversation.id))} />)}
+        ].map(({ Icon, title, text, hint }) => <button type="button" key={text} onClick={() => { patchConversation({ draft: text }); inputRef.current?.focus(); }}><Icon size={19} strokeWidth={1.6} /><strong>{title}</strong><span>{hint}</span><ArrowUpRight size={14} className="ai-suggestion-arrow" /></button>)}</div>}<p className="ai-welcome-note"><ShieldCheck size={13} />{t('会话保存在本机，发送时才会连接所选模型服务', 'Conversations stay on this device until you send them to your selected service')}</p></div> : <ConversationMessages messages={conversation.messages} disabled={!!busy} latestAssistantId={latestAssistantId} actions={messageActions} />}
         {!!conversation?.tasks?.length && <TaskResults providers={workspace.providers} tasks={conversation.tasks} busy={!!busy} onQuote={text => { patchConversation({ draft: quoteDraft(conversation.draft, text) }); inputRef.current?.focus(); }} onSummary={text => { setSummarySeed(text); setTaskDialog('summary'); }} />}
         {conversation?.summary && <details className="ai-summary-context"><summary>{t('接续摘要', 'Continuation summary')}</summary><pre className="ai-template-preview">{conversation.summary}</pre></details>}
-      </div>
+      </ThreadPrimitive.Viewport>
       <div className="ai-compose-area"><AiError error={localError || error} />
-        {!followBottom && <button type="button" className="ai-back-bottom" onClick={() => { setFollowBottom(true); if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }}><ArrowDown size={14} />{t('回到底部', 'Back to bottom')}</button>}
+        {!followBottom && <ThreadPrimitive.ScrollToBottom type="button" className="ai-back-bottom" onClick={() => setFollowBottom(true)}><ArrowDown size={14} />{t('回到底部', 'Back to bottom')}</ThreadPrimitive.ScrollToBottom>}
         {busy && !currentBusy && <div className="ai-busy-notice">{t('另一会话正在生成，请先停止后再发送。', 'Another conversation is generating. Stop it before sending here.')}<button type="button" onClick={() => void run(api.stop)}>{t('停止生成', 'Stop generating')}</button></div>}
         {!!conversation?.draftAttachments.length && <div className="ai-attachments ai-draft-attachments">{conversation.draftAttachments.map(attachment => <AttachmentPreview key={attachment.id} attachment={attachment} onRemove={() => patchConversation({ draftAttachments: conversation.draftAttachments.filter(item => item.id !== attachment.id) })} />)}</div>}
         <div className="ai-chat-tools"><button type="button" disabled={!!busy || !conversation} onClick={() => { setSummarySeed(undefined); setTaskDialog('summary'); }}>{t('摘要接续', 'Summary continuation')}</button><button type="button" disabled={!!busy || !conversation || (!conversation.draft.trim() && !conversation.draftAttachments.length)} onClick={() => setTaskDialog('comparison')}>{t('多模型对比', 'Compare models')}</button></div>
@@ -255,21 +336,21 @@ export default function AiAssistantPage() {
             <button type="button" className="ai-icon-button" disabled={!conversation || currentBusy} {...iconLabel(t('会话参数', 'Conversation settings'))} onClick={() => setParametersOpen(true)}><SlidersHorizontal size={17} /></button>
             <button type="button" className="ai-icon-button" aria-label={t('提示词模板', 'Prompt templates')} onClick={() => setTemplatesOpen(true)}>/</button>
             <ConversationExport key={conversation?.id} onExport={format => void run(() => exportChat(format))} />
-            {currentBusy ? <button type="button" className="ai-stop-button" onClick={() => void run(api.stop)} {...iconLabel(t('停止生成', 'Stop generating'))}><Square size={13} fill="currentColor" />{t('停止', 'Stop')}</button> : <button type="button" className="ai-primary ai-send-button" disabled={!!busy || readingFiles || !conversation || (!conversation.draft.trim() && !conversation.draftAttachments.length)} onClick={send} {...iconLabel(t('发送', 'Send'))}><Send size={15} />{t('发送', 'Send')}</button>}
+            {currentBusy ? <button type="button" className="ai-stop-button" onClick={() => runtimeRef.current?.thread.cancelRun()} {...iconLabel(t('停止生成', 'Stop generating'))}><Square size={13} fill="currentColor" />{t('停止', 'Stop')}</button> : <button type="button" className="ai-primary ai-send-button" disabled={!!busy || readingFiles || !conversation || (!conversation.draft.trim() && !conversation.draftAttachments.length)} onClick={send} {...iconLabel(t('发送', 'Send'))}><Send size={15} />{t('发送', 'Send')}</button>}
             </div>
           </div>
         </section><div className="ai-compose-meta"><span>{readingFiles ? t('读取附件…', 'Reading attachments…') : t(`上下文 ${historyRounds}/${conversation?.parameters.historyRounds ?? 20} 轮`, `Context ${historyRounds}/${conversation?.parameters.historyRounds ?? 20} rounds`)}{model?.supportsImages && <span className="ai-image-capability"><Check size={12} />{t('支持图片', 'Images supported')}</span>}</span><span className="ai-compose-shortcut">{t('Enter 发送 · Shift + Enter 换行', 'Enter to send · Shift + Enter for a new line')}</span></div>
         <p className={budgetError ? 'ai-error-text' : 'ai-compose-note'} role={budgetError ? 'alert' : undefined}>{budgetError || budgetText}</p>
         <p className="ai-compose-note">{t('AI 内容仅供参考，请核实重要信息。', 'AI can make mistakes. Check important information.')}</p>
       </div>
-    </main>
+    </main></AiThread>
     {taskDialog && conversation && <TaskDialog key={`${taskDialog}-${conversation.id}-${summarySeed ?? ''}`} kind={taskDialog} conversation={summarySeed === undefined ? conversation : { ...conversation, summary: summarySeed }} providers={workspace.providers} busy={!!busy} onRun={plan => void run(() => api.runTask(conversation.id, plan))} onContinue={addConversation} onClose={() => setTaskDialog(null)} />}
     {templatesOpen && <PromptTemplates templates={workspace.templates ?? []} onChange={templates => api.update(value => ({ ...value, templates }))} onApply={text => { if (conversation) patchConversation({ draft: conversation.draft.startsWith('/') ? text : `${conversation.draft}${conversation.draft ? '\n\n' : ''}${text}` }); }} onClose={() => setTemplatesOpen(false)} />}
     {settings && <AiSettings providers={workspace.providers} backend={desktopAiBackend} onSave={api.saveProvider} onRemove={api.removeProvider} onClearHistory={api.clearHistory} onReset={api.reset} onClose={() => setSettings(false)} />}
     {assistantEditor && <AssistantDialog assistant={assistantEditor === 'new' ? undefined : assistantEditor} providers={workspace.providers} onClose={() => setAssistantEditor(null)} onSave={value => { const exists = workspace.assistants.some(item => item.id === value.id); api.update(current => ({ ...current, assistants: exists ? current.assistants.map(item => item.id === value.id ? value : item) : [...current.assistants, value] })); if (!exists) createConversation(value); }} />}
     {parametersOpen && conversation && <ConversationSettings conversation={conversation} model={model} onClose={() => setParametersOpen(false)} onSave={value => patchConversation(value)} />}
-    {edit && <AiDialog title={t('编辑消息', 'Edit message')} onClose={() => setEdit(null)}><form className="ai-form" onSubmit={event => { event.preventDefault(); if (!conversation || !edit.content.trim()) return; setConfirm({ title: t('替换后续消息？', 'Replace following messages?'), description: t('此操作将替换该条消息并删除它之后的全部对话，再发送给当前模型。', 'This replaces the message, deletes all following messages, and sends the edited message to the current model.'), alternative: { label: t('分叉后编辑', 'Fork and edit'), action: () => { const next = forkConversation(conversation, edit.id); next.draft = edit.content; addConversation(next); } }, action: async () => { const edited = edit; setEdit(null); confirmTarget(() => api.send(conversation.id, { editMessageId: edited.id, content: edited.content })); } }); }}><label>{t('编辑消息内容', 'Edit message content')}<textarea rows={7} value={edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} /></label><footer><button type="button" onClick={() => setEdit(null)}>{t('取消', 'Cancel')}</button><button type="submit" disabled={!!busy || !edit.content.trim()} className="ai-primary">{t('重新发送编辑消息', 'Resend edited message')}</button></footer></form></AiDialog>}
-    {confirm && <AiDialog title={confirm.title} onClose={() => setConfirm(null)}><div className="ai-form"><p>{confirm.description}</p><footer><button type="button" onClick={() => setConfirm(null)}>{t('取消', 'Cancel')}</button>{confirm.alternative && <button type="button" onClick={() => { const action = confirm.alternative!.action; setConfirm(null); action(); }}>{confirm.alternative.label}</button>}<button type="button" className="ai-primary" onClick={() => { const action = confirm.action; setConfirm(null); void run(action); }}>{t('确认', 'Confirm')}</button></footer></div></AiDialog>}
+    {edit && <AiDialog title={t('编辑消息', 'Edit message')} onClose={() => setEdit(null)}><form className="ai-form" onSubmit={event => { event.preventDefault(); if (!conversation || !edit.content.trim()) return; setConfirm({ title: t('替换后续消息？', 'Replace following messages?'), description: t('此操作将替换该条消息并删除它之后的全部对话，再发送给当前模型。', 'This replaces the message, deletes all following messages, and sends the edited message to the current model.'), alternative: { label: t('分叉后编辑', 'Fork and edit'), action: () => { const next = forkConversation(conversation, edit.id); next.draft = edit.content; addConversation(next); } }, action: async () => { const edited = edit; setEdit(null); runtimeRef.current?.thread.append({ role: 'user', sourceId: edited.id, parentId: runtimeRef.current?.thread.getMessageById(edited.id).getState().parentId ?? null, content: [{ type: 'text', text: edited.content }] }); } }); }}><label>{t('编辑消息内容', 'Edit message content')}<textarea rows={7} value={edit.content} onChange={event => setEdit({ ...edit, content: event.target.value })} /></label><footer><button type="button" onClick={() => setEdit(null)}>{t('取消', 'Cancel')}</button><button type="submit" disabled={!!busy || !edit.content.trim()} className="ai-primary">{t('重新发送编辑消息', 'Resend edited message')}</button></footer></form></AiDialog>}
+    {confirm && <AiDialog title={confirm.title} onClose={closeConfirm}><div className="ai-form"><p>{confirm.description}</p><footer><button type="button" onClick={closeConfirm}>{t('取消', 'Cancel')}</button>{confirm.alternative && <button type="button" onClick={() => { const action = confirm.alternative!.action; setConfirm(null); action(); }}>{confirm.alternative.label}</button>}<button type="button" className="ai-primary" onClick={() => { const action = confirm.action; setConfirm(null); void run(action); }}>{t('确认', 'Confirm')}</button></footer></div></AiDialog>}
     {rename && <AiDialog title={t('重命名会话', 'Rename conversation')} onClose={() => setRename(null)}><form className="ai-form" onSubmit={event => { event.preventDefault(); if (rename.title.trim()) { patchConversation({ title: rename.title.trim() }, rename.id); setRename(null); } }}><label>{t('会话标题', 'Conversation title')}<input required maxLength={120} value={rename.title} onChange={event => setRename({ ...rename, title: event.target.value })} /></label><footer><button type="button" onClick={() => setRename(null)}>{t('取消', 'Cancel')}</button><button type="submit" className="ai-primary">{t('保存', 'Save')}</button></footer></form></AiDialog>}
     {deleteAssistant && <AiDialog title={t('删除助手', 'Delete assistant')} onClose={() => setDeleteAssistant(null)}><div className="ai-form"><p>{t('请选择保留并转移会话，或一并删除会话及附件。无法撤销。', 'Transfer this assistant’s conversations, or delete them and their attachments together. This cannot be undone.')}</p><label>{t('转移会话至', 'Transfer conversations to')}<select value={transferTarget} onChange={event => setTransferTarget(event.target.value)}>{workspace.assistants.filter(item => item.id !== deleteAssistant.id).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><footer><button type="button" onClick={() => setDeleteAssistant(null)}>{t('取消', 'Cancel')}</button>{[false, true].map(removeHistory => <button type="button" className={removeHistory ? 'ai-danger' : 'ai-primary'} key={String(removeHistory)} onClick={() => { api.update(value => ({ ...value, assistants: value.assistants.filter(item => item.id !== deleteAssistant.id), conversations: removeHistory ? value.conversations.filter(item => item.assistantId !== deleteAssistant.id) : value.conversations.map(item => item.assistantId === deleteAssistant.id ? { ...item, assistantId: transferTarget } : item), activeAssistantId: transferTarget, activeConversationId: undefined })); setDeleteAssistant(null); }}>{removeHistory ? t('连同历史删除', 'Delete with history') : t('转移并删除助手', 'Transfer and delete assistant')}</button>)}</footer></div></AiDialog>}
   </div>;

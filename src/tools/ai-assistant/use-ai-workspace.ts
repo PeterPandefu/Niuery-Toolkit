@@ -6,12 +6,13 @@ import { buildBudgetedContext } from './context';
 import { retainAnswerVersion } from './branches';
 import { validateAttachments } from './attachments';
 import { aiUpdatePending, subscribeAiUpdate } from './update-lock';
-import type { AiBackend, AiConversation, AiMessage, AiProvider, AiRequest, AiStreamEvent, AiTaskPlan, AiWorkspace } from './types';
+import type { AiAttachment, AiBackend, AiConversation, AiMessage, AiProvider, AiRequest, AiStreamEvent, AiTaskPlan, AiWorkspace } from './types';
 
 type Busy = Pick<AiRequest, 'requestId' | 'conversationId' | 'messageId'>;
 type ActiveRequest = Busy & { previous?: AiMessage; terminated: boolean; startedAt: number; taskId?: string };
 type Updater = (workspace: AiWorkspace) => AiWorkspace;
-export interface AiSendOptions { editMessageId?: string; content?: string }
+export interface AiSendOptions { editMessageId?: string; content?: string; attachments?: AiAttachment[]; expectedTarget?: string }
+export type AiSendOutcome = { type: 'not-sent'; reason: string } | { type: 'settled'; requestId: string };
 const describeError = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
 export function useAiWorkspace(backend: AiBackend) {
@@ -197,11 +198,11 @@ export function useAiWorkspace(backend: AiBackend) {
     return () => { disposed = true; if (unlisten) void queue.current.then(unlisten); };
   }, [backend, finish, persist, interruptTasks]);
 
-  const run = useCallback(async (conversationId: string, options: AiSendOptions = {}, regenerate = false) => {
-    if (exiting.current || aiUpdatePending()) return;
-    if (!initialized.current) { setError('AI 数据尚未加载，请先恢复数据。'); return; }
-    if (active.current || cancelling.current || batch.current) { setError('请先停止当前生成，再发送其他消息。'); return; }
-    if (mutationsPending.current) { setError('正在保存或修改 AI 配置，请完成后再发送消息。'); return; }
+  const run = useCallback(async (conversationId: string, options: AiSendOptions = {}, regenerate = false): Promise<AiSendOutcome> => {
+    if (exiting.current || aiUpdatePending()) return { type: 'not-sent', reason: '应用正在保存退出或更新' };
+    if (!initialized.current) { setError('AI 数据尚未加载，请先恢复数据。'); return { type: 'not-sent', reason: 'AI 数据尚未加载' }; }
+    if (active.current || cancelling.current || batch.current) { setError('请先停止当前生成，再发送其他消息。'); return { type: 'not-sent', reason: '已有生成任务' }; }
+    if (mutationsPending.current) { setError('正在保存或修改 AI 配置，请完成后再发送消息。'); return { type: 'not-sent', reason: '配置正在保存' }; }
     setError(null);
     let request: ActiveRequest | undefined;
     let unsavedDraft: Pick<AiConversation, 'draft' | 'draftAttachments'> | undefined;
@@ -214,6 +215,7 @@ export function useAiWorkspace(backend: AiBackend) {
       const model = provider?.models.find(item => item.id === chat.modelId);
       if (!provider || !model) throw new Error('请先配置并选择可用的模型服务。');
       const target = providerTarget(provider);
+      if (options.expectedTarget && options.expectedTarget !== target) throw new Error('目标服务已更改，请重新确认发送。');
       if (chat.approvedTargets.length > 0 && !chat.approvedTargets.includes(target)) throw new Error('目标服务已更改，请先确认将消息和历史发送到此服务。');
 
       let messages = chat.messages;
@@ -233,9 +235,10 @@ export function useAiWorkspace(backend: AiBackend) {
         messages = [...messages.slice(0, editIndex), { ...original, content, status: 'complete' as const }];
       } else {
         const content = options.content ?? chat.draft;
-        if (!content.trim() && !chat.draftAttachments.length) throw new Error('请输入消息或添加附件。');
-        validateAttachments(chat.draftAttachments);
-        messages = [...messages, { id: nanoid(), role: 'user', content, attachments: [...chat.draftAttachments], createdAt: Date.now(), status: 'complete' }];
+        const attachments = options.attachments ?? chat.draftAttachments;
+        if (!content.trim() && !attachments.length) throw new Error('请输入消息或添加附件。');
+        validateAttachments(attachments);
+        messages = [...messages, { id: nanoid(), role: 'user', content, attachments: [...attachments], createdAt: Date.now(), status: 'complete' }];
       }
       const budget = buildBudgetedContext({ ...chat, messages }, model);
       const context = budget.messages;
@@ -247,18 +250,22 @@ export function useAiWorkspace(backend: AiBackend) {
       const reply: AiMessage = { id: request.messageId, role: 'assistant', content: '', attachments: [], createdAt: Date.now(),
         status: 'waiting', providerId: provider.id, modelId: model.id };
       const firstQuestion = messages.find(message => message.role === 'user');
+      const submittedAttachments = options.attachments ?? chat.draftAttachments;
+      const clearDraft = !regenerate && !options.editMessageId
+        && (options.content ?? chat.draft) === chat.draft
+        && JSON.stringify(submittedAttachments) === JSON.stringify(chat.draftAttachments);
       const nextChat: AiConversation = { ...chat, messages: [...messages, reply],
-        draft: regenerate || options.editMessageId ? chat.draft : '',
-        draftAttachments: regenerate || options.editMessageId ? chat.draftAttachments : [],
+        draft: clearDraft ? '' : chat.draft,
+        draftAttachments: clearDraft ? [] : chat.draftAttachments,
         title: chat.title === '新会话' && firstQuestion ? (firstQuestion.content.trim().slice(0, 40) || firstQuestion.attachments[0]?.name || '新会话') : chat.title,
         approvedTargets: chat.approvedTargets.includes(target) ? chat.approvedTargets : [...chat.approvedTargets, target], updatedAt: Date.now() };
-      if (!regenerate && !options.editMessageId) unsavedDraft = { draft: options.content ?? chat.draft, draftAttachments: chat.draftAttachments };
+      if (clearDraft) unsavedDraft = { draft: chat.draft, draftAttachments: chat.draftAttachments };
       changeConversation(conversationId, () => nextChat);
       active.current = request;
       setBusy({ requestId: request.requestId, conversationId, messageId: request.messageId });
       // Never start the network until input and attachment copies have reached disk.
       await persist();
-      if (active.current !== request || request.terminated || !mounted.current) return;
+      if (active.current !== request || request.terminated || !mounted.current) return { type: 'settled', requestId: request.requestId };
       const running = request;
       const onEvent = (event: AiStreamEvent) => {
         if (active.current !== running || running.terminated || event.requestId !== running.requestId
@@ -297,10 +304,11 @@ export function useAiWorkspace(backend: AiBackend) {
         if (mounted.current) setError(text);
       }
     }
+    return request ? { type: 'settled', requestId: request.requestId } : { type: 'not-sent', reason: '请求未发送' };
   }, [backend, changeConversation, finish, persist, saveQuietly]);
 
   const send = useCallback((id: string, options?: AiSendOptions) => run(id, options), [run]);
-  const regenerate = useCallback((id: string) => run(id, {}, true), [run]);
+  const regenerate = useCallback((id: string, options: AiSendOptions = {}) => run(id, options, true), [run]);
 
   const runTask = useCallback(async (conversationId: string, plan: AiTaskPlan) => {
     if (!initialized.current || exiting.current || aiUpdatePending() || active.current || cancelling.current || batch.current || mutationsPending.current) throw new Error('请先完成当前操作，再运行任务。');

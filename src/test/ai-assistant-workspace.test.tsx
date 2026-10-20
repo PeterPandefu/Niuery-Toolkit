@@ -43,6 +43,16 @@ async function setup(workspace = fixture()) {
 }
 
 describe('AI workspace lifecycle', () => {
+  it('sends the captured text and attachments even when the user changes the next draft', async () => {
+    const { result, fake, chatId } = await setup();
+    const attachments = [{ id: 'captured', name: 'captured.txt', kind: 'text' as const, mimeType: 'text/plain', data: 'captured data', size: 13 }];
+    act(() => result.current.update(value => ({ ...value, conversations: value.conversations.map(chat => ({ ...chat, draft: 'Next draft', draftAttachments: [] })) })));
+    act(() => { void result.current.send(chatId, { content: 'Captured question', attachments }); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    expect(fake.request?.messages[0]).toMatchObject({ content: 'Captured question', attachments: [{ id: 'captured' }] });
+    expect(result.current.workspace.conversations[0].draft).toBe('Next draft');
+    act(() => fake.event('done'));
+  });
   it('keeps reset workspace intact when a cancelled comparison returns late', async () => {
     const workspace = fixture(); workspace.providers[0].models.push({ id: 'm2', name: 'Second', supportsImages: false });
     const { result, fake, chatId } = await setup(workspace);

@@ -1,7 +1,8 @@
 mod credentials;
-mod protocol;
+mod engine;
 mod storage;
 mod types;
+mod validation;
 pub use types::*;
 
 use futures_util::StreamExt;
@@ -209,7 +210,7 @@ pub async fn ai_save_provider(
     mut provider: Provider,
     api_key: Option<String>,
 ) -> Result<Provider, String> {
-    protocol::validate_provider(&mut provider)?;
+    validation::validate_provider(&mut provider)?;
     let _guard = state.storage.lock().await;
     let root = directory(&app)?;
     let namespace = app.config().identifier.clone();
@@ -338,7 +339,11 @@ fn status(response: &reqwest::Response) -> Result<(), String> {
     if status.is_success() {
         return Ok(());
     }
-    let message = match status.as_u16() {
+    Err(status_code(status.as_u16()))
+}
+
+fn status_code(status: u16) -> String {
+    let message = match status {
         300..=399 => "模型服务返回了重定向。请直接配置最终服务地址，API Key 不会转发到重定向地址",
         401 | 403 => "服务鉴权失败，请检查 API Key 和访问权限",
         404 => "接口或模型不存在，请检查服务地址、协议和模型 ID；Ollama 需使用已安装的模型",
@@ -348,7 +353,7 @@ fn status(response: &reqwest::Response) -> Result<(), String> {
         400 | 422 => "模型拒绝了请求，请检查模型 ID、上下文长度、图片能力和模型参数",
         _ => "模型服务暂时不可用，请检查服务状态并手动重试",
     };
-    Err(format!("{message}（HTTP {}）", status.as_u16()))
+    format!("{message}（HTTP {status}）")
 }
 
 fn authorize(builder: reqwest::RequestBuilder, key: Option<&str>) -> reqwest::RequestBuilder {
@@ -364,7 +369,7 @@ async fn fetch_models(provider: &Provider, key: Option<&str>) -> Result<Vec<Mode
     } else {
         "models"
     };
-    let url = protocol::endpoint(&provider.base_url, endpoint)?;
+    let url = validation::endpoint(&provider.base_url, endpoint)?;
     let work = async {
         let response = authorize(client()?.get(url), key)
             .send()
@@ -530,74 +535,7 @@ async fn stream_with_provider(
     channel: &Channel<StreamEvent>,
     cancel: &mut watch::Receiver<bool>,
 ) -> Result<Outcome, String> {
-    let body = protocol::payload(request, provider)?;
-    let suffix = if provider.kind == "ollama" {
-        "api/chat"
-    } else {
-        "chat/completions"
-    };
-    let url = protocol::endpoint(&provider.base_url, suffix)?;
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
-    let response = tokio::select! {
-        biased;
-        _ = cancel.changed() => return Ok(Outcome::Stopped),
-        result = tokio::time::timeout_at(deadline, authorize(client()?.post(url).json(&body), key).send()) => result.map_err(|_| "等待模型首字节超时（60 秒），请手动重试".to_string())?.map_err(|_| "连接模型服务失败，请检查服务地址、网络或 Ollama 是否运行".to_string())?,
-    };
-    status(&response)?;
-    let mut stream = response.bytes_stream();
-    let mut decoder = protocol::Decoder::new(&provider.kind);
-    let mut received = false;
-    loop {
-        let expires = if received {
-            tokio::time::Instant::now() + Duration::from_secs(120)
-        } else {
-            deadline
-        };
-        let item = tokio::select! {
-            biased;
-            _ = cancel.changed() => return Ok(Outcome::Stopped),
-            result = tokio::time::timeout_at(expires, stream.next()) => result.map_err(|_| if received { "模型输出空闲超时（120 秒），已接收内容已保留".to_string() } else { "等待模型首字节超时（60 秒），请手动重试".to_string() })?,
-        };
-        let deltas = match item {
-            Some(Ok(bytes)) => {
-                received = true;
-                decoder.push(&bytes)?
-            }
-            Some(Err(_)) => {
-                return Err("模型连接在输出过程中断开，已接收内容已保留，可重新生成".into())
-            }
-            None => decoder.finish()?,
-        };
-        for delta in deltas {
-            if *cancel.borrow() {
-                return Ok(Outcome::Stopped);
-            }
-            channel
-                .send(request.event("delta", Some(delta), None))
-                .map_err(|_| "AI 页面连接已关闭，生成已取消".to_string())?;
-        }
-        let thinking = decoder.take_thinking();
-        for text in thinking {
-            channel
-                .send(request.event("thinking", Some(text), None))
-                .map_err(|_| "AI 页面连接已关闭".to_string())?;
-        }
-        if let Some(error) = decoder.take_error() {
-            return Err(error);
-        }
-        let metadata = decoder.metadata();
-        if metadata.finish_reason.is_some() || metadata.usage.is_some() {
-            let mut event = request.event("metadata", None, None);
-            event.finish_reason = metadata.finish_reason;
-            event.usage = metadata.usage;
-            channel
-                .send(event)
-                .map_err(|_| "AI 页面连接已关闭".to_string())?;
-        }
-        if decoder.done {
-            return Ok(Outcome::Done);
-        }
-    }
+    engine::generate(provider, key, request, channel, cancel).await
 }
 
 #[tauri::command]

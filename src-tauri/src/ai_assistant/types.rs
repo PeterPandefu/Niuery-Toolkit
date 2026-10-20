@@ -256,12 +256,6 @@ pub struct Usage {
     pub total_tokens: u64,
 }
 
-#[derive(Clone, Default)]
-pub struct StreamMetadata {
-    pub finish_reason: Option<String>,
-    pub usage: Option<Usage>,
-}
-
 impl Request {
     pub fn event(&self, kind: &str, text: Option<String>, error: Option<String>) -> StreamEvent {
         StreamEvent {

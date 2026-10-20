@@ -4,10 +4,10 @@ use super::*;
 fn ai_assistant_rejects_invalid_model_capacity_metadata() {
     let mut provider = provider_at("http://localhost", "openai");
     provider.models[0].context_window = Some(0);
-    assert!(protocol::validate_provider(&mut provider).is_err());
+    assert!(validation::validate_provider(&mut provider).is_err());
     provider.models[0].context_window = Some(100);
     provider.models[0].max_output_tokens = Some(101);
-    assert!(protocol::validate_provider(&mut provider).is_err());
+    assert!(validation::validate_provider(&mut provider).is_err());
 }
 
 #[test]
@@ -71,45 +71,49 @@ async fn ai_assistant_model_diagnostic_uses_generation_without_conversation_hist
     server.await.unwrap();
 }
 
-#[test]
-fn ai_assistant_stream_retains_finish_reason_and_actual_usage() {
-    let mut decoder = protocol::Decoder::new("openai");
-    decoder.push(b"data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"length\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":20,\"total_tokens\":30}}\n\ndata: [DONE]\n\n").unwrap();
-    let metadata = decoder.metadata();
-    assert_eq!(metadata.finish_reason.as_deref(), Some("length"));
-    assert_eq!(metadata.usage.unwrap().total_tokens, 30);
-    let mut local = protocol::Decoder::new("ollama");
-    local.push(b"{\"message\":{\"content\":\"ok\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":4,\"eval_count\":6}\n").unwrap();
-    assert_eq!(local.metadata().usage.unwrap().total_tokens, 10);
-}
-
-#[test]
-fn ai_assistant_stream_extracts_thinking_separately_from_answer() {
-    let mut decoder = protocol::Decoder::new("openai");
-    decoder.push(b"data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"check constraints\",\"content\":\"answer\"}}]}\n\n").unwrap();
-    assert_eq!(decoder.take_thinking(), vec!["check constraints"]);
+#[tokio::test]
+async fn ai_assistant_stream_retains_finish_reason_and_actual_usage() {
+    let (events, result) = stream_fixture("openai", "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"length\"}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":20,\"total_tokens\":30}}\n\ndata: [DONE]\n\n").await;
+    assert!(result.is_ok());
+    assert_eq!(events.last().unwrap()["finishReason"], "length");
     assert_eq!(
-        decoder.push(b"data: [DONE]\n\n").unwrap(),
-        Vec::<String>::new()
+        events
+            .iter()
+            .rev()
+            .find(|event| event["type"] == "metadata")
+            .unwrap()["usage"]["totalTokens"],
+        30
     );
-    let mut ollama = protocol::Decoder::new("ollama");
-    ollama
-        .push(b"{\"message\":{\"thinking\":\"plan\",\"content\":\"done\"},\"done\":false}\n")
-        .unwrap();
-    assert_eq!(ollama.take_thinking(), vec!["plan"]);
+    let (events, result) = stream_fixture("ollama", "{\"message\":{\"content\":\"ok\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":4,\"eval_count\":6}\n").await;
+    assert!(result.is_ok());
+    assert_eq!(
+        events
+            .iter()
+            .rev()
+            .find(|event| event["type"] == "metadata")
+            .unwrap()["usage"]["totalTokens"],
+        10
+    );
 }
 
-#[test]
-fn ai_assistant_thinking_survives_same_chunk_error_and_utf8_splits() {
-    let mut decoder = protocol::Decoder::new("openai");
-    for byte in "data: {\"choices\":[{\"delta\":{\"reasoning\":\"检查约束\"}}]}\n\n".as_bytes()
-    {
-        assert!(decoder.push(&[*byte]).unwrap().is_empty());
+#[tokio::test]
+async fn ai_assistant_stream_extracts_thinking_separately_from_answer() {
+    for (kind, body) in [
+        ("openai", "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"plan\",\"content\":\"answer\"}}]}\n\ndata: [DONE]\n\n"),
+        ("ollama", "{\"message\":{\"thinking\":\"plan\",\"content\":\"answer\"},\"done\":true}\n"),
+    ] {
+        let (events, result) = stream_fixture(kind, body).await;
+        assert!(result.is_ok(), "{kind}: {:?}", result.err());
+        assert_eq!(event_text(&events, "thinking"), "plan");
+        assert_eq!(event_text(&events, "delta"), "answer");
     }
-    assert_eq!(decoder.take_thinking(), vec!["检查约束"]);
-    assert!(decoder.push(b"data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"preserve\"}}]}\n\ndata: {\"error\":\"failed\"}\n\n").is_ok());
-    assert_eq!(decoder.take_thinking(), vec!["preserve"]);
-    assert!(decoder.take_error().is_some());
+}
+
+#[tokio::test]
+async fn ai_assistant_thinking_survives_same_chunk_error_and_utf8_splits() {
+    let (events, result) = stream_fixture("openai", "data: {\"choices\":[{\"delta\":{\"reasoning\":\"检查约束\"}}]}\n\ndata: {\"error\":\"failed\"}\n\n").await;
+    assert!(result.is_err());
+    assert_eq!(event_text(&events, "thinking"), "检查约束");
 }
 
 #[test]
@@ -127,7 +131,7 @@ fn ai_assistant_thinking_and_versions_survive_storage_without_request_replay() {
     let mut request = request();
     request.messages = restored.conversations[0].messages.clone();
     assert!(
-        !protocol::payload(&request, &provider_at("http://localhost", "openai"))
+        !engine::payload_for_test(&provider_at("http://localhost", "openai"), &request)
             .unwrap()
             .to_string()
             .contains("thought")
@@ -173,50 +177,49 @@ fn ai_assistant_payload_honors_model_capabilities() {
     let mut input = request();
     input.parameters.temperature = Some(0.5);
     input.parameters.max_output_tokens = Some(30);
-    let payload = protocol::payload(&input, &provider).unwrap();
+    let payload = engine::payload_for_test(&provider, &input).unwrap();
     assert_eq!(payload["max_completion_tokens"], 20);
     assert!(payload.get("max_tokens").is_none());
     assert!(payload.get("temperature").is_none());
     assert_eq!(payload["stream_options"]["include_usage"], true);
 }
 
-#[test]
-fn ai_assistant_streams_split_utf8_and_multiline_sse() {
-    let mut decoder = protocol::Decoder::new("openai");
-    let stream =
-        "data: {\"choices\":\ndata: [{\"delta\":{\"content\":\"你好\"}}]}\r\n\r\ndata: [DONE]\n\n";
-    let mut deltas = Vec::new();
-    for byte in stream.as_bytes() {
-        deltas.extend(decoder.push(&[*byte]).unwrap());
-    }
-    assert_eq!(deltas, vec!["你好"]);
-    assert!(decoder.finish().is_ok());
+#[tokio::test]
+async fn ai_assistant_streams_split_utf8_and_multiline_sse() {
+    let (events, result) = stream_fixture(
+        "openai",
+        "data: {\"choices\":\ndata: [{\"delta\":{\"content\":\"你好\"}}]}\r\n\r\ndata: [DONE]\n\n",
+    )
+    .await;
+    assert!(result.is_ok());
+    assert_eq!(event_text(&events, "delta"), "你好");
 }
 
-#[test]
-fn ai_assistant_ollama_requires_terminal_marker() {
-    let mut decoder = protocol::Decoder::new("ollama");
-    assert_eq!(
-        decoder
-            .push(b"{\"message\":{\"content\":\"ok\"},\"done\":false}\n")
-            .unwrap(),
-        vec!["ok"]
-    );
-    assert!(decoder.finish().is_err());
-    assert!(decoder.push(b"{\"done\":true}\n").unwrap().is_empty());
-    assert!(decoder.finish().is_ok());
+#[tokio::test]
+async fn ai_assistant_ollama_requires_terminal_marker() {
+    let (events, result) = stream_fixture(
+        "ollama",
+        "{\"message\":{\"content\":\"ok\"},\"done\":false}\n",
+    )
+    .await;
+    assert!(result.is_err());
+    assert_eq!(event_text(&events, "delta"), "ok");
+    assert!(stream_fixture("ollama", "{\"done\":true}\n")
+        .await
+        .1
+        .is_ok());
 }
 
 #[test]
 fn ai_assistant_urls_preserve_configured_prefix_and_reject_secrets() {
     assert_eq!(
-        protocol::endpoint("https://example.com/custom/v1/", "chat/completions")
+        validation::endpoint("https://example.com/custom/v1/", "chat/completions")
             .unwrap()
             .as_str(),
         "https://example.com/custom/v1/chat/completions"
     );
-    assert!(protocol::endpoint("https://user:pass@example.com/v1", "models").is_err());
-    assert!(protocol::endpoint("file:///tmp/key", "models").is_err());
+    assert!(validation::endpoint("https://user:pass@example.com/v1", "models").is_err());
+    assert!(validation::endpoint("file:///tmp/key", "models").is_err());
     assert!(storage::safe_id("../escape").is_err());
     assert!(storage::safe_id("chat-123").is_ok());
 }
@@ -249,21 +252,22 @@ fn ai_assistant_storage_round_trip_backup_and_corruption_protection() {
     std::fs::remove_dir_all(root).unwrap();
 }
 
-fn provider_at(base: &str, kind: &str) -> Provider {
+pub(super) fn provider_at(base: &str, kind: &str) -> Provider {
     serde_json::from_value(serde_json::json!({"id":"p1","name":"Mock","kind":kind,"baseUrl":base,"hasApiKey":false,"models":[{"id":"model","name":"Model","supportsImages":false}],"enabled":true})).unwrap()
 }
 
-fn request() -> Request {
+pub(super) fn request() -> Request {
     serde_json::from_value(serde_json::json!({"requestId":"r1","conversationId":"chat1","messageId":"reply1","providerId":"p1","modelId":"model","systemPrompt":"system","parameters":{"historyRounds":20},"messages":[{"id":"m1","role":"user","content":"question","attachments":[],"createdAt":1,"status":"complete"}]})).unwrap()
 }
 
-async fn mock_server(
-    response: &'static [u8],
+pub(super) async fn mock_server(
+    response: &[u8],
     hold: bool,
 ) -> (String, tokio::task::JoinHandle<Vec<u8>>) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
+    let response = response.to_vec();
     let task = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.unwrap();
         let mut request = Vec::new();
@@ -290,7 +294,7 @@ async fn mock_server(
             }
             assert!(request.len() < 1024 * 1024);
         }
-        stream.write_all(response).await.unwrap();
+        stream.write_all(&response).await.unwrap();
         if hold {
             tokio::time::sleep(Duration::from_secs(3)).await;
         }
@@ -338,7 +342,22 @@ async fn ai_assistant_real_http_streams_and_cancel_waiting_body() {
         .unwrap(),
         Outcome::Done
     ));
-    assert_eq!(captured.lock().unwrap().len(), 1);
+    let captured = captured.lock().unwrap();
+    let events: Vec<serde_json::Value> = captured
+        .iter()
+        .filter_map(|body| match body {
+            tauri::ipc::InvokeResponseBody::Json(body) => serde_json::from_str(body).ok(),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event["type"] == "delta")
+            .count(),
+        1
+    );
+    drop(captured);
     server.await.unwrap();
     let (base, stalled) = mock_server(
         b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n",
@@ -403,11 +422,11 @@ fn ai_assistant_deletion_reclaims_exclusive_attachment_and_backup() {
 fn ai_assistant_payload_omits_unset_parameters_and_blocks_partial_answers() {
     let mut value = request();
     let provider = provider_at("http://localhost:11434", "ollama");
-    let body = protocol::payload(&value, &provider).unwrap();
+    let body = engine::payload_for_test(&provider, &value).unwrap();
     assert!(body.get("options").is_none());
     value.messages[0].role = "assistant".into();
     value.messages[0].status = "stopped".into();
-    assert!(protocol::payload(&value, &provider).is_err());
+    assert!(engine::payload_for_test(&provider, &value).is_err());
 }
 
 #[test]
@@ -433,10 +452,10 @@ fn ai_assistant_future_version_is_not_silently_replaced_by_backup() {
 #[test]
 fn ai_assistant_backend_rejects_disguised_binary_text_and_wrong_extension() {
     let mut attachment: Attachment = serde_json::from_value(serde_json::json!({"id":"a1","name":"binary.txt","kind":"text","mimeType":"text/plain","size":3,"data":"a\u{1}b"})).unwrap();
-    assert!(protocol::validate_attachments(&[attachment.clone()]).is_err());
+    assert!(validation::validate_attachments(&[attachment.clone()]).is_err());
     attachment.data = "pdf".into();
     attachment.name = "binary.pdf".into();
-    assert!(protocol::validate_attachments(&[attachment]).is_err());
+    assert!(validation::validate_attachments(&[attachment]).is_err());
 }
 
 #[cfg(windows)]
@@ -549,4 +568,85 @@ fn ai_assistant_disposing_listener_abandons_pending_exit_instead_of_hanging() {
     assert!(state.set_ready(false));
     assert!(matches!(state.prepare(Some(0)), ExitDecision::Allow));
     assert_eq!(state.complete(true), None);
+}
+
+fn event_text(events: &[serde_json::Value], kind: &str) -> String {
+    events
+        .iter()
+        .filter(|event| event["type"] == kind)
+        .filter_map(|event| event["text"].as_str())
+        .collect()
+}
+async fn stream_fixture(
+    kind: &str,
+    body: &str,
+) -> (Vec<serde_json::Value>, Result<Outcome, String>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}/custom", listener.local_addr().unwrap());
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: {}\r\nConnection: close\r\n\r\n{}",
+        if kind == "ollama" {
+            "application/x-ndjson"
+        } else {
+            "text/event-stream"
+        },
+        body
+    );
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut input = Vec::new();
+        loop {
+            let mut chunk = [0; 8192];
+            let count = socket.read(&mut chunk).await.unwrap();
+            if count == 0 {
+                break;
+            }
+            input.extend_from_slice(&chunk[..count]);
+            if let Some(end) = input.windows(4).position(|bytes| bytes == b"\r\n\r\n") {
+                let headers = String::from_utf8_lossy(&input[..end]);
+                let length = headers
+                    .lines()
+                    .find_map(|line| {
+                        line.to_ascii_lowercase()
+                            .strip_prefix("content-length:")
+                            .and_then(|value| value.trim().parse::<usize>().ok())
+                    })
+                    .unwrap_or(0);
+                if input.len() >= end + 4 + length {
+                    break;
+                }
+            }
+        }
+        // Emit each byte separately to exercise split multibyte UTF-8 and framing.
+        for byte in response.as_bytes() {
+            if socket.write_all(&[*byte]).await.is_err() {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    });
+    let events = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let shared = events.clone();
+    let channel = Channel::new(move |body| {
+        if let tauri::ipc::InvokeResponseBody::Json(body) = body {
+            shared
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str::<serde_json::Value>(&body).unwrap());
+        }
+        Ok(())
+    });
+    let (_sender, mut cancel) = watch::channel(false);
+    let result = stream_with_provider(
+        &provider_at(&base, kind),
+        None,
+        &request(),
+        &channel,
+        &mut cancel,
+    )
+    .await;
+    server.await.unwrap();
+    let collected = events.lock().unwrap().clone();
+    (collected, result)
 }

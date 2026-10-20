@@ -4,6 +4,7 @@ version = "1.3.0"
 description = "Offline-first developer toolkit"
 authors = ["you"]
 edition = "2021"
+rust-version = "1.97.1"
 
 [lib]
 name = "niuery_toolkit_lib"
@@ -36,6 +37,8 @@ sha2 = "0.10"
 nanoid = "0.4"
 sysinfo = "0.35"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "json", "stream"] }
+rig-core = { version = "=0.45.0", default-features = false }
+rig-reqwest = { version = "=0.45.0", default-features = false, features = ["rustls"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
