@@ -18,6 +18,7 @@
 .flow-divider { height: 22px; width: 1px; background: #e3e7eb; margin: 0 7px; }
 .flow-toolbar-spacer { flex: 1; }
 .flow-export-btn { height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; font-size: 12px; color: #1769dc; border: 1px solid #cbdcf9; border-radius: 5px; background: #f5f9ff; }
+.flow-template-select { height: 30px; border: 1px solid #cbdcf9; border-radius: 5px; color: #1769dc; background: #f5f9ff; font-size: 12px; }
 .flow-main { display: flex; min-height: 0; }
 .flow-sidebar { width: 220px; flex: 0 0 220px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid #dfe3e8; overflow-y: auto; }
 .flow-sidebar-search { margin: 14px 14px 11px; height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 9px; color: #94a3b8; border: 1px solid #dce2e8; border-radius: 5px; background: #fafbfc; }
@@ -83,4 +84,68 @@
 .flow-status-dot { width: 6px; height: 6px; display: inline-block; border-radius: 999px; background: #22c55e; }
 .flow-status-spacer { flex: 1; }
 .flow-statusbar button { display: flex; align-items: center; gap: 4px; padding: 0; color: #7d8a9a; border: 0; background: transparent; font-size: 11px; }
+.flow-page-tabs { display: flex; align-items: center; gap: 3px; max-width: 360px; overflow-x: auto; }
+.flow-page-tabs button { padding: 2px 7px; border-radius: 3px; }
+.flow-page-tabs button.active { color: #1769dc; background: #edf4ff; }
 @media (max-width: 900px) { .flow-sidebar { width: 182px; flex-basis: 182px; } .flow-inspector { width: 205px; flex-basis: 205px; } .flow-menu-row { gap: 0; } .flow-brand { min-width: auto; } }
+
+/* Structured flowchart editor: shape bounds and ports share one coordinate system. */
+.flow-board { color:#263238; background:#f3f4f6; outline:none; }
+.flow-board button { cursor:pointer; }
+.flow-board button:disabled { cursor:default; opacity:.4; }
+.flow-board button:focus-visible, .flow-board select:focus-visible, .flow-board input:focus-visible, .flow-board textarea:focus-visible { outline:2px solid #1769dc; outline-offset:2px; }
+.flow-topbar { height:52px; gap:18px; }
+.flow-help-button { margin-left:auto; border:0; background:transparent; color:#526173; font-size:12px; }
+.flow-menu-anchor { position:relative; }
+.flow-dropdown { position:absolute; top:100%; left:0; min-width:154px; padding:5px; display:flex; flex-direction:column; z-index:50; background:#fff; border:1px solid #d5dce6; border-radius:6px; box-shadow:0 6px 20px #14223924; }
+.flow-menu-anchor:has(.flow-export-btn) .flow-dropdown { left:auto; right:0; }
+.flow-dropdown button { text-align:left; border:0; background:transparent; padding:7px 12px; color:#334155; border-radius:3px; font-size:12px; white-space:nowrap; }
+.flow-dropdown button:hover { background:#edf4ff; }
+.flow-toolbar { min-height:46px; height:auto; flex-wrap:wrap; padding:6px 12px; row-gap:6px; }
+.flow-text-btn { min-height:30px; padding:0 8px; background:transparent; border:1px solid transparent; color:#526173; border-radius:4px; font-size:12px; white-space:nowrap; }
+.flow-text-btn:hover { background:#edf4ff; }
+.flow-node { position:relative; display:block; padding:0; border:0; background:transparent; box-shadow:none; border-radius:0; transform:none; }
+.flow-node.is-selected { outline:1px solid #1677ff; outline-offset:4px; box-shadow:none; }
+.flow-node-outline { display:block; position:absolute; inset:0; overflow:visible; pointer-events:none; }
+.flow-node-label { position:relative; display:flex; align-items:center; justify-content:center; padding:10px 18px; white-space:pre-wrap; overflow-wrap:anywhere; pointer-events:none; line-height:1.35; }
+.flow-container .flow-node-label { justify-content:flex-start; padding:4px 12px; }
+.flow-node-edit { position:absolute; inset:6px; width:calc(100% - 12px); height:calc(100% - 12px); resize:none; background:white; color:#172033; border:1px solid #1677ff; border-radius:3px; padding:5px; font:inherit; z-index:5; }
+.flow-canvas .react-flow__node.selected { z-index:unset; }
+.flow-canvas .react-flow__handle { opacity:.45; width:9px; height:9px; }
+.flow-connect-mode .react-flow__handle { opacity:1; }
+.flow-canvas .react-flow__edge-path { stroke:unset; stroke-width:unset; }
+.flow-edge-label { position:absolute; pointer-events:all; background:#fff; border-radius:3px; padding:2px 5px; color:#334155; font-size:12px; white-space:pre-wrap; }
+.flow-edge-waypoint { position:absolute; pointer-events:all; width:10px; height:10px; padding:0; border:2px solid #fff; border-radius:2px; background:#1677ff; cursor:move !important; }
+.flow-inspector { display:flex; flex-direction:column; min-height:0; }
+.flow-inspector-tabs { flex-shrink:0; }
+.flow-inspector-tabs button[aria-selected=true] { color:#1769dc; border-bottom-color:#1769dc; }
+.flow-inspector-body { overflow:auto; min-height:0; }
+.flow-inspector-body h3 { color:#334155; font-size:12px; font-weight:600; margin:0 0 12px; }
+.flow-inspector-body input, .flow-inspector-body select, .flow-inspector-body textarea { color:#334155; border:1px solid #d9e0e8; background:#fbfcfd; border-radius:4px; width:100%; padding:5px 7px; margin-top:4px; font-size:12px; }
+.flow-inspector-body textarea { min-height:64px; resize:vertical; }
+.flow-inspector-body input[type=checkbox] { width:14px; height:14px; vertical-align:middle; margin:0 4px 0 0; padding:0; }
+.flow-field-row { gap:7px; }
+.flow-field-row label { min-width:0; }
+.flow-arrange-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; margin-bottom:12px; }
+.flow-arrange-grid button, .flow-layer-item button, .flow-inspector-body > button { font-size:11px; padding:5px 7px; color:#526173; border:1px solid #d9e0e8; background:#fff; border-radius:4px; }
+.flow-layer-item { border-bottom:1px solid #e6ebf1; padding:8px 0; margin-bottom:10px; }
+.flow-layer-item strong { display:block; font-size:12px; margin-bottom:10px; }
+.flow-help { font-size:12px; color:#64748b; line-height:1.6; margin:8px 0; }
+.flow-sidebar-footer { display:flex; flex-direction:column; gap:8px; }
+.flow-shape-preview { transform:none; border:0; background:transparent; }
+.flow-shape-item > svg { margin-left:auto; }
+.flow-statusbar { min-height:32px; height:auto; gap:12px; flex-wrap:wrap; padding:5px 12px; }
+.flow-page-tabs { max-width:400px; margin-right:auto; }
+.flow-page-tabs button { white-space:nowrap; }
+.flow-page-tabs button[aria-selected=true] { background:#edf4ff; color:#1769dc; }
+.flow-modal-backdrop { position:fixed; inset:0; z-index:100; display:grid; place-items:center; background:#17203355; }
+.flow-dialog { width:min(720px,90vw); max-height:85vh; overflow:auto; background:#fff; padding:24px; border-radius:8px; box-shadow:0 16px 50px #17203344; color:#263238; font-size:13px; }
+.flow-dialog h2 { margin:0 0 18px; font-size:18px; font-weight:600; }
+.flow-dialog textarea { width:100%; height:260px; border:1px solid #d5dce6; border-radius:4px; margin-top:12px; padding:12px; font-family:monospace; font-size:13px; }
+.flow-dialog select { padding:6px; margin-left:12px; border:1px solid #d5dce6; border-radius:4px; }
+.flow-dialog footer { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+.flow-dialog button { padding:7px 14px; border:1px solid #d5dce6; border-radius:4px; background:#f8fafc; color:#334155; }
+.flow-dialog button:last-child { color:#fff; background:#1769dc; border-color:#1769dc; }
+.flow-dialog-small { width:min(450px,90vw); }
+@media (max-width:1100px) { .flow-sidebar{width:170px;flex-basis:170px} .flow-inspector{width:215px;flex-basis:215px} .flow-statusbar{font-size:10px} }
+@media (prefers-reduced-motion:reduce) { .flow-board *{transition:none !important} }
