@@ -1,0 +1,844 @@
+#AOCI-CODE-VOLUME: 1
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/===
+.gitattributes[CG5M]: F:维护 .gitattributes 的项目功能与约束（AOCI baselines exact raw bytes, so a checkout must be byte-identical on） | R:- | A:- | S:-
+.gitignore[CG5M]: F:维护 .gitignore 的项目功能与约束（Dependencies） | R:- | A:- | S:-
+AGENTS.md[SG5M]: F:维护 AGENTS.md 的项目功能与约束（AGENTS.md） | R:- | A:- | S:-
+CHANGELOG.md[SG5M]: F:维护 CHANGELOG.md 的项目功能与约束（变更日志） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（MIT License） | R:- | A:- | S:-
+README.md[SG5M]: F:维护 README.md 的项目功能与约束（Niuery Toolkit） | R:- | A:- | S:-
+eslint.config.js[CG6M]: F:维护 eslint.config.js 的项目功能与约束（export default tseslint.config(） | R:- | A:- | S:-
+index.html[EU5S]: F:维护 index.html 的项目功能与约束（<!doctype html>） | R:- | A:- | S:-
+package-lock.json[FC5S]: F:维护 package-lock.json 的项目功能与约束（"name": "niuery-toolkit",） | R:- | A:- | S:-
+package.json[FC5S]: F:维护 package.json 的项目功能与约束（"name": "niuery-toolkit",） | R:- | A:- | S:-
+playwright.config.ts[CG6M]: F:维护 playwright.config.ts 的项目功能与约束（export default defineConfig({） | R:- | A:- | S:-
+postcss.config.js[CG6M]: F:维护 postcss.config.js 的项目功能与约束（export default {） | R:- | A:- | S:-
+sticky-note.html[EU5S]: F:维护 sticky-note.html 的项目功能与约束（<!doctype html>） | R:- | A:- | S:-
+tailwind.config.js[CG6M]: F:维护 tailwind.config.js 的项目功能与约束（@type {import('tailwindcss').Config} */） | R:- | A:- | S:-
+tsconfig.app.json[FC5S]: F:维护 tsconfig.app.json 的项目功能与约束（"compilerOptions": {） | R:- | A:- | S:-
+tsconfig.json[FC5S]: F:维护 tsconfig.json 的项目功能与约束（"files": [],） | R:- | A:- | S:-
+tsconfig.node.json[FC5S]: F:维护 tsconfig.node.json 的项目功能与约束（"compilerOptions": {） | R:- | A:- | S:-
+vite.config.ts[CG6M]: F:维护 vite.config.ts 的项目功能与约束（<reference types="vitest" />） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/.github/workflows/===
+release.yml[OV6S]: F:维护 release.yml 的项目功能与约束（name: Release desktop app） | R:- | A:- | S:-
+repair-updater.yml[OV6S]: F:维护 repair-updater.yml 的项目功能与约束（name: Repair updater metadata） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/.husky/===
+pre-commit[CG5M]: F:维护 pre-commit 的项目功能与约束（tsc -b） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/.vscode/===
+launch.json[FC5S]: F:维护 launch.json 的项目功能与约束（"version": "0.2.0",） | R:- | A:- | S:-
+tasks.json[FC5S]: F:维护 tasks.json 的项目功能与约束（"version": "2.0.0",） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/docs/agents/===
+domain.md[SG5M]: F:维护 domain.md 的项目功能与约束（Domain Docs） | R:- | A:- | S:-
+issue-tracker.md[SG5M]: F:维护 issue-tracker.md 的项目功能与约束（Issue tracker: GitHub） | R:- | A:- | S:-
+triage-labels.md[SG5M]: F:维护 triage-labels.md 的项目功能与约束（Triage Labels） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/docs/===
+releasing.md[SG5M]: F:维护 releasing.md 的项目功能与约束（版本发布指南） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/docs/wiki/===
+01-项目概览.md[SG5M]: F:维护 01-项目概览.md 的项目功能与约束（01 · 项目概览） | R:- | A:- | S:-
+02-整体架构.md[SG5M]: F:维护 02-整体架构.md 的项目功能与约束（02 · 整体架构） | R:- | A:- | S:-
+03-前端核心架构.md[SG5M]: F:维护 03-前端核心架构.md 的项目功能与约束（03 · 前端核心架构） | R:- | A:- | S:-
+04-前端工具模块.md[SG5M]: F:维护 04-前端工具模块.md 的项目功能与约束（04 · 前端工具模块） | R:- | A:- | S:-
+05-Rust后端模块.md[SG5M]: F:维护 05-Rust后端模块.md 的项目功能与约束（05 · Rust 后端模块） | R:- | A:- | S:-
+06-IPC通信与多窗口.md[SG5M]: F:维护 06-IPC通信与多窗口.md 的项目功能与约束（06 · IPC 通信与多窗口） | R:- | A:- | S:-
+07-主题皮肤与国际化.md[SG5M]: F:维护 07-主题皮肤与国际化.md 的项目功能与约束（07 · 主题皮肤与国际化） | R:- | A:- | S:-
+08-资源按需管理系统.md[SG5M]: F:维护 08-资源按需管理系统.md 的项目功能与约束（08 · 资源按需管理系统） | R:- | A:- | S:-
+09-依赖关系.md[SG5M]: F:维护 09-依赖关系.md 的项目功能与约束（09 · 依赖关系） | R:- | A:- | S:-
+10-构建运行与测试.md[SG5M]: F:维护 10-构建运行与测试.md 的项目功能与约束（10 · 构建运行与测试） | R:- | A:- | S:-
+11-react-flow图表编辑器方案.md[SG5M]: F:维护 11-react-flow图表编辑器方案.md 的项目功能与约束（React Flow 图表编辑器方案） | R:- | A:- | S:-
+12-drawio功能探索.md[SG5M]: F:记录 draw.io 流程图与通用画布能力及其对 Niuery Toolkit 的借鉴边界 | R:code:docs/wiki/11-react-flow图表编辑器方案.md,code:src/tools/graphic/flow-board/FlowBoard.tsx | A:draw.io 功能调研与 React Flow 分期依据 | S:仅将 draw.io 作为能力参考，不把实时协作或全部图形资产视为本地编辑器必需能力
+13-react-flow流程图等价实施计划.md[SG5M]: F:分解流程图编辑器等价实现的任务边界、文件职责、测试要求与全局约束 | R:code:docs/wiki/13-react-flow流程图等价设计.md,code:src/tools/graphic/flow-board/FlowBoard.tsx | A:流程图四阶段实施与验证计划 | S:实现前需先写失败测试并保持本地文件保存、离线运行和不提交 Git 的约束
+13-react-flow流程图等价设计.md[SG5M]: F:定义流程图语义节点、连线属性、文档迁移、历史快照与导出验收标准 | R:code:src/tools/graphic/flow-board/types.ts,code:src/tools/graphic/flow-board/document.ts,code:src/tools/graphic/flow-board/operations.ts | A:React Flow 流程图能力等价的结构化设计 | S:渲染器只负责展示，流程图业务字段必须进入可版本化文档模型并可由纯函数测试
+AI_FRAMEWORK_MIGRATION_PLAN.md[SG5M]: F:维护 AI_FRAMEWORK_MIGRATION_PLAN.md 的项目功能与约束（AI 助手 assistant-ui + Rig 联合迁移方案） | R:- | A:- | S:-
+AI_FRAMEWORK_MIGRATION_VALIDATION.md[SG5M]: F:维护 AI_FRAMEWORK_MIGRATION_VALIDATION.md 的项目功能与约束（AI 框架迁移实施与验证） | R:- | A:- | S:-
+README.md[SG5M]: F:维护 README.md 的项目功能与约束（Niuery Toolkit — Code Wiki） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/e2e/===
+resource-unlocker.fixture.tsx[DU6L]: F:维护 resource-unlocker.fixture.tsx 的项目功能与约束（createRoot(document.getElementById('root')!).render(） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/public/===
+vite.svg[CG5M]: F:维护 vite.svg 的项目功能与约束（<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/scripts/===
+desktop-build.mjs[CG6M]: F:维护 desktop-build.mjs 的项目功能与约束（export async function prepareDesktopPublic(root) {） | R:- | A:- | S:-
+desktop-build.test.mjs[TQ5M]: F:维护 desktop-build.test.mjs 的项目功能与约束（test('desktop public assets omit optional OCR but preserve unrelated assets', async () => {） | R:- | A:- | S:-
+prepare-chromium.mjs[CG6M]: F:维护 prepare-chromium.mjs 的项目功能与约束（cpSync,） | R:- | A:- | S:-
+prepare-chromium.ps1[XV4S]: F:维护 prepare-chromium.ps1 的项目功能与约束（$ErrorActionPreference = 'Stop'） | R:- | A:- | S:-
+release-notes.mjs[OV6S]: F:维护 release-notes.mjs 的项目功能与约束（Extract one version's Markdown body; never include Unreleased or other versions. */） | R:- | A:- | S:-
+release-notes.test.mjs[TQ5M]: F:维护 release-notes.test.mjs 的项目功能与约束（These tests catch version leakage, incorrect fallback and swallowed API failures.） | R:- | A:- | S:-
+release-updater.test.mjs[TQ5M]: F:维护 release-updater.test.mjs 的项目功能与约束（const tag = 'v1.2.1';） | R:- | A:- | S:-
+repair-updater.test.mjs[TQ5M]: F:维护 repair-updater.test.mjs 的项目功能与约束（async function runRepair({ wrongKey = false, wrongDigest = false, wrongSignature = false, existingMa） | R:- | A:- | S:-
+resource-packages.mjs[CG6M]: F:维护 resource-packages.mjs 的项目功能与约束（const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');） | R:- | A:- | S:-
+resource-packages.test.mjs[TQ5M]: F:维护 resource-packages.test.mjs 的项目功能与约束（test('packages a pinned resource with portable paths, actual sizes and a reproducible digest', async） | R:- | A:- | S:-
+test-ai-rust.ps1[XV4S]: F:维护 test-ai-rust.ps1 的项目功能与约束（param([string]$Filter = 'ai_assistant')） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/===
+Cargo.lock[FV3L]: F:维护 Cargo.lock 的项目功能与约束（This file is automatically @generated by Cargo.） | R:- | A:- | S:-
+Cargo.toml[FC5S]: F:维护 Cargo.toml 的项目功能与约束（[package]） | R:- | A:- | S:-
+build.rs[DG6L]: F:维护 build.rs 的项目功能与约束（fn main() {） | R:- | A:- | S:-
+resource-catalog.json[FC5S]: F:维护 resource-catalog.json 的项目功能与约束（"schemaVersion": 1,） | R:- | A:- | S:-
+tauri.conf.json[FC5S]: F:维护 tauri.conf.json 的项目功能与约束（"$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/capabilities/===
+default.json[FC5S]: F:维护 default.json 的项目功能与约束（"$schema": "../gen/schemas/desktop-schema.json",） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/examples/===
+file_dialog_smoke.rs[DG6L]: F:维护 file_dialog_smoke.rs 的项目功能与约束（! Windows 原生文件对话框回归：自动打开并取消，不读取或修改用户文件。） | R:- | A:- | S:-
+resource_smoke.rs[DG6L]: F:维护 resource_smoke.rs 的项目功能与约束（! Explicit local smoke test, never part of the distributed app.） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/icons/android/mipmap-anydpi-v26/===
+ic_launcher.xml[CG5M]: F:维护 ic_launcher.xml 的项目功能与约束（<?xml version="1.0" encoding="utf-8"?>） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/icons/android/values/===
+ic_launcher_background.xml[CG5M]: F:维护 ic_launcher_background.xml 的项目功能与约束（<?xml version="1.0" encoding="utf-8"?>） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/===
+LICENSE.txt[CG5M]: F:维护 LICENSE.txt 的项目功能与约束（GNU LESSER GENERAL PUBLIC LICENSE） | R:- | A:- | S:-
+THIRD_PARTY_NOTICES.md[SG5M]: F:维护 THIRD_PARTY_NOTICES.md 的项目功能与约束（Bundled recording dependencies） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/chromium/===
+README.md[SG5M]: F:维护 README.md 的项目功能与约束（本地 Chromium 渲染器） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/===
+THIRD_PARTY_NOTICES.txt[CG5M]: F:维护 THIRD_PARTY_NOTICES.txt 的项目功能与约束（PlantUML 1.2026.6） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/===
+NOTICE[CG5M]: F:维护 NOTICE 的项目功能与约束（Notices for Eclipse Temurin） | R:- | A:- | S:-
+release[OV6S]: F:维护 release 的项目功能与约束（IMPLEMENTOR="Eclipse Adoptium"） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/conf/===
+logging.properties[CG5M]: F:维护 logging.properties 的项目功能与约束（Default Logging Configuration File） | R:- | A:- | S:-
+net.properties[CG5M]: F:维护 net.properties 的项目功能与约束（Default Networking Configuration File） | R:- | A:- | S:-
+sound.properties[CG5M]: F:维护 sound.properties 的项目功能与约束（Sound Configuration File） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/conf/management/===
+jmxremote.access[CG5M]: F:维护 jmxremote.access 的项目功能与约束（Default Access Control File for Remote JMX(TM) Monitoring） | R:- | A:- | S:-
+jmxremote.password.template[CG5M]: F:维护 jmxremote.password.template 的项目功能与约束（Template for jmxremote.password） | R:- | A:- | S:-
+management.properties[CG5M]: F:维护 management.properties 的项目功能与约束（Default Configuration File for Java Platform Management） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/conf/security/===
+java.policy[CG5M]: F:维护 java.policy 的项目功能与约束（This system policy file grants a set of default permissions to all domains） | R:- | A:- | S:-
+java.security[CG5M]: F:维护 java.security 的项目功能与约束（This is the "master security properties file".） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/conf/security/policy/===
+README.txt[CG5M]: F:维护 README.txt 的项目功能与约束（Java(TM) Cryptography Extension Policy Files） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/conf/security/policy/limited/===
+default_US_export.policy[CG5M]: F:维护 default_US_export.policy 的项目功能与约束（Default US Export policy file.） | R:- | A:- | S:-
+default_local.policy[CG5M]: F:维护 default_local.policy 的项目功能与约束（Some countries have import limits on crypto strength. This policy file） | R:- | A:- | S:-
+exempt_local.policy[CG5M]: F:维护 exempt_local.policy 的项目功能与约束（Some countries have import limits on crypto strength, but may allow for） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/conf/security/policy/unlimited/===
+default_US_export.policy[CG5M]: F:维护 default_US_export.policy 的项目功能与约束（Default US Export policy file.） | R:- | A:- | S:-
+default_local.policy[CG5M]: F:维护 default_local.policy 的项目功能与约束（Country-specific policy file for countries with no limits on crypto strength.） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.base/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（ADDITIONAL INFORMATION ABOUT LICENSING） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（OPENJDK ASSEMBLY EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（The GNU General Public License (GPL)） | R:- | A:- | S:-
+aes.md[SG5M]: F:维护 aes.md 的项目功能与约束（Cryptix AES v3.2.0） | R:- | A:- | S:-
+asm.md[SG5M]: F:维护 asm.md 的项目功能与约束（ASM Bytecode Manipulation Framework v8.0.1） | R:- | A:- | S:-
+c-libutl.md[SG5M]: F:维护 c-libutl.md 的项目功能与约束（c-libutl 20160225） | R:- | A:- | S:-
+cldr.md[SG5M]: F:维护 cldr.md 的项目功能与约束（Unicode Common Local Data Repository (CLDR) v39） | R:- | A:- | S:-
+icu.md[SG5M]: F:维护 icu.md 的项目功能与约束（International Components for Unicode (ICU4J) v67.1） | R:- | A:- | S:-
+public_suffix.md[SG5M]: F:维护 public_suffix.md 的项目功能与约束（Mozilla Public Suffix List） | R:- | A:- | S:-
+siphash.md[SG5M]: F:维护 siphash.md 的项目功能与约束（SipHash v1.0-68c8a7c） | R:- | A:- | S:-
+unicode.md[SG5M]: F:维护 unicode.md 的项目功能与约束（The Unicode Standard, Unicode Character Database, Version 13.0.0） | R:- | A:- | S:-
+wepoll.md[SG5M]: F:维护 wepoll.md 的项目功能与约束（Bert Belder: wepoll v 1.5.8） | R:- | A:- | S:-
+zlib.md[SG5M]: F:维护 zlib.md 的项目功能与约束（zlib v1.3.2） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.compiler/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.datatransfer/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.desktop/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+colorimaging.md[SG5M]: F:维护 colorimaging.md 的项目功能与约束（Eastman Kodak Company: Portions of color management and imaging software） | R:- | A:- | S:-
+freetype.md[SG5M]: F:维护 freetype.md 的项目功能与约束（The FreeType Project: Freetype v2.14.3） | R:- | A:- | S:-
+giflib.md[SG5M]: F:维护 giflib.md 的项目功能与约束（GIFLIB v6.1.3） | R:- | A:- | S:-
+harfbuzz.md[SG5M]: F:维护 harfbuzz.md 的项目功能与约束（Harfbuzz v14.2.0） | R:- | A:- | S:-
+jpeg.md[SG5M]: F:维护 jpeg.md 的项目功能与约束（Independent JPEG Group: JPEG release 6b） | R:- | A:- | S:-
+lcms.md[SG5M]: F:维护 lcms.md 的项目功能与约束（Little Color Management System (LCMS) v2.19.1） | R:- | A:- | S:-
+libpng.md[SG5M]: F:维护 libpng.md 的项目功能与约束（libpng v1.6.58） | R:- | A:- | S:-
+mesa3d.md[SG5M]: F:维护 mesa3d.md 的项目功能与约束（Mesa 3-D Graphics Library v21.0.3） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.instrument/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.logging/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.management.rmi/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.management/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.naming/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.net.http/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.prefs/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.rmi/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.scripting/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.se/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.security.jgss/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.security.sasl/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.smartcardio/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.sql.rowset/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.sql/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.transaction.xa/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.xml.crypto/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+santuario.md[SG5M]: F:维护 santuario.md 的项目功能与约束（Apache Santuario v3.0.5） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/java.xml/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+bcel.md[SG5M]: F:维护 bcel.md 的项目功能与约束（Apache Commons Byte Code Engineering Library (BCEL) Version 6.10.0） | R:- | A:- | S:-
+dom.md[SG5M]: F:维护 dom.md 的项目功能与约束（DOM Level 3 Core Specification v1.0） | R:- | A:- | S:-
+jcup.md[SG5M]: F:维护 jcup.md 的项目功能与约束（CUP Parser Generator for Java v 0.11b） | R:- | A:- | S:-
+xalan.md[SG5M]: F:维护 xalan.md 的项目功能与约束（Apache Xalan v2.7.2） | R:- | A:- | S:-
+xerces.md[SG5M]: F:维护 xerces.md 的项目功能与约束（Apache Xerces v2.12.2） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.accessibility/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.charsets/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.crypto.cryptoki/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+pkcs11cryptotoken.md[SG5M]: F:维护 pkcs11cryptotoken.md 的项目功能与约束（OASIS PKCS #11 Cryptographic Token Interface v3.1） | R:- | A:- | S:-
+pkcs11wrapper.md[SG5M]: F:维护 pkcs11wrapper.md 的项目功能与约束（IAIK (Institute for Applied Information Processing and Communication) PKCS#11 wrapper files v1） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.crypto.ec/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.crypto.mscapi/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.dynalink/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+dynalink.md[SG5M]: F:维护 dynalink.md 的项目功能与约束（Dynalink v.5） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.httpserver/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.incubator.foreign/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.incubator.vector/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.internal.vm.ci/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.internal.vm.compiler.management/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.internal.vm.compiler/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.jdwp.agent/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.jfr/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.jsobject/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.localedata/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+cldr.md[SG5M]: F:维护 cldr.md 的项目功能与约束（Please see ..\java.base\cldr.md） | R:- | A:- | S:-
+thaidict.md[SG5M]: F:维护 thaidict.md 的项目功能与约束（Thai Dictionary） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.management.agent/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.management.jfr/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.management/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.naming.dns/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.naming.rmi/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.net/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.nio.mapmode/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.sctp/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.security.auth/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.security.jgss/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.unsupported/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.xml.dom/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/legal/jdk.zipfs/===
+ADDITIONAL_LICENSE_INFO[CG5M]: F:维护 ADDITIONAL_LICENSE_INFO 的项目功能与约束（Please see ..\java.base\ADDITIONAL_LICENSE_INFO） | R:- | A:- | S:-
+ASSEMBLY_EXCEPTION[CG5M]: F:维护 ASSEMBLY_EXCEPTION 的项目功能与约束（Please see ..\java.base\ASSEMBLY_EXCEPTION） | R:- | A:- | S:-
+LICENSE[CG5M]: F:维护 LICENSE 的项目功能与约束（Please see ..\java.base\LICENSE） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/lib/===
+classlist[CG5M]: F:维护 classlist 的项目功能与约束（NOTE: Do not modify this file.） | R:- | A:- | S:-
+fontconfig.properties.src[CG5M]: F:维护 fontconfig.properties.src 的项目功能与约束（Copyright (c) 2003, 2019, Oracle and/or its affiliates. All rights reserved.） | R:- | A:- | S:-
+jvm.cfg[CG5M]: F:维护 jvm.cfg 的项目功能与约束（server KNOWN） | R:- | A:- | S:-
+psfont.properties.ja[CG5M]: F:维护 psfont.properties.ja 的项目功能与约束（Copyright (c) 1996, 2000, Oracle and/or its affiliates. All rights reserved.） | R:- | A:- | S:-
+psfontj2d.properties[CG5M]: F:维护 psfontj2d.properties 的项目功能与约束（Copyright (c) 1999, Oracle and/or its affiliates. All rights reserved.） | R:- | A:- | S:-
+tzmappings[CG5M]: F:维护 tzmappings 的项目功能与约束（AUS Central Standard Time:AU:Australia/Darwin:） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/lib/jfr/===
+default.jfc[CG5M]: F:维护 default.jfc 的项目功能与约束（<?xml version="1.0" encoding="UTF-8"?>） | R:- | A:- | S:-
+profile.jfc[CG5M]: F:维护 profile.jfc 的项目功能与约束（<?xml version="1.0" encoding="UTF-8"?>） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/resources/plantuml/jre/lib/security/===
+blocked.certs[CG5M]: F:维护 blocked.certs 的项目功能与约束（Algorithm=SHA-256） | R:- | A:- | S:-
+default.policy[CG5M]: F:维护 default.policy 的项目功能与约束（Permissions required by modules stored in a run-time image and loaded） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/src/ai_assistant/===
+credentials.rs[DG6L]: F:维护 credentials.rs 的项目功能与约束（! Keys only cross IPC on explicit edits; storage never receives their value.） | R:- | A:- | S:-
+mod.rs[DG6L]: F:维护 mod.rs 的项目功能与约束（mod credentials;） | R:- | A:- | S:-
+storage.rs[DG6L]: F:维护 storage.rs 的项目功能与约束（use super::types::*;） | R:- | A:- | S:-
+tests.rs[DG6L]: F:维护 tests.rs 的项目功能与约束（use super::*;） | R:- | A:- | S:-
+types.rs[DG6L]: F:维护 types.rs 的项目功能与约束（use serde::{Deserialize, Serialize};） | R:- | A:- | S:-
+validation.rs[DG6L]: F:维护 validation.rs 的项目功能与约束（use super::types::*;） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/src/ai_assistant/engine/===
+mod.rs[DG6L]: F:维护 mod.rs 的项目功能与约束（mod request;） | R:- | A:- | S:-
+request.rs[DG6L]: F:维护 request.rs 的项目功能与约束（use super::super::{types::*, validation};） | R:- | A:- | S:-
+tests.rs[DG6L]: F:维护 tests.rs 的项目功能与约束（use super::*;） | R:- | A:- | S:-
+transport.rs[DG6L]: F:维护 transport.rs 的项目功能与约束（use futures_util::{stream, StreamExt};） | R:- | A:- | S:-
+wires.rs[DG6L]: F:维护 wires.rs 的项目功能与约束（use super::{super::types::Provider, transport::GuardedHttp};） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/src/===
+capture_guard.rs[DG6L]: F:维护 capture_guard.rs 的项目功能与约束（use std::sync::{Mutex, MutexGuard};） | R:- | A:- | S:-
+chromium.rs[DG6L]: F:维护 chromium.rs 的项目功能与约束（use std::fs;） | R:- | A:- | S:-
+clipboard.rs[DG6L]: F:维护 clipboard.rs 的项目功能与约束（use base64::Engine;） | R:- | A:- | S:-
+file_dialog_tests.rs[DG6L]: F:维护 file_dialog_tests.rs 的项目功能与约束（use std::path::PathBuf;） | R:- | A:- | S:-
+file_saver.rs[DG6L]: F:维护 file_saver.rs 的项目功能与约束（use serde::{Deserialize, Serialize};） | R:- | A:- | S:-
+hotkey.rs[DG6L]: F:维护 hotkey.rs 的项目功能与约束（use std::collections::HashMap;） | R:- | A:- | S:-
+lib.rs[DG6L]: F:维护 lib.rs 的项目功能与约束（mod ai_assistant;） | R:- | A:- | S:-
+main.rs[DG6L]: F:维护 main.rs 的项目功能与约束（Prevents additional console window on Windows in release, DO NOT REMOVE!!） | R:- | A:- | S:-
+plantuml.rs[DG6L]: F:维护 plantuml.rs 的项目功能与约束（use std::collections::HashMap;） | R:- | A:- | S:-
+process_tools.rs[DG6L]: F:维护 process_tools.rs 的项目功能与约束（use serde::{Deserialize, Serialize};） | R:- | A:- | S:-
+recorder.rs[DG6L]: F:维护 recorder.rs 的项目功能与约束（use image::{imageops, RgbaImage};） | R:- | A:- | S:-
+screenshot.rs[DG6L]: F:维护 screenshot.rs 的项目功能与约束（use base64::Engine;） | R:- | A:- | S:-
+sticky_note.rs[DG6L]: F:维护 sticky_note.rs 的项目功能与约束（use serde::{Deserialize, Serialize};） | R:- | A:- | S:-
+system_monitor.rs[DG6L]: F:维护 system_monitor.rs 的项目功能与约束（use serde::Serialize;） | R:- | A:- | S:-
+window_chrome.rs[DG6L]: F:维护 window_chrome.rs 的项目功能与约束（use tauri::{window::Color, Theme, WebviewWindow};） | R:- | A:- | S:-
+ws_server.rs[DG6L]: F:维护 ws_server.rs 的项目功能与约束（use std::collections::HashMap;） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/src/recorder/===
+window_capture.rs[DG6L]: F:维护 window_capture.rs 的项目功能与约束（use image::{imageops, Rgba, RgbaImage};） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src-tauri/src/resources/===
+catalog.rs[DG6L]: F:维护 catalog.rs 的项目功能与约束（use serde::{Deserialize, Serialize};） | R:- | A:- | S:-
+install.rs[DG6L]: F:维护 install.rs 的项目功能与约束（use super::catalog::Resource;） | R:- | A:- | S:-
+mod.rs[DG6L]: F:维护 mod.rs 的项目功能与约束（pub mod catalog;） | R:- | A:- | S:-
+probe.rs[DG6L]: F:维护 probe.rs 的项目功能与约束（use std::{） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/===
+App.tsx[DU6L]: F:维护 App.tsx 的项目功能与约束（export default function App() {） | R:- | A:- | S:-
+index.css[CU5L]: F:维护 index.css 的项目功能与约束（index.css） | R:- | A:- | S:-
+main.tsx[DU6L]: F:维护 main.tsx 的项目功能与约束（markPerformance('app:main-start')） | R:- | A:- | S:-
+vite-env.d.ts[CG6M]: F:维护 vite-env.d.ts 的项目功能与约束（<reference types="vite/client" />） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/components/layout/===
+AppTitleBar.tsx[DU6L]: F:维护 AppTitleBar.tsx 的项目功能与约束（async function withMainWindow(action: (window: { minimize: () => Promise<void>; toggleMaximize: () =） | R:- | A:- | S:-
+LogPanel.tsx[DU6L]: F:维护 LogPanel.tsx 的项目功能与约束（const LEVEL_STYLES: Record<LogLevel, string> = {） | R:- | A:- | S:-
+SearchDialog.tsx[DU6L]: F:维护 SearchDialog.tsx 的项目功能与约束（interface SearchDialogProps {） | R:- | A:- | S:-
+SettingsDialog.tsx[DU6L]: F:维护 SettingsDialog.tsx 的项目功能与约束（interface SettingsDialogProps {） | R:- | A:- | S:-
+Sidebar.tsx[DU6L]: F:维护 Sidebar.tsx 的项目功能与约束（interface SidebarProps {） | R:- | A:- | S:-
+SkinAtmosphere.tsx[DU6L]: F:维护 SkinAtmosphere.tsx 的项目功能与约束（const reducedMotionQuery = '(prefers-reduced-motion: reduce)';） | R:- | A:- | S:-
+StatusBar.tsx[DU6L]: F:维护 StatusBar.tsx 的项目功能与约束（function UnreadLogBadge() {） | R:- | A:- | S:-
+ToolPanel.tsx[DU6L]: F:维护 ToolPanel.tsx 的项目功能与约束（interface ToolPanelProps {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/components/markdown/===
+Outline.tsx[DU6L]: F:维护 Outline.tsx 的项目功能与约束（interface OutlineProps {） | R:- | A:- | S:-
+Preview.tsx[DU6L]: F:维护 Preview.tsx 的项目功能与约束（注册常用语言） | R:- | A:- | S:-
+ReleaseNotes.tsx[OV6S]: F:维护 ReleaseNotes.tsx 的项目功能与约束（Release notes come from the update feed; keep embedded HTML escaped.） | R:- | A:- | S:-
+StatusBar.tsx[DU6L]: F:维护 StatusBar.tsx 的项目功能与约束（interface StatusBarProps {） | R:- | A:- | S:-
+Toolbar.tsx[DU6L]: F:维护 Toolbar.tsx 的项目功能与约束（Bold,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/components/mascot/===
+Mascot.tsx[DU6L]: F:维护 Mascot.tsx 的项目功能与约束（const reducedMotionQuery = '(prefers-reduced-motion: reduce)';） | R:- | A:- | S:-
+MascotCorner.tsx[DU6L]: F:维护 MascotCorner.tsx 的项目功能与约束（function useMinute() {） | R:- | A:- | S:-
+MascotRace.tsx[DU6L]: F:维护 MascotRace.tsx 的项目功能与约束（RACE_PLAYER_BOTTOM,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/components/media/===
+image-viewer-utils.ts[CG6M]: F:维护 image-viewer-utils.ts 的项目功能与约束（export const IMAGE_VIEWER_MIN_ZOOM = 0.25;） | R:- | A:- | S:-
+image-viewer.tsx[DU6L]: F:维护 image-viewer.tsx 的项目功能与约束（clampImageViewerZoom,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/components/ocr/===
+ScreenshotOcrPanel.tsx[DU6L]: F:维护 ScreenshotOcrPanel.tsx 的项目功能与约束（interface Selection {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/components/resources/===
+ResourceManager.tsx[DU6L]: F:维护 ResourceManager.tsx 的项目功能与约束（const TITLES = { chromium: 'Chromium', ffmpeg: 'FFmpeg', java: 'Java', plantuml: 'PlantUML', 'ocr-en） | R:- | A:- | S:-
+ResourceNotice.tsx[DU6L]: F:维护 ResourceNotice.tsx 的项目功能与约束（export function ResourceNotice({ ids }: { ids: ResourceId[] }) {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/components/shared/===
+BrandMark.tsx[DU6L]: F:维护 BrandMark.tsx 的项目功能与约束（interface BrandMarkProps {） | R:- | A:- | S:-
+EmptyState.tsx[DU6L]: F:维护 EmptyState.tsx 的项目功能与约束（interface EmptyStateProps {） | R:- | A:- | S:-
+FeatureRail.tsx[DU6L]: F:维护 FeatureRail.tsx 的项目功能与约束（export interface FeatureRailItem<T extends string> {） | R:- | A:- | S:-
+FoldableCodeEditor.tsx[DU6L]: F:维护 FoldableCodeEditor.tsx 的项目功能与约束（export interface FoldableCodeEditorHandle {） | R:- | A:- | S:-
+NativeFileDropBridge.tsx[DU6L]: F:维护 NativeFileDropBridge.tsx 的项目功能与约束（type DroppedFileEvent = {） | R:- | A:- | S:-
+ToolCapabilityNotice.tsx[DU6L]: F:维护 ToolCapabilityNotice.tsx 的项目功能与约束（const CAPABILITY_KEYS = {） | R:- | A:- | S:-
+ToolErrorBoundary.tsx[DU6L]: F:维护 ToolErrorBoundary.tsx 的项目功能与约束（interface ToolErrorBoundaryProps {） | R:- | A:- | S:-
+ToolLayout.tsx[DU6L]: F:维护 ToolLayout.tsx 的项目功能与约束（interface ToolLayoutProps {） | R:- | A:- | S:-
+WorkbenchSplit.tsx[DU6L]: F:维护 WorkbenchSplit.tsx 的项目功能与约束（function componentName(node: ReactNode) {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/components/ui/===
+README.md[SG5M]: F:维护 README.md 的项目功能与约束（通用界面组件） | R:- | A:- | S:-
+button.tsx[DU6L]: F:维护 button.tsx 的项目功能与约束（button.tsx） | R:- | A:- | S:-
+input.tsx[DU6L]: F:维护 input.tsx 的项目功能与约束（input.tsx） | R:- | A:- | S:-
+label.tsx[DU6L]: F:维护 label.tsx 的项目功能与约束（label.tsx） | R:- | A:- | S:-
+loading-button.tsx[DU6L]: F:维护 loading-button.tsx 的项目功能与约束（loading-button.tsx） | R:- | A:- | S:-
+select.css[CU5L]: F:维护 select.css 的项目功能与约束（select.css） | R:- | A:- | S:-
+select.tsx[DU6L]: F:维护 select.tsx 的项目功能与约束（select.tsx） | R:- | A:- | S:-
+textarea.tsx[DU6L]: F:维护 textarea.tsx 的项目功能与约束（textarea.tsx） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/data/===
+china-provinces.json[FC5S]: F:维护 china-provinces.json 的项目功能与约束（china-provinces.json） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/hooks/===
+use-async-action.ts[CG6M]: F:维护 use-async-action.ts 的项目功能与约束（use-async-action.ts） | R:- | A:- | S:-
+use-theme.ts[CG6M]: F:维护 use-theme.ts 的项目功能与约束（use-theme.ts） | R:- | A:- | S:-
+use-tool-logger.ts[CG6M]: F:维护 use-tool-logger.ts 的项目功能与约束（use-tool-logger.ts） | R:- | A:- | S:-
+use-websocket-client.ts[CG6M]: F:维护 use-websocket-client.ts 的项目功能与约束（use-websocket-client.ts） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/i18n/===
+index.ts[CG6M]: F:维护 index.ts 的项目功能与约束（index.ts） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/i18n/locales/===
+en.json[FC5S]: F:维护 en.json 的项目功能与约束（en.json） | R:- | A:- | S:-
+zh.json[FC5S]: F:维护 zh.json 的项目功能与约束（zh.json） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/lib/===
+api-client.ts[CG6M]: F:维护 api-client.ts 的项目功能与约束（api-client.ts） | R:- | A:- | S:-
+app-updater.ts[CG6M]: F:维护 app-updater.ts 的项目功能与约束（app-updater.ts） | R:- | A:- | S:-
+atmosphere.ts[CG6M]: F:维护 atmosphere.ts 的项目功能与约束（atmosphere.ts） | R:- | A:- | S:-
+china-province-utils.ts[CG6M]: F:维护 china-province-utils.ts 的项目功能与约束（china-province-utils.ts） | R:- | A:- | S:-
+codec-utils.ts[CG6M]: F:维护 codec-utils.ts 的项目功能与约束（codec-utils.ts） | R:- | A:- | S:-
+converter-utils.ts[CG6M]: F:维护 converter-utils.ts 的项目功能与约束（converter-utils.ts） | R:- | A:- | S:-
+curl-parser.ts[CG6M]: F:维护 curl-parser.ts 的项目功能与约束（curl-parser.ts） | R:- | A:- | S:-
+doc-generator.ts[CG6M]: F:维护 doc-generator.ts 的项目功能与约束（doc-generator.ts） | R:- | A:- | S:-
+file-save.ts[CG6M]: F:维护 file-save.ts 的项目功能与约束（file-save.ts） | R:- | A:- | S:-
+formatter-sync.ts[CG6M]: F:维护 formatter-sync.ts 的项目功能与约束（formatter-sync.ts） | R:- | A:- | S:-
+generator-utils.ts[CG6M]: F:维护 generator-utils.ts 的项目功能与约束（generator-utils.ts） | R:- | A:- | S:-
+hotkeys.ts[CG6M]: F:维护 hotkeys.ts 的项目功能与约束（hotkeys.ts） | R:- | A:- | S:-
+html-diagnostics.ts[CG6M]: F:维护 html-diagnostics.ts 的项目功能与约束（html-diagnostics.ts） | R:- | A:- | S:-
+image-diff.ts[CG6M]: F:维护 image-diff.ts 的项目功能与约束（export interface ImageDiffResult {） | R:- | A:- | S:-
+image-utils.ts[CG6M]: F:维护 image-utils.ts 的项目功能与约束（export interface Size {） | R:- | A:- | S:-
+local-documents.ts[CG6M]: F:维护 local-documents.ts 的项目功能与约束（export interface OpenedTextDocument {） | R:- | A:- | S:-
+logger.ts[CG6M]: F:维护 logger.ts 的项目功能与约束（统一日志核心库） | R:- | A:- | S:-
+longshot-stitch.ts[CG6M]: F:维护 longshot-stitch.ts 的项目功能与约束（长截图拼接算法） | R:- | A:- | S:-
+markdown-export-size.ts[CG6M]: F:维护 markdown-export-size.ts 的项目功能与约束（在与截图相同宽度的独立文档中排版，避免预览容器和窗口高度影响 PNG 尺寸。 */） | R:- | A:- | S:-
+markdown-utils.ts[CG6M]: F:维护 markdown-utils.ts 的项目功能与约束（Markdown 编辑器工具函数） | R:- | A:- | S:-
+mascot-bounds.ts[CG6M]: F:维护 mascot-bounds.ts 的项目功能与约束（const EDGE = 28;） | R:- | A:- | S:-
+mascot-bubble.ts[CG6M]: F:维护 mascot-bubble.ts 的项目功能与约束（const INSET = 8;） | R:- | A:- | S:-
+mascot-corner.ts[CG6M]: F:维护 mascot-corner.ts 的项目功能与约束（const FIGURE_HALF = 80;） | R:- | A:- | S:-
+mascot-lines.ts[CG6M]: F:维护 mascot-lines.ts 的项目功能与约束（export const MASCOT_LINE_KEYS = [） | R:- | A:- | S:-
+mascot-motion.ts[CG6M]: F:维护 mascot-motion.ts 的项目功能与约束（export const MASCOT_IDLE_MS = 30_000;） | R:- | A:- | S:-
+mascot-race.ts[CG6M]: F:维护 mascot-race.ts 的项目功能与约束（const SIDE = 10;） | R:- | A:- | S:-
+mermaid.ts[CG6M]: F:维护 mermaid.ts 的项目功能与约束（let mermaidPromise: Promise<typeof import('mermaid').default> / null = null;） | R:- | A:- | S:-
+mock-engine.ts[CG6M]: F:维护 mock-engine.ts 的项目功能与约束（将 URL 模式转换为正则表达式） | R:- | A:- | S:-
+monaco-setup.ts[CG6M]: F:维护 monaco-setup.ts 的项目功能与约束（Monaco Editor 本地加载配置） | R:- | A:- | S:-
+operation-feedback.ts[CG6M]: F:维护 operation-feedback.ts 的项目功能与约束（export interface OperationErrorOptions {） | R:- | A:- | S:-
+pdf-render.ts[CG6M]: F:维护 pdf-render.ts 的项目功能与约束（保证 fake worker 的动态 import 与模块 chunk 的相对路径无关（尤其是 Tauri 的 asset:// 页面）。） | R:- | A:- | S:-
+pdf-utils.ts[CG6M]: F:维护 pdf-utils.ts 的项目功能与约束（带名称的 PDF 输出 */） | R:- | A:- | S:-
+performance-diagnostics.ts[CG6M]: F:维护 performance-diagnostics.ts 的项目功能与约束（const log = createLogger('performance');） | R:- | A:- | S:-
+pinyin-search.ts[CG6M]: F:维护 pinyin-search.ts 的项目功能与约束（export function toPinyinBlob(text: string) {） | R:- | A:- | S:-
+platform-capabilities.ts[CG6M]: F:维护 platform-capabilities.ts 的项目功能与约束（export type RuntimePlatform = 'tauri' / 'browser';） | R:- | A:- | S:-
+pointer-effect.ts[CG6M]: F:维护 pointer-effect.ts 的项目功能与约束（export const POINTER_EFFECT_IDS: PointerEffect[] = ['off', 'tassel', 'glow'];） | R:- | A:- | S:-
+resources.ts[CG6M]: F:维护 resources.ts 的项目功能与约束（export type ResourceId = 'chromium' / 'ffmpeg' / 'java' / 'plantuml' / 'ocr-engine' / 'ocr-chi-sim' ） | R:- | A:- | S:-
+script-sandbox.ts[CG6M]: F:维护 script-sandbox.ts 的项目功能与约束（export interface ScriptContext {） | R:- | A:- | S:-
+structured-editor-folding.ts[CG6M]: F:维护 structured-editor-folding.ts 的项目功能与约束（export type StructuredLanguage = 'json' / 'yaml' / 'xml';） | R:- | A:- | S:-
+text-utils.ts[CG6M]: F:维护 text-utils.ts 的项目功能与约束（文本工具函数） | R:- | A:- | S:-
+theme.ts[CG6M]: F:维护 theme.ts 的项目功能与约束（export type ThemeScheme = 'light' / 'dark';） | R:- | A:- | S:-
+tool-navigation.ts[CG6M]: F:维护 tool-navigation.ts 的项目功能与约束（打开一个工具，并记录当前应用进程内的实际使用。 */） | R:- | A:- | S:-
+translate-utils.ts[CG6M]: F:维护 translate-utils.ts 的项目功能与约束（翻译服务商凭证（当前仅百度） */） | R:- | A:- | S:-
+translation-navigation.ts[CG6M]: F:维护 translation-navigation.ts 的项目功能与约束（function restoreMainWindowForTranslation() {） | R:- | A:- | S:-
+utils.ts[CG6M]: F:维护 utils.ts 的项目功能与约束（export function cn(...inputs: ClassValue[]) {） | R:- | A:- | S:-
+worker-utils.ts[CG6M]: F:维护 worker-utils.ts 的项目功能与约束（Web Worker 工具类） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/recording/===
+CursorHighlightOverlay.tsx[DU6L]: F:维护 CursorHighlightOverlay.tsx 的项目功能与约束（被原生 gdigrab 采集的点击穿透光标高亮层。窗口位置由 Rust 端按系统鼠标坐标更新，） | R:- | A:- | S:-
+RecordingCaptureBorderOverlay.tsx[DU6L]: F:维护 RecordingCaptureBorderOverlay.tsx 的项目功能与约束（录制范围的独立透明边框层。窗口物理边界由 Rust 放在采集矩形外侧，） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/registry/===
+tool-registry.ts[CG6M]: F:维护 tool-registry.ts 的项目功能与约束（ArrowLeftRight,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/screenshot/===
+AnnotationLayer.tsx[DU6L]: F:维护 AnnotationLayer.tsx 的项目功能与约束（Stage,） | R:- | A:- | S:-
+EditToolbar.tsx[DU6L]: F:维护 EditToolbar.tsx 的项目功能与约束（interface EditToolbarProps {） | R:- | A:- | S:-
+ScreenshotApp.tsx[DU6L]: F:维护 ScreenshotApp.tsx 的项目功能与约束（interface ScreenshotCapture {） | R:- | A:- | S:-
+ScreenshotOverlay.tsx[DU6L]: F:维护 ScreenshotOverlay.tsx 的项目功能与约束（type ScreenshotPhase,） | R:- | A:- | S:-
+SelectionBox.tsx[DU6L]: F:维护 SelectionBox.tsx 的项目功能与约束（type HandleId = 'nw' / 'n' / 'ne' / 'e' / 'se' / 's' / 'sw' / 'w';） | R:- | A:- | S:-
+hud.ts[CG6M]: F:维护 hud.ts 的项目功能与约束（截图/录制浮层独立 HUD：不跟随应用皮肤，主色与 Forge 锻铜一致。 */） | R:- | A:- | S:-
+types.ts[CG6M]: F:维护 types.ts 的项目功能与约束（微信风格截图 - 类型定义 */） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/screenshot/longshot/===
+LongshotPanel.tsx[DU6L]: F:维护 LongshotPanel.tsx 的项目功能与约束（从窗口 URL query 解析捕获区域（CSS 像素）、捕获间隔与滚动模式（框选阶段已确认，不可修改） */） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/sticky-note/===
+StickyNoteApp.tsx[DU6L]: F:维护 StickyNoteApp.tsx 的项目功能与约束（type NoteColor = 'yellow' / 'lime' / 'pink' / 'blue' / 'purple';） | R:- | A:- | S:-
+sticky-note.css[CU5L]: F:维护 sticky-note.css 的项目功能与约束（.sticky-note-shell {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/store/===
+api-tester-store.ts[CG6M]: F:维护 api-tester-store.ts 的项目功能与约束（==================== 类型定义 ====================） | R:- | A:- | S:-
+app-store.ts[CG6M]: F:维护 app-store.ts 的项目功能与约束（const DEFAULT_PINNED_TOOLS = [） | R:- | A:- | S:-
+log-store.ts[CG6M]: F:维护 log-store.ts 的项目功能与约束（日志条目最大保留数量 */） | R:- | A:- | S:-
+resource-store.ts[CG6M]: F:维护 resource-store.ts 的项目功能与约束（interface ResourceStore {） | R:- | A:- | S:-
+screenshot-ocr-store.ts[CG6M]: F:维护 screenshot-ocr-store.ts 的项目功能与约束（let nextSessionId = 0;） | R:- | A:- | S:-
+tool-lifecycle-store.ts[CG6M]: F:维护 tool-lifecycle-store.ts 的项目功能与约束（const log = createLogger('lifecycle');） | R:- | A:- | S:-
+tool-state-store.ts[CG6M]: F:维护 tool-state-store.ts 的项目功能与约束（每个工具的独立状态 */） | R:- | A:- | S:-
+translate-store.ts[CG6M]: F:维护 translate-store.ts 的项目功能与约束（interface TranslateStore {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/test/===
+setup.ts[TQ5M]: F:维护 setup.ts 的项目功能与约束（jsdom has no layout observers; real WebView/Chromium provides these APIs.） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/ai-assistant/===
+ai-assistant.css[CU5L]: F:维护 ai-assistant.css 的项目功能与约束（.ai-workspace { height:100%; min-height:0; display:flex; position:relative; overflow:hidden; color:h） | R:- | A:- | S:-
+assistant-actions.tsx[DU6L]: F:维护 assistant-actions.tsx 的项目功能与约束（export function AssistantActions({ canDelete, onNew, onEdit, onDuplicate, onDelete }: {） | R:- | A:- | S:-
+assistant-dialog.tsx[DU6L]: F:维护 assistant-dialog.tsx 的项目功能与约束（export function AssistantDialog({ assistant, providers, onSave, onClose }: { assistant?: AiAssistant） | R:- | A:- | S:-
+attachments.ts[CG6M]: F:维护 attachments.ts 的项目功能与约束（const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);） | R:- | A:- | S:-
+backend.ts[CG6M]: F:维护 backend.ts 的项目功能与约束（const inDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;） | R:- | A:- | S:-
+branches.ts[CG6M]: F:维护 branches.ts 的项目功能与约束（const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;） | R:- | A:- | S:-
+context.ts[CG6M]: F:维护 context.ts 的项目功能与约束（Conservative heuristic, never presented as provider-measured usage. */） | R:- | A:- | S:-
+conversation-actions.tsx[DU6L]: F:维护 conversation-actions.tsx 的项目功能与约束（export function ConversationActions({ item, disabled, onPin, onArchive, onRename, onDelete }: {） | R:- | A:- | S:-
+conversation-export.tsx[DU6L]: F:维护 conversation-export.tsx 的项目功能与约束（export function ConversationExport({ onExport }: { onExport(format: 'markdown' / 'json'): void }) {） | R:- | A:- | S:-
+conversation-settings.tsx[DU6L]: F:维护 conversation-settings.tsx 的项目功能与约束（export function ParameterFields({ value, onChange, model }: { value: AiParameters; model?: AiModel; ） | R:- | A:- | S:-
+documents.ts[CG6M]: F:维护 documents.ts 的项目功能与约束（async function bounded<T>(promise: Promise<T>, milliseconds = 30_000): Promise<T> {） | R:- | A:- | S:-
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（type ConfirmAction = { title: string; description: string; action(): unknown / Promise<unknown>; can） | R:- | A:- | S:-
+message-view.tsx[DU6L]: F:维护 message-view.tsx 的项目功能与约束（export function AttachmentPreview({ attachment, onRemove }: { attachment: AiAttachment; onRemove?: (） | R:- | A:- | S:-
+model-settings.tsx[DU6L]: F:维护 model-settings.tsx 的项目功能与约束（export function AiModelPicker({ models, enabled, onApply, onClose }: {） | R:- | A:- | S:-
+model.ts[CG6M]: F:维护 model.ts 的项目功能与约束（Keep the first entry so existing aliases and image capabilities survive a refresh. */） | R:- | A:- | S:-
+organization.ts[CG6M]: F:维护 organization.ts 的项目功能与约束（export function searchConversations(conversations: AiConversation[], query: string, assistantId: str） | R:- | A:- | S:-
+prompt-templates.tsx[DU6L]: F:维护 prompt-templates.tsx 的项目功能与约束（export function PromptTemplates({ templates, onChange, onApply, onClose }: { templates: AiPromptTemp） | R:- | A:- | S:-
+request-messages.ts[CG6M]: F:维护 request-messages.ts 的项目功能与约束（Only conversational content is eligible for the provider context. */） | R:- | A:- | S:-
+selector.tsx[DU6L]: F:维护 selector.tsx 的项目功能与约束（export function AiSelector({ label, value, options, placeholder, emptyText, title, disabled, placeme） | R:- | A:- | S:-
+settings.tsx[DU6L]: F:维护 settings.tsx 的项目功能与约束（interface SettingsProps {） | R:- | A:- | S:-
+task-dialog.tsx[DU6L]: F:维护 task-dialog.tsx 的项目功能与约束（export function TaskDialog({ kind, conversation, providers, busy, onRun, onContinue, onClose }: { ki） | R:- | A:- | S:-
+task-results.tsx[DU6L]: F:维护 task-results.tsx 的项目功能与约束（export function TaskResults({ tasks, busy, onQuote, onSummary, providers = [] }: { tasks: AiTask[]; ） | R:- | A:- | S:-
+tasks.ts[CG6M]: F:维护 tasks.ts 的项目功能与约束（export interface AiModelTarget { providerId: string; modelId: string }） | R:- | A:- | S:-
+types.ts[CG6M]: F:维护 types.ts 的项目功能与约束（export type AiProviderKind = 'openai' / 'ollama';） | R:- | A:- | S:-
+ui-text.ts[CG6M]: F:维护 ui-text.ts 的项目功能与约束（export function useAiText() {） | R:- | A:- | S:-
+ui.tsx[DU6L]: F:维护 ui.tsx 的项目功能与约束（const dialogStack: HTMLDivElement[] = [];） | R:- | A:- | S:-
+update-lock.ts[CG6M]: F:维护 update-lock.ts 的项目功能与约束（let holds = 0;） | R:- | A:- | S:-
+use-ai-workspace.ts[CG6M]: F:维护 use-ai-workspace.ts 的项目功能与约束（type Busy = Pick<AiRequest, 'requestId' / 'conversationId' / 'messageId'>;） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/ai-assistant/runtime/===
+conversation-messages.tsx[DU6L]: F:维护 conversation-messages.tsx 的项目功能与约束（export interface ConversationMessageActions {） | R:- | A:- | S:-
+message-mapper.ts[CG6M]: F:维护 message-mapper.ts 的项目功能与约束（export function mapAiMessage(message: AiMessage, showThinking = true): ThreadMessageLike {） | R:- | A:- | S:-
+message-parts.tsx[DU6L]: F:维护 message-parts.tsx 的项目功能与约束（export function AiTextPart({ text }: TextMessagePartProps) {） | R:- | A:- | S:-
+runtime-context.tsx[DU6L]: F:维护 runtime-context.tsx 的项目功能与约束（const AiRuntimeContext = createContext(false);） | R:- | A:- | S:-
+thread-view.tsx[DU6L]: F:维护 thread-view.tsx 的项目功能与约束（export function AiThread({ messages, providers, actions, running, disabled, sendDisabled, activeRunI） | R:- | A:- | S:-
+use-niuery-runtime.ts[CG6M]: F:维护 use-niuery-runtime.ts 的项目功能与约束（export interface AiRuntimeActions {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/converter/===
+angle.tsx[DU6L]: F:维护 angle.tsx 的项目功能与约束（const UNIT_LABELS: Record<AngleUnit, string> = {） | R:- | A:- | S:-
+data-size.tsx[DU6L]: F:维护 data-size.tsx 的项目功能与约束（export default function DataSizeConverter() {） | R:- | A:- | S:-
+json-yaml.tsx[DU6L]: F:维护 json-yaml.tsx 的项目功能与约束（FoldableCodeEditor,） | R:- | A:- | S:-
+number-base.tsx[DU6L]: F:维护 number-base.tsx 的项目功能与约束（interface BaseResult {） | R:- | A:- | S:-
+province-lookup.tsx[DU6L]: F:维护 province-lookup.tsx 的项目功能与约束（isValidChinaLngLat,） | R:- | A:- | S:-
+timestamp.tsx[DU6L]: F:维护 timestamp.tsx 的项目功能与约束（dayjs.extend(utc);） | R:- | A:- | S:-
+xml-json.tsx[DU6L]: F:维护 xml-json.tsx 的项目功能与约束（FoldableCodeEditor,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/converter/color-assistant/===
+ColorWheelTab.tsx[DU6L]: F:维护 ColorWheelTab.tsx 的项目功能与约束（hexToRgb, rgbToHex, rgbToHsl, hslToRgb, rgbToHsv, rgbToCmyk, rgbToHsi, rgbToCielab,） | R:- | A:- | S:-
+FavoriteColorsTab.tsx[DU6L]: F:维护 FavoriteColorsTab.tsx 的项目功能与约束（interface FavoriteColorsTabProps {） | R:- | A:- | S:-
+GradientTab.tsx[DU6L]: F:维护 GradientTab.tsx 的项目功能与约束（export default function GradientTab() {） | R:- | A:- | S:-
+ImageColorTab.tsx[DU6L]: F:维护 ImageColorTab.tsx 的项目功能与约束（export default function ImageColorTab() {） | R:- | A:- | S:-
+TraditionalColorTab.tsx[DU6L]: F:维护 TraditionalColorTab.tsx 的项目功能与约束（export default function TraditionalColorTab() {） | R:- | A:- | S:-
+UiPaletteTab.tsx[DU6L]: F:维护 UiPaletteTab.tsx 的项目功能与约束（export default function UiPaletteTab() {） | R:- | A:- | S:-
+color-data.ts[CG6M]: F:维护 color-data.ts 的项目功能与约束（UI Color Palettes Data） | R:- | A:- | S:-
+color-utils.ts[CG6M]: F:维护 color-utils.ts 的项目功能与约束（Color conversion utilities） | R:- | A:- | S:-
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（type TabId = 'color' / 'ui-palette' / 'image-color' / 'traditional' / 'gradient' / 'favorites';） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/diagram/===
+diagram-editor-utils.ts[CG6M]: F:维护 diagram-editor-utils.ts 的项目功能与约束（export type DiagramKind = 'mermaid' / 'plantuml';） | R:- | A:- | S:-
+diagram-editor.tsx[DU6L]: F:维护 diagram-editor.tsx 的项目功能与约束（Download,） | R:- | A:- | S:-
+mermaid-editor.tsx[DU6L]: F:维护 mermaid-editor.tsx 的项目功能与约束（const renderer = { render: renderMermaidDiagram };） | R:- | A:- | S:-
+mermaid-import.ts[CG6M]: F:维护 mermaid-import.ts 的项目功能与约束（export interface MermaidImportCandidate {） | R:- | A:- | S:-
+mermaid-renderer.ts[CG6M]: F:维护 mermaid-renderer.ts 的项目功能与约束（let renderSequence = 0;） | R:- | A:- | S:-
+plantuml-editor.tsx[DU6L]: F:维护 plantuml-editor.tsx 的项目功能与约束（const renderer = { render: renderPlantUmlDiagram, renderPng: renderPlantUmlPng };） | R:- | A:- | S:-
+plantuml-renderer.ts[CG6M]: F:维护 plantuml-renderer.ts 的项目功能与约束（type RenderOptions = { scheme: 'light' / 'dark' };） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/encoder/===
+base64.tsx[DU6L]: F:维护 base64.tsx 的项目功能与约束（type Mode = 'encode' / 'decode';） | R:- | A:- | S:-
+gzip.tsx[DU6L]: F:维护 gzip.tsx 的项目功能与约束（type Mode = 'compress' / 'decompress';） | R:- | A:- | S:-
+html-entity.tsx[DU6L]: F:维护 html-entity.tsx 的项目功能与约束（type Mode = 'encode' / 'decode';） | R:- | A:- | S:-
+jwt-decoder.tsx[DU6L]: F:维护 jwt-decoder.tsx 的项目功能与约束（export default function JwtDecoder() {） | R:- | A:- | S:-
+qrcode.tsx[DU6L]: F:维护 qrcode.tsx 的项目功能与约束（export default function QrCodeTool() {） | R:- | A:- | S:-
+unicode.tsx[DU6L]: F:维护 unicode.tsx 的项目功能与约束（type Mode = 'encode' / 'decode';） | R:- | A:- | S:-
+url-encode.tsx[DU6L]: F:维护 url-encode.tsx 的项目功能与约束（type Mode = 'encode' / 'decode';） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/formatter/===
+html-renderer.tsx[DU6L]: F:维护 html-renderer.tsx 的项目功能与约束（const DEFAULT_HTML = `<!doctype html>） | R:- | A:- | S:-
+json-formatter.tsx[DU6L]: F:维护 json-formatter.tsx 的项目功能与约束（FoldableCodeEditor,） | R:- | A:- | S:-
+markdown-editor.tsx[DU6L]: F:维护 markdown-editor.tsx 的项目功能与约束（Columns2,） | R:- | A:- | S:-
+report-generator.tsx[DU6L]: F:维护 report-generator.tsx 的项目功能与约束（const SAMPLE = `[） | R:- | A:- | S:-
+sql-formatter.tsx[DU6L]: F:维护 sql-formatter.tsx 的项目功能与约束（type SqlDialect =） | R:- | A:- | S:-
+xml-formatter.tsx[DU6L]: F:维护 xml-formatter.tsx 的项目功能与约束（FoldableCodeEditor,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/generator/===
+checksum.tsx[DU6L]: F:维护 checksum.tsx 的项目功能与约束（type HashAlgorithm = 'MD5' / 'SHA-1' / 'SHA-256' / 'SHA-384' / 'SHA-512';） | R:- | A:- | S:-
+hash-generator.tsx[DU6L]: F:维护 hash-generator.tsx 的项目功能与约束（type HashAlgorithm = 'MD5' / 'SHA-1' / 'SHA-256' / 'SHA-384' / 'SHA-512';） | R:- | A:- | S:-
+lorem-ipsum.tsx[DU6L]: F:维护 lorem-ipsum.tsx 的项目功能与约束（export default function LoremIpsum() {） | R:- | A:- | S:-
+password-generator.tsx[DU6L]: F:维护 password-generator.tsx 的项目功能与约束（export default function PasswordGenerator() {） | R:- | A:- | S:-
+uuid-generator.tsx[DU6L]: F:维护 uuid-generator.tsx 的项目功能与约束（type UuidType = 'v1' / 'v4' / 'v5' / 'ulid' / 'nanoid';） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/graphic/===
+excalidraw-board.tsx[DU6L]: F:维护 excalidraw-board.tsx 的项目功能与约束（Excalidraw,） | R:- | A:- | S:-
+icon-generator.tsx[DU6L]: F:维护 icon-generator.tsx 的项目功能与约束（interface IconSize {） | R:- | A:- | S:-
+screenshot-editor.tsx[DU6L]: F:维护 screenshot-editor.tsx 的项目功能与约束（DEFAULT_SCREENSHOT_HOTKEY,） | R:- | A:- | S:-
+svg-optimizer.tsx[DU6L]: F:维护 svg-optimizer.tsx 的项目功能与约束（export default function SvgOptimizer() {） | R:- | A:- | S:-
+tldraw-board.tsx[DU6L]: F:维护 tldraw-board.tsx 的项目功能与约束（createTLStore,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/graphic/flow-board/===
+FlowBoard.tsx[DU6L]: F:维护 FlowBoard.tsx 的项目功能与约束（addEdge, applyNodeChanges, applyEdgeChanges, Background, BackgroundVariant, ConnectionMode, Connecti） | R:- | A:- | S:-
+canvas-context.ts[CG6M]: F:维护 canvas-context.ts 的项目功能与约束（export interface CanvasActions { begin(): void; finish(): void; updateNode(id: string, patch: Partia） | R:- | A:- | S:-
+canvas.tsx[DU6L]: F:维护 canvas.tsx 的项目功能与约束（const sides = [Position.Left, Position.Top, Position.Right, Position.Bottom];） | R:- | A:- | S:-
+document.ts[CG6M]: F:维护 document.ts 的项目功能与约束（export const FLOW_SCHEMA_VERSION = 2 as const;） | R:- | A:- | S:-
+export.ts[DU6T]: F:将流程图导出为SVG、PNG、HTML和URL，并为SVG、PNG及PDF嵌入可编辑文档JSON | R:code:src/tools/graphic/flow-board/geometry.ts,code:src/tools/graphic/flow-board/types.ts | A:flowToSvg,svgToPng,flowToHtml/flowToUrl,embedFlowJsonInSvg/embedFlowJsonInPng/embedFlowJsonInPdf | S:节点绘制使用绝对坐标，连线路由必须接收保留父级相对坐标的原节点以免重复偏移；箭头定义与引用都按边ID生成
+geometry.ts[CG6M]: F:维护 geometry.ts 的项目功能与约束（export function absolutePosition(node: FlowNode, nodes: FlowNode[]): FlowPoint {） | R:- | A:- | S:-
+history.ts[CG6M]: F:维护 history.ts 的项目功能与约束（export interface EditorState { document: FlowDocument; past: FlowDocument[]; future: FlowDocument[];） | R:- | A:- | S:-
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（index.tsx） | R:- | A:- | S:-
+inspector.tsx[DU6L]: F:维护 inspector.tsx 的项目功能与约束（interface Props {） | R:- | A:- | S:-
+interop.ts[CG6M]: F:维护 interop.ts 的项目功能与约束（export const FLOW_AI_PROMPT = `你是流程图结构化生成器。只输出合法 JSON，不要 Markdown 代码围栏，不要解释文字。） | R:- | A:- | S:-
+node-registry.ts[CG6M]: F:维护 node-registry.ts 的项目功能与约束（const COLORS = {） | R:- | A:- | S:-
+operations.ts[CG6M]: F:维护 operations.ts 的项目功能与约束（type Alignment = 'left' / 'center' / 'right' / 'top' / 'middle' / 'bottom';） | R:- | A:- | S:-
+styles.css[CU5L]: F:维护 styles.css 的项目功能与约束（.flow-board { font-family: Inter, "Microsoft YaHei", sans-serif; }） | R:- | A:- | S:-
+templates.ts[CG6M]: F:维护 templates.ts 的项目功能与约束（export interface FlowTemplate { id: string; name: string; description: string; create: () => FlowDoc） | R:- | A:- | S:-
+types.ts[CG6M]: F:维护 types.ts 的项目功能与约束（export type FlowShape = 'rectangle' / 'rounded' / 'circle' / 'diamond' / 'text' / 'parallelogram';） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/graphic/image-studio/===
+clipboard-image-history.ts[CG6M]: F:维护 clipboard-image-history.ts 的项目功能与约束（export interface ClipboardImageEntry {） | R:- | A:- | S:-
+common.ts[CG6M]: F:维护 common.ts 的项目功能与约束（export const IMAGE_FILTER = { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] };） | R:- | A:- | S:-
+image-file-dropzone.tsx[DU6L]: F:维护 image-file-dropzone.tsx 的项目功能与约束（formatClipboardRelativeTime,） | R:- | A:- | S:-
+image-preview.tsx[DU6L]: F:维护 image-preview.tsx 的项目功能与约束（interface ImagePreviewProps {） | R:- | A:- | S:-
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（CompressPanel,） | R:- | A:- | S:-
+ocr-engine.ts[CG6M]: F:维护 ocr-engine.ts 的项目功能与约束（export type OcrLanguage = 'chi_sim' / 'eng' / 'chi_sim+eng';） | R:- | A:- | S:-
+ocr-panel.tsx[DU6L]: F:维护 ocr-panel.tsx 的项目功能与约束（const LANGUAGE_OPTIONS: { value: OcrLanguage; label: string }[] = [） | R:- | A:- | S:-
+ocr-postprocess.ts[CG6M]: F:维护 ocr-postprocess.ts 的项目功能与约束（const CHINESE_CONTEXT_CORRECTIONS: ReadonlyArray<readonly [RegExp, string]> = [） | R:- | A:- | S:-
+ocr-preprocess.ts[CG6M]: F:维护 ocr-preprocess.ts 的项目功能与约束（export const OCR_SCALE_FACTOR = 2;） | R:- | A:- | S:-
+panels-edit.tsx[DU6L]: F:维护 panels-edit.tsx 的项目功能与约束（const log = createLogger('image-studio:edit');） | R:- | A:- | S:-
+panels-merge.tsx[DU6L]: F:维护 panels-merge.tsx 的项目功能与约束（const log = createLogger('image-studio:merge');） | R:- | A:- | S:-
+processing-result-preview.tsx[DU6L]: F:维护 processing-result-preview.tsx 的项目功能与约束（const EMPTY_PREVIEW_ITEMS: Array<Blob / SaveFile> = [];） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/graphic/mind-map/===
+MindMapSurface.tsx[DU6L]: F:维护 MindMapSurface.tsx 的项目功能与约束（let pluginsRegistered = false;） | R:- | A:- | S:-
+document.ts[CG6M]: F:维护 document.ts 的项目功能与约束（export type MindMapDocument = MindMapData;） | R:- | A:- | S:-
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（discardRecoverySnapshot,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/graphic/screen-recorder/===
+GifEditor.tsx[DU6L]: F:维护 GifEditor.tsx 的项目功能与约束（const log = createLogger('screen-recorder:gif-editor');） | R:- | A:- | S:-
+Timeline.tsx[DU6L]: F:维护 Timeline.tsx 的项目功能与约束（interface TimelineProps {） | R:- | A:- | S:-
+gif-worker.ts[CG6M]: F:维护 gif-worker.ts 的项目功能与约束（export interface DecodedGif {） | R:- | A:- | S:-
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;） | R:- | A:- | S:-
+recorder-reducer.ts[CG6M]: F:维护 recorder-reducer.ts 的项目功能与约束（GifFrame,） | R:- | A:- | S:-
+types.ts[CG6M]: F:维护 types.ts 的项目功能与约束（export type CaptureMode = 'region' / 'window' / 'monitor';） | R:- | A:- | S:-
+useRecorder.ts[CG6M]: F:维护 useRecorder.ts 的项目功能与约束（AudioSource,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/graphic/screenshot/===
+CropOverlay.tsx[DU6L]: F:维护 CropOverlay.tsx 的项目功能与约束（interface CropOverlayProps {） | R:- | A:- | S:-
+EditorCanvas.tsx[DU6L]: F:维护 EditorCanvas.tsx 的项目功能与约束（interface EditorCanvasProps {） | R:- | A:- | S:-
+HistoryProvider.tsx[DU6L]: F:维护 HistoryProvider.tsx 的项目功能与约束（interface HistoryState {） | R:- | A:- | S:-
+LayerPanel.tsx[DU6L]: F:维护 LayerPanel.tsx 的项目功能与约束（Eye,） | R:- | A:- | S:-
+Toolbar.tsx[DU6L]: F:维护 Toolbar.tsx 的项目功能与约束（MousePointer2,） | R:- | A:- | S:-
+types.ts[CG6M]: F:维护 types.ts 的项目功能与约束（截图编辑器类型定义 */） | R:- | A:- | S:-
+useClipboardPaste.ts[CG6M]: F:维护 useClipboardPaste.ts 的项目功能与约束（剪贴板粘贴 Hook） | R:- | A:- | S:-
+useExport.ts[CG6M]: F:维护 useExport.ts 的项目功能与约束（const log = createLogger('screenshot-editor:export');） | R:- | A:- | S:-
+useScreenCapture.ts[CG6M]: F:维护 useScreenCapture.ts 的项目功能与约束（const log = createLogger('screenshot-editor:capture');） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/network/api-tester/===
+AuthPanel.tsx[DU6L]: F:维护 AuthPanel.tsx 的项目功能与约束（interface AuthPanelProps {） | R:- | A:- | S:-
+BatchTestDialog.tsx[DU6L]: F:维护 BatchTestDialog.tsx 的项目功能与约束（useApiTesterStore,） | R:- | A:- | S:-
+BodyEditor.tsx[DU6L]: F:维护 BodyEditor.tsx 的项目功能与约束（interface BodyEditorProps {） | R:- | A:- | S:-
+CollectionSidebar.tsx[DU6L]: F:维护 CollectionSidebar.tsx 的项目功能与约束（FolderPlus,） | R:- | A:- | S:-
+DocPreviewDialog.tsx[DU6L]: F:维护 DocPreviewDialog.tsx 的项目功能与约束（interface DocPreviewDialogProps {） | R:- | A:- | S:-
+EnvironmentDialog.tsx[DU6L]: F:维护 EnvironmentDialog.tsx 的项目功能与约束（useApiTesterStore,） | R:- | A:- | S:-
+KeyValueEditor.tsx[DU6L]: F:维护 KeyValueEditor.tsx 的项目功能与约束（interface KeyValueEditorProps {） | R:- | A:- | S:-
+MockDialog.tsx[DU6L]: F:维护 MockDialog.tsx 的项目功能与约束（useApiTesterStore,） | R:- | A:- | S:-
+RequestPanel.tsx[DU6L]: F:维护 RequestPanel.tsx 的项目功能与约束（HTTP_METHODS,） | R:- | A:- | S:-
+ResponsePanel.tsx[DU6L]: F:维护 ResponsePanel.tsx 的项目功能与约束（interface ResponsePanelProps {） | R:- | A:- | S:-
+ScriptPanel.tsx[DU6L]: F:维护 ScriptPanel.tsx 的项目功能与约束（interface ScriptPanelProps {） | R:- | A:- | S:-
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（Layers,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/network/===
+socket-tool.tsx[DU6L]: F:维护 socket-tool.tsx 的项目功能与约束（ArrowUpRight,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/pdf/===
+common.tsx[DU6L]: F:维护 common.tsx 的项目功能与约束（interface FileDropzoneProps {） | R:- | A:- | S:-
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（type FeatureId = 'compress' / 'merge' / 'split' / 'watermark' / 'extract-images' / 'to-images';） | R:- | A:- | S:-
+panels.tsx[DU6L]: F:维护 panels.tsx 的项目功能与约束（compressLossless,） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/system/===
+process-tool-page.tsx[DU6L]: F:维护 process-tool-page.tsx 的项目功能与约束（findFileLockOwners,） | R:- | A:- | S:-
+process-tools.ts[CG6M]: F:维护 process-tools.ts 的项目功能与约束（export interface ProcessTarget {） | R:- | A:- | S:-
+resource-unlocker.tsx[DU6L]: F:维护 resource-unlocker.tsx 的项目功能与约束（const MODES = [） | R:- | A:- | S:-
+system-monitor.tsx[DU6L]: F:维护 system-monitor.tsx 的项目功能与约束（interface SystemStats {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/text/===
+case-converter.tsx[DU6L]: F:维护 case-converter.tsx 的项目功能与约束（const CASE_TYPES: CaseType[] = [） | R:- | A:- | S:-
+clipboard-history.tsx[DU6L]: F:维护 clipboard-history.tsx 的项目功能与约束（Type,） | R:- | A:- | S:-
+clipboard-image-preview.tsx[DU6L]: F:维护 clipboard-image-preview.tsx 的项目功能与约束（export interface ClipboardImagePreviewEntry {） | R:- | A:- | S:-
+escape-unescape.tsx[DU6L]: F:维护 escape-unescape.tsx 的项目功能与约束（type Mode = 'escape' / 'unescape';） | R:- | A:- | S:-
+regex-tester.tsx[DU6L]: F:维护 regex-tester.tsx 的项目功能与约束（const COMMON_PATTERNS = [） | R:- | A:- | S:-
+text-diff.tsx[DU6L]: F:维护 text-diff.tsx 的项目功能与约束（type ViewMode = 'split' / 'unified';） | R:- | A:- | S:-
+text-inspector.tsx[DU6L]: F:维护 text-inspector.tsx 的项目功能与约束（function formatBytes(bytes: number): string {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/text/sticky-note/===
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（function formatShortcutDisplay(shortcut: string) {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/translate/===
+index.tsx[DU6L]: F:维护 index.tsx 的项目功能与约束（翻译工具：左右对等原文/译文，回车触发，语言栏居中。 */） | R:- | A:- | S:-
+translate-settings.tsx[DU6L]: F:维护 translate-settings.tsx 的项目功能与约束（interface TranslateSettingsDialogProps {） | R:- | A:- | S:-
+
+===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/types/===
+gifenc.d.ts[CG6M]: F:维护 gifenc.d.ts 的项目功能与约束（declare module 'gifenc' {） | R:- | A:- | S:-
+markdown-it-task-list.d.ts[CG6M]: F:维护 markdown-it-task-list.d.ts 的项目功能与约束（declare module 'markdown-it-task-list' {） | R:- | A:- | S:-
+simple-mind-map.d.ts[CG6M]: F:维护 simple-mind-map.d.ts 的项目功能与约束（declare module 'simple-mind-map' {） | R:- | A:- | S:-
+tool.ts[CG6M]: F:维护 tool.ts 的项目功能与约束（Camera,） | R:- | A:- | S:-

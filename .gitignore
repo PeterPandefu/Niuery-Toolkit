@@ -73,3 +73,7 @@ docs/*
 !docs/wiki/
 src-tauri/resources/chromium/*/
 !src-tauri/resources/chromium/README.md
+
+# AOCI agent host integration (machine-bound; do not commit)
+.codex/config.toml
+.codex/config.toml.backup.*
