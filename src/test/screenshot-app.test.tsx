@@ -1,8 +1,9 @@
-import { act, render } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ScreenshotApp from '@/screenshot/ScreenshotApp';
 
-const { convertFileSrcMock, invokeMock, listenMock, unlistenMock } = vi.hoisted(() => ({
+const { convertFileSrcMock, invokeMock, listenMock, unlistenMock, emitToMock } = vi.hoisted(() => ({
+  emitToMock: vi.fn().mockResolvedValue(undefined),
   convertFileSrcMock: vi.fn((path: string) => `asset://${path}`),
   invokeMock: vi.fn(),
   listenMock: vi.fn(),
@@ -10,11 +11,12 @@ const { convertFileSrcMock, invokeMock, listenMock, unlistenMock } = vi.hoisted(
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: convertFileSrcMock, invoke: invokeMock }));
-vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock, emitTo: emitToMock }));
 
 interface ScreenshotCapture {
   generation: number;
-  mode: 'normal' | 'longshot';
+  mode: 'normal' | 'longshot' | 'color';
+  scaleFactor?: number;
   path: string;
 }
 
@@ -80,6 +82,8 @@ describe('ScreenshotApp', () => {
     convertFileSrcMock.mockClear();
     listenMock.mockReset();
     unlistenMock.mockReset();
+    emitToMock.mockClear();
+    vi.restoreAllMocks();
   });
 
   it('预热窗口无截图数据时不触发原生全屏操作，并等待捕获事件', async () => {
@@ -132,6 +136,34 @@ describe('ScreenshotApp', () => {
     await emitCaptureReady(1);
 
     expect(crossOriginAtSrcAssignment).toBe('anonymous');
+  });
+
+  it('取色模式按原始物理像素采样，发送色值后关闭当前会话', async () => {
+    vi.stubGlobal('Image', LoadedImage);
+    const read = vi.fn().mockReturnValue({ data: [18, 52, 86, 255] });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn(), getImageData: read } as unknown as CanvasRenderingContext2D);
+    currentCapture = { generation: 7, mode: 'color', path: 'C:/cache/color.png', scaleFactor: 2 };
+    render(<ScreenshotApp />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+    const picker = screen.getByRole('application', { name: '屏幕取色' });
+    fireEvent.mouseDown(picker, { button: 0, clientX: 10, clientY: 20 });
+    await act(async () => { await Promise.resolve(); });
+    expect(read).toHaveBeenCalledWith(20, 40, 1, 1);
+    expect(emitToMock).toHaveBeenCalledWith('main', 'screen-color-picked', '#123456');
+    expect(invokeMock).toHaveBeenCalledWith('close_screenshot_window', { generation: 7 });
+  });
+
+  it.each(['Escape', 'contextmenu'])('取色模式 %s 取消时不回传颜色', async (action) => {
+    vi.stubGlobal('Image', LoadedImage);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    currentCapture = { generation: 8, mode: 'color', path: 'C:/cache/color.png' };
+    render(<ScreenshotApp />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+    if (action === 'Escape') fireEvent.keyDown(window, { key: 'Escape' });
+    else fireEvent.contextMenu(screen.getByRole('application', { name: '屏幕取色' }));
+    await act(async () => { await Promise.resolve(); });
+    expect(invokeMock).toHaveBeenCalledWith('close_screenshot_window', { generation: 8 });
+    expect(emitToMock).not.toHaveBeenCalled();
   });
 
   it('同一预热窗口可连续加载并显示多个截图会话', async () => {

@@ -464,7 +464,7 @@ main.rs[DG6L]: F:维护 main.rs 的项目功能与约束（Prevents additional c
 plantuml.rs[DG6L]: F:维护 plantuml.rs 的项目功能与约束（use std::collections::HashMap;） | R:- | A:- | S:-
 process_tools.rs[DG6L]: F:维护 process_tools.rs 的项目功能与约束（use serde::{Deserialize, Serialize};） | R:- | A:- | S:-
 recorder.rs[DG6L]: F:维护 recorder.rs 的项目功能与约束（use image::{imageops, RgbaImage};） | R:- | A:- | S:-
-screenshot.rs[DG6L]: F:维护 screenshot.rs 的项目功能与约束（use base64::Engine;） | R:- | A:- | S:-
+screenshot.rs[IU7L]: F:管理原生主屏捕获、截图窗口会话及长截图和录屏区域选择 | R:code:src/screenshot/ScreenshotApp.tsx,code:src-tauri/src/capture_guard.rs | A:start_screenshot,get_screen_capture,close_screenshot_window,show_screenshot_window,capture_screen_region | S:取色模式保留物理像素并传scaleFactor，其他模式返回CSS像素；generation隔离旧回调，取消与超时须释放会话并通知取色页
 sticky_note.rs[DG6L]: F:维护 sticky_note.rs 的项目功能与约束（use serde::{Deserialize, Serialize};） | R:- | A:- | S:-
 system_monitor.rs[DG6L]: F:维护 system_monitor.rs 的项目功能与约束（use serde::Serialize;） | R:- | A:- | S:-
 window_chrome.rs[DG6L]: F:维护 window_chrome.rs 的项目功能与约束（use tauri::{window::Color, Theme, WebviewWindow};） | R:- | A:- | S:-
@@ -613,11 +613,12 @@ tool-registry.ts[CG6M]: F:维护 tool-registry.ts 的项目功能与约束（Arr
 ===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/screenshot/===
 AnnotationLayer.tsx[DU6L]: F:维护 AnnotationLayer.tsx 的项目功能与约束（Stage,） | R:- | A:- | S:-
 EditToolbar.tsx[DU6L]: F:维护 EditToolbar.tsx 的项目功能与约束（interface EditToolbarProps {） | R:- | A:- | S:-
-ScreenshotApp.tsx[DU6L]: F:维护 ScreenshotApp.tsx 的项目功能与约束（interface ScreenshotCapture {） | R:- | A:- | S:-
+ScreenshotApp.tsx[AU6S]: F:加载捕获事件对应的截图并分派普通截图、长截图、录屏选区及取色覆盖层 | R:code:src/screenshot/ColorPickerOverlay.tsx,code:src/screenshot/ScreenshotOverlay.tsx | A:ScreenshotApp,screenshot-capture-ready | S:赋src前设置匿名跨域以免污染canvas；图片解码提交后才显示窗口，旧generation加载不得覆盖新会话
 ScreenshotOverlay.tsx[DU6L]: F:维护 ScreenshotOverlay.tsx 的项目功能与约束（type ScreenshotPhase,） | R:- | A:- | S:-
 SelectionBox.tsx[DU6L]: F:维护 SelectionBox.tsx 的项目功能与约束（type HandleId = 'nw' / 'n' / 'ne' / 'e' / 'se' / 's' / 'sw' / 'w';） | R:- | A:- | S:-
 hud.ts[CG6M]: F:维护 hud.ts 的项目功能与约束（截图/录制浮层独立 HUD：不跟随应用皮肤，主色与 Forge 锻铜一致。 */） | R:- | A:- | S:-
 types.ts[CG6M]: F:维护 types.ts 的项目功能与约束（微信风格截图 - 类型定义 */） | R:- | A:- | S:-
+ColorPickerOverlay.tsx[DU6S]: F:展示屏幕取色浮层和跟随光标的11×11像素放大网格、中心框及HEX，支持点击确认和Esc或右键取消 | R:code:src/screenshot/ScreenshotApp.tsx,code:src/tools/converter/color-assistant/ColorWheelTab.tsx | A:ColorPickerOverlay,screen-color-picked | S:按scaleFactor从原图采样；放大禁用插值，边缘裁切用目标偏移保持中心不变；HUD不参与采样，回传后才关闭generation
 
 ===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/screenshot/longshot/===
 LongshotPanel.tsx[DU6L]: F:维护 LongshotPanel.tsx 的项目功能与约束（从窗口 URL query 解析捕获区域（CSS 像素）、捕获间隔与滚动模式（框选阶段已确认，不可修改） */） | R:- | A:- | S:-
@@ -687,7 +688,7 @@ timestamp.tsx[DU6L]: F:维护 timestamp.tsx 的项目功能与约束（dayjs.ext
 xml-json.tsx[DU6L]: F:维护 xml-json.tsx 的项目功能与约束（FoldableCodeEditor,） | R:- | A:- | S:-
 
 ===C:/Users/Peter/Desktop/temp/Niuery-Toolkit/src/tools/converter/color-assistant/===
-ColorWheelTab.tsx[DU6L]: F:维护 ColorWheelTab.tsx 的项目功能与约束（hexToRgb, rgbToHex, rgbToHsl, hslToRgb, rgbToHsv, rgbToCmyk, rgbToHsi, rgbToCielab,） | R:- | A:- | S:-
+ColorWheelTab.tsx[DU6M]: F:提供色轮与饱和度亮度调节、多制式色值复制、配色建议及屏幕取色 | R:code:src/tools/converter/color-assistant/color-utils.ts,code:src-tauri/src/screenshot.rs | A:ColorWheelTab,onAddFavorite,screen-color-picked,screen-color-picker-closed | S:桌面用原生截图color模式，须先监听再启动；浏览器调用EyeDropper且AbortError静默取消，会话结束注销监听并恢复按钮
 FavoriteColorsTab.tsx[DU6L]: F:维护 FavoriteColorsTab.tsx 的项目功能与约束（interface FavoriteColorsTabProps {） | R:- | A:- | S:-
 GradientTab.tsx[DU6L]: F:维护 GradientTab.tsx 的项目功能与约束（export default function GradientTab() {） | R:- | A:- | S:-
 ImageColorTab.tsx[DU6L]: F:维护 ImageColorTab.tsx 的项目功能与约束（export default function ImageColorTab() {） | R:- | A:- | S:-
