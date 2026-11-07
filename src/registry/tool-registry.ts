@@ -37,6 +37,7 @@ import {
   Wind,
   Activity,
   FileLock2,
+  Share2,
   Workflow,
   PenTool,
 } from 'lucide-react';
@@ -59,6 +60,7 @@ const TOOL_CAPABILITIES: Partial<Record<string, ToolCapabilities>> = {
   'system-monitor': { network: 'offline', permissions: ['system'], desktopOnly: true },
   'resource-unlocker': { network: 'offline', permissions: ['file', 'system'], desktopOnly: true },
   'socket-tool': { network: 'hybrid', permissions: ['localNetwork'], desktopOnly: true },
+  'file-share': { network: 'hybrid', permissions: ['file', 'localNetwork'], desktopOnly: true },
   'api-tester': { network: 'network', permissions: [] },
   translator: { network: 'network', permissions: [] },
 };
@@ -616,6 +618,16 @@ registerTool({
   component: lazy(() => import('@/tools/network/socket-tool')),
   keywords: ['socket', 'websocket', 'ws', '网络', '连接', 'server', 'client', '调试'],
   description: 'WebSocket 客户端/服务端调试',
+});
+
+registerTool({
+  id: 'file-share',
+  name: '文件共享',
+  icon: Share2,
+  category: 'network',
+  component: lazy(() => import('@/tools/network/file-share')),
+  keywords: ['file', 'share', 'upload', 'download', 'lan', '局域网', '文件共享', '文件传输'],
+  description: '在局域网内共享文件和文件夹，支持上传、下载与断点续传',
 });
 
 // === 网络工具 ===

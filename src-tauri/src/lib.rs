@@ -2,9 +2,10 @@ mod ai_assistant;
 mod capture_guard;
 mod chromium;
 mod clipboard;
-mod file_saver;
 #[cfg(test)]
 mod file_dialog_tests;
+mod file_saver;
+mod file_share;
 mod hotkey;
 mod plantuml;
 pub mod process_tools;
@@ -111,6 +112,7 @@ mod dev_server {
 
 use capture_guard::{CaptureActivity, CaptureGuardState, CaptureShortcut, ShortcutDecision};
 use clipboard::ClipboardHistoryState;
+use file_share::FileShareState;
 use hotkey::{
     HotkeyState, ACTION_LONGSHOT, ACTION_SCREENSHOT, ACTION_SCREEN_RECORDER, ACTION_SHOW_WINDOW,
     ACTION_STICKY_NOTE,
@@ -338,6 +340,7 @@ pub fn run() {
         .manage(RecorderState::default())
         .manage(ClipboardHistoryState::default())
         .manage(SystemMonitorState::default())
+        .manage(FileShareState::default())
         .manage(HotkeyState::default())
         .manage(CloseBehaviorState::default())
         .invoke_handler(tauri::generate_handler![
@@ -415,6 +418,16 @@ pub fn run() {
             sticky_note::set_sticky_note_always_on_top,
             sticky_note::show_sticky_note_window,
             system_monitor::get_system_stats,
+            file_share::list_shared_items,
+            file_share::add_shared_paths,
+            file_share::share_text,
+            file_share::remove_shared_item,
+            file_share::reveal_shared_item,
+            file_share::clear_shared_items,
+            file_share::start_file_share,
+            file_share::stop_file_share,
+            file_share::get_file_share_info,
+            file_share::list_file_share_addresses,
             process_tools::find_port_owners,
             process_tools::find_file_lock_owners,
             process_tools::find_folder_lock_owners,
