@@ -52,6 +52,11 @@ export default function FileShare() {
   const availableAddresses = useMemo(() => addresses.filter((address) => address.isIpv6 === (ipVersion === 'ipv6')), [addresses, ipVersion]);
 
   const refresh = async () => setItems(await invoke<SharedItem[]>('list_shared_items'));
+  const refreshAddresses = async () => {
+    const next = await invoke<ShareAddress[]>('list_file_share_addresses');
+    setAddresses(next);
+    return next;
+  };
 
   useEffect(() => {
     if (!isTauri) return;
@@ -111,7 +116,16 @@ export default function FileShare() {
 
   const startServer = async () => {
     setBusy(true);
-    try { setServer(await invoke<ServerInfo>('start_file_share', { address: selectedAddress })); }
+    try {
+      const latestAddresses = await refreshAddresses();
+      const currentVersion = ipVersion === 'ipv6';
+      const address = latestAddresses.find((value) => value.address === selectedAddress && value.isIpv6 === currentVersion)?.address
+        ?? latestAddresses.find((value) => value.isIpv6 === currentVersion)?.address
+        ?? '';
+      if (!address) throw new Error(t('fileShare.noAddress'));
+      setSelectedAddress(address);
+      setServer(await invoke<ServerInfo>('start_file_share', { address }));
+    }
     catch (error) { toast.error(`${t('fileShare.startFailed')}: ${String(error)}`); }
     finally { setBusy(false); }
   };

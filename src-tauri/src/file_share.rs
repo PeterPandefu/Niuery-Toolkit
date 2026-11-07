@@ -7,6 +7,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::{stream, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::path::{Component, Path as FsPath, PathBuf};
 use std::sync::Arc;
@@ -347,10 +348,9 @@ pub async fn start_file_share(
     let ip = address
         .parse::<std::net::IpAddr>()
         .map_err(|error| format!("无效的网络地址：{error}"))?;
-    let available = local_ip_address::list_afinet_netifas()
-        .map_err(|error| format!("无法读取网络接口：{error}"))?
+    let available = list_file_share_addresses()?
         .into_iter()
-        .any(|(_, value)| value == ip);
+        .any(|value| value.address == ip.to_string());
     if !available || ip.is_loopback() || ip.is_unspecified() {
         return Err("所选网络地址当前不可用".into());
     }
@@ -400,14 +400,12 @@ pub async fn start_file_share(
 
 #[tauri::command]
 pub fn list_file_share_addresses() -> Result<Vec<ShareAddress>, String> {
-    let mut addresses = local_ip_address::list_afinet_netifas()
-        .map_err(|error| format!("无法读取网络接口：{error}"))?
+    let interface_statuses = active_interface_statuses()?;
+
+    let candidates = local_ip_address::list_afinet_netifas()
+        .map_err(|error| format!("无法读取网络接口：{error}"))?;
+    let mut addresses = filter_share_address_candidates(candidates, interface_statuses.as_ref())
         .into_iter()
-        .filter(|(_, address)| {
-            !address.is_loopback()
-                && !address.is_unspecified()
-                && !matches!(address, std::net::IpAddr::V6(value) if value.is_unicast_link_local())
-        })
         .map(|(interface_name, address)| ShareAddress {
             interface_name,
             address: address.to_string(),
@@ -417,10 +415,96 @@ pub fn list_file_share_addresses() -> Result<Vec<ShareAddress>, String> {
     addresses.sort_by(|a, b| {
         a.is_ipv6
             .cmp(&b.is_ipv6)
+            .then_with(|| {
+                let a_has_gateway = interface_statuses
+                    .as_ref()
+                    .and_then(|statuses| statuses.get(&a.interface_name))
+                    .copied()
+                    .unwrap_or(false);
+                let b_has_gateway = interface_statuses
+                    .as_ref()
+                    .and_then(|statuses| statuses.get(&b.interface_name))
+                    .copied()
+                    .unwrap_or(false);
+                b_has_gateway.cmp(&a_has_gateway)
+            })
             .then_with(|| a.interface_name.cmp(&b.interface_name))
     });
     addresses.dedup_by(|a, b| a.address == b.address);
     Ok(addresses)
+}
+
+fn filter_share_address_candidates(
+    candidates: Vec<(String, std::net::IpAddr)>,
+    interface_statuses: Option<&HashMap<String, bool>>,
+) -> Vec<(String, std::net::IpAddr)> {
+    candidates
+        .into_iter()
+        .filter(|(interface_name, address)| {
+            !address.is_loopback()
+                && !address.is_unspecified()
+                && !matches!(address, std::net::IpAddr::V4(value) if value.is_link_local())
+                && !matches!(address, std::net::IpAddr::V6(value) if value.is_unicast_link_local())
+                && interface_statuses.map_or(true, |statuses| statuses.contains_key(interface_name))
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn active_interface_statuses() -> Result<Option<HashMap<String, bool>>, String> {
+    use windows::Win32::NetworkManagement::IpHelper::{
+        GetAdaptersAddresses, GET_ADAPTERS_ADDRESSES_FLAGS, IP_ADAPTER_ADDRESSES_LH,
+    };
+    use windows::Win32::NetworkManagement::Ndis::IfOperStatusUp;
+
+    const ERROR_BUFFER_OVERFLOW: u32 = 111;
+    const ERROR_SUCCESS: u32 = 0;
+    let mut buffer_size = 15 * 1024u32;
+
+    loop {
+        let word_count = (buffer_size as usize).div_ceil(std::mem::size_of::<u64>());
+        let mut buffer = vec![0u64; word_count];
+        let buffer_ptr = buffer.as_mut_ptr().cast::<IP_ADAPTER_ADDRESSES_LH>();
+        let result = unsafe {
+            GetAdaptersAddresses(
+                0,
+                GET_ADAPTERS_ADDRESSES_FLAGS(0),
+                None,
+                Some(buffer_ptr),
+                &mut buffer_size,
+            )
+        };
+        if result == ERROR_BUFFER_OVERFLOW {
+            continue;
+        }
+        if result != ERROR_SUCCESS {
+            return Err(format!("无法读取网络接口状态：Windows 错误码 {result}"));
+        }
+
+        let mut statuses = HashMap::new();
+        let mut current = buffer_ptr;
+        while !current.is_null() {
+            let adapter = unsafe { &*current };
+            if adapter.OperStatus == IfOperStatusUp && !adapter.FriendlyName.is_null() {
+                let mut length = 0usize;
+                while unsafe { *adapter.FriendlyName.0.add(length) } != 0 {
+                    length += 1;
+                }
+                let name = unsafe { std::slice::from_raw_parts(adapter.FriendlyName.0, length) };
+                statuses.insert(
+                    String::from_utf16_lossy(name),
+                    !adapter.FirstGatewayAddress.is_null(),
+                );
+            }
+            current = adapter.Next;
+        }
+        return Ok(Some(statuses));
+    }
+}
+
+#[cfg(not(windows))]
+fn active_interface_statuses() -> Result<Option<HashMap<String, bool>>, String> {
+    Ok(None)
 }
 
 #[tauri::command]
@@ -933,8 +1017,8 @@ fn parse_range(value: &str, size: u64) -> Option<(u64, u64)> {
 #[cfg(test)]
 mod tests {
     use super::{
-        create_router, parse_range, persist_and_replace, stream_file, zip_directory, PublicState,
-        SharedItem,
+        create_router, filter_share_address_candidates, parse_range, persist_and_replace,
+        stream_file, zip_directory, PublicState, SharedItem,
     };
     use axum::body::{to_bytes, Body};
     use axum::http::{header, Request, StatusCode};
@@ -991,6 +1075,26 @@ mod tests {
         assert!(archive.by_name("linked/secret.txt").is_err());
     }
     use tower::ServiceExt;
+
+    #[test]
+    fn filters_addresses_from_inactive_interfaces() {
+        let statuses = std::collections::HashMap::from([("WLAN".to_string(), true)]);
+        let candidates = vec![
+            ("WLAN".to_string(), "192.168.0.31".parse().unwrap()),
+            ("以太网".to_string(), "192.168.0.165".parse().unwrap()),
+            (
+                "vEthernet (WSL)".to_string(),
+                "172.31.240.1".parse().unwrap(),
+            ),
+            ("WLAN".to_string(), "169.254.1.2".parse().unwrap()),
+        ];
+
+        let filtered = filter_share_address_candidates(candidates, Some(&statuses));
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].0, "WLAN");
+        assert_eq!(filtered[0].1.to_string(), "192.168.0.31");
+    }
 
     #[test]
     fn parses_supported_byte_ranges_and_rejects_invalid_ranges() {
