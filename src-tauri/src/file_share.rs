@@ -534,7 +534,9 @@ async fn visitor_page(
     if token != state.token {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let page = VISITOR_HTML.replace("__TOKEN__", &token);
+    let page = VISITOR_HTML
+        .replace("__TOKEN__", &token)
+        .replace("</head>", VISITOR_STYLE_OVERRIDE);
     Html(page).into_response()
 }
 
@@ -1197,6 +1199,27 @@ mod tests {
         let mut updates = state.updates.subscribe();
         let router = create_router(state);
 
+        let visitor = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/s/test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(visitor.status(), StatusCode::OK);
+        let visitor = String::from_utf8(
+            to_bytes(visitor.into_body(), usize::MAX)
+                .await
+                .unwrap()
+                .to_vec(),
+        )
+        .unwrap();
+        assert!(visitor.contains("window.isSecureContext"));
+        assert!(visitor.contains("document.execCommand('copy')"));
+
         let list = router
             .clone()
             .oneshot(
@@ -1481,9 +1504,10 @@ fn percent_encode(value: &str) -> String {
 const VISITOR_HTML: &str = r#"<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>局域网文件共享</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f3f5f7;color:#252b32;font:15px system-ui,"Microsoft YaHei",sans-serif}main{max-width:900px;margin:36px auto;padding:0 20px}header,.toolbar,.row,.crumbs,.form-row{display:flex;align-items:center;gap:10px}header{justify-content:space-between}h1{font-size:22px;margin:0 0 5px}p,.muted{color:#69727c;margin:0}.toolbar{margin-top:22px;flex-wrap:wrap}.toolbar input[type=search]{min-width:180px;flex:1}button,.pick,input,textarea{font:inherit}button,.pick{border:1px solid #ccd2d8;background:white;border-radius:5px;padding:8px 12px;color:#26313b;cursor:pointer}button.primary,.pick{background:#176d61;border-color:#176d61;color:white}.pick input{display:none}input[type=search],textarea{border:1px solid #ccd2d8;border-radius:5px;padding:8px 10px;color:inherit;background:white}textarea{width:100%;resize:vertical}.crumbs{margin:16px 0;color:#53606b;flex-wrap:wrap}.crumbs button{padding:3px 5px;border:0;color:#176d61}.list,.compose{margin-top:14px;background:white;border:1px solid #e0e4e8;border-radius:6px;overflow:hidden}.row{justify-content:space-between;padding:12px 15px;border-bottom:1px solid #edf0f2}.row:last-child{border:0}.row-main{min-width:0;flex:1}.name{overflow-wrap:anywhere;font-weight:500}.size{color:#7b838b;font-size:13px;margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}.empty{padding:30px;text-align:center;color:#7b838b}.compose{padding:14px}.compose h2{font-size:15px;margin:0 0 10px}.form-row{justify-content:flex-end;margin-top:9px}#status{min-height:22px;margin-top:10px;color:#176d61}@media(max-width:560px){main{margin:22px auto;padding:0 14px}header{align-items:flex-start;flex-direction:column}.toolbar>*{flex:1}.row{align-items:flex-start}.row button{flex:none}}
+:root{color-scheme:light;--ink:#17212b;--muted:#687585;--line:#dfe5eb;--soft:#f5f7f9;--paper:#fff;--brand:#147c70;--brand-dark:#0f655c;--brand-soft:#e7f4f1;--shadow:0 18px 46px rgba(31,48,64,.08)}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#f8fafb 0%,#f1f5f7 100%);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}main{max-width:1040px;margin:0 auto;padding:clamp(24px,5vw,56px) clamp(16px,4vw,36px) 48px}header,.toolbar,.row,.crumbs,.form-row{display:flex;align-items:center;gap:12px}header{justify-content:space-between;gap:24px;margin-bottom:24px}header>div{min-width:0}h1{font-size:clamp(25px,4vw,34px);letter-spacing:-.03em;line-height:1.15;margin:0 0 8px;font-weight:750}header p{color:var(--muted);margin:0;font-size:15px}.eyebrow{display:inline-flex;align-items:center;gap:6px;margin-bottom:10px;color:var(--brand);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}button,.pick,input,textarea{font:inherit}button,.pick{min-height:42px;border:1px solid var(--line);background:var(--paper);border-radius:11px;padding:9px 15px;color:var(--ink);cursor:pointer;box-shadow:0 1px 1px rgba(31,48,64,.03);transition:background .16s,border-color .16s,box-shadow .16s,transform .16s}button:hover:not(:disabled),.pick:hover{border-color:#b7c4ce;background:#fbfcfd;box-shadow:0 5px 16px rgba(31,48,64,.08);transform:translateY(-1px)}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid rgba(20,124,112,.2);outline-offset:2px}button:disabled{cursor:not-allowed;opacity:.48}.primary{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 7px 16px rgba(20,124,112,.2)}button.primary:hover:not(:disabled),.pick:hover{background:var(--brand-dark);border-color:var(--brand-dark);color:#fff}.pick{display:inline-flex;align-items:center;justify-content:center;background:var(--brand);border-color:var(--brand);color:#fff;font-weight:650}.pick input{display:none}.toolbar{margin:0;padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);flex-wrap:wrap}.toolbar input[type=search]{min-width:190px;flex:1}.toolbar label:not(.pick){display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 6px;color:var(--muted);white-space:nowrap}.toolbar input[type=checkbox],.item-select{width:18px;height:18px;accent-color:var(--brand)}input[type=search],textarea{border:1px solid var(--line);border-radius:11px;padding:10px 13px;color:inherit;background:var(--paper);box-shadow:inset 0 1px 1px rgba(31,48,64,.03)}textarea{width:100%;resize:vertical;min-height:108px}.crumbs{margin:18px 2px 12px;color:var(--muted);flex-wrap:wrap;font-size:14px}.crumbs button{min-height:32px;padding:4px 9px;border:0;background:transparent;box-shadow:none;color:var(--brand);font-weight:650}.crumbs button:hover{background:var(--brand-soft);box-shadow:none;transform:none}.list,.compose{margin-top:0;background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}.row{justify-content:space-between;padding:15px 18px;border-bottom:1px solid #edf0f3;gap:12px}.row:last-child{border:0}.row-main{min-width:0;flex:1}.row:has(.item-select){padding-left:14px}.name{overflow-wrap:anywhere;font-weight:650;line-height:1.35}.size{color:var(--muted);font-size:13px;margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}.row>.item-select{flex:0 0 auto}.row>button{flex:0 0 auto;min-height:38px;padding:8px 12px;font-size:14px}.empty{padding:52px 24px;text-align:center;color:var(--muted)}.compose{margin-top:18px;padding:20px}.compose h2{font-size:18px;margin:0 0 5px;letter-spacing:-.01em}.compose h2:after{content:"";display:block;width:28px;height:3px;margin-top:9px;border-radius:99px;background:var(--brand)}.form-row{justify-content:flex-end;margin-top:12px}#status{min-height:24px;margin:10px 2px 0;color:var(--brand);font-size:13px;font-weight:600}@media(max-width:680px){main{padding-top:24px;padding-bottom:32px}header{align-items:flex-start;flex-direction:column;margin-bottom:18px}header button{width:100%}.toolbar{align-items:stretch;padding:12px;gap:9px}.toolbar>*{flex:1 1 100%;min-width:0}.toolbar input[type=search]{min-width:0}.toolbar label:not(.pick){justify-content:flex-start;padding:0 2px}.toolbar button,.toolbar .pick{width:100%}.crumbs{margin-top:14px}.row{align-items:flex-start;flex-wrap:wrap;padding:14px}.row-main{flex-basis:calc(100% - 48px)}.row>button{flex:1 1 auto}.row>.item-select{margin-top:4px}.compose{padding:16px}.form-row button{width:100%}}@media(prefers-reduced-motion:reduce){button,.pick{transition:none}}
 </style></head><body><main>
-<header><div><h1>局域网文件共享</h1><p>浏览、下载共享内容，或向共享设备发送文件和文本。</p></div><button id="refresh">刷新</button></header>
+<header><div><div class="eyebrow">● 共享空间</div><h1>局域网文件共享</h1><p>浏览、下载共享内容，或向共享设备发送文件和文本。</p></div><button id="refresh">刷新</button></header>
 <div class="toolbar"><input id="search" type="search" placeholder="搜索当前目录"><label><input id="select-all" type="checkbox"> 全选当前目录</label><button id="download-selected" disabled>批量下载</button><label class="pick">上传文件<input id="upload" type="file" multiple></label></div>
 <nav id="crumbs" class="crumbs" aria-label="目录路径"></nav><section id="list" class="list"><div class="empty">正在加载…</div></section>
 <section class="compose"><h2>发送文本</h2><textarea id="text" rows="3" placeholder="输入要共享的文本"></textarea><div class="form-row"><button id="send-text" class="primary">发送</button></div></section>
@@ -1497,10 +1521,72 @@ const downloadUrl=item=>base+'/api/download/'+escPath(item.id)+(item.path?'?path
 function updateSelection(){document.querySelector('#download-selected').disabled=!selected.size;const boxes=[...list.querySelectorAll('.item-select')];document.querySelector('#select-all').checked=boxes.length>0&&boxes.every(box=>box.checked)}
 function formatSize(n){if(n<1024)return n+' B';const units=['KB','MB','GB','TB'];let i=-1;do{n/=1024;i++}while(n>=1024&&i<units.length-1);return n.toFixed(1)+' '+units[i]}
 function button(label,action,primary=false){const b=document.createElement('button');b.textContent=label;if(primary)b.className='primary';b.addEventListener('click',action);return b}
+function copyTextFallback(value){const textarea=document.createElement('textarea');textarea.value=value;textarea.setAttribute('readonly','');textarea.style.position='fixed';textarea.style.top='0';textarea.style.left='0';textarea.style.width='1px';textarea.style.height='1px';textarea.style.padding='0';textarea.style.border='0';textarea.style.outline='0';textarea.style.boxShadow='none';textarea.style.background='transparent';textarea.style.fontSize='16px';textarea.style.opacity='0';document.body.append(textarea);const selection=document.getSelection();const range=selection&&selection.rangeCount?selection.getRangeAt(0):null;textarea.focus();textarea.select();textarea.setSelectionRange(0,textarea.value.length);let copied=false;try{copied=document.execCommand('copy')}catch{}textarea.remove();if(selection&&range){selection.removeAllRanges();selection.addRange(range)}return copied}
+function copyText(value){if(window.isSecureContext&&navigator.clipboard&&typeof navigator.clipboard.writeText==='function'){return navigator.clipboard.writeText(value).then(()=>true).catch(()=>copyTextFallback(value))}return Promise.resolve(copyTextFallback(value))}
 function renderCrumbs(){const nav=document.querySelector('#crumbs');nav.replaceChildren();const root=button('共享列表',()=>{selected.clear();parents=[];current={id:null,name:'',path:''};load()});nav.append(root);parents.forEach((entry,index)=>{const sep=document.createElement('span');sep.textContent='/';nav.append(sep,button(entry.name,()=>{selected.clear();parents=parents.slice(0,index+1);current=entry;load()}))})}
-async function load(){try{const query=current.id?'?directoryId='+escPath(current.id)+'&path='+escPath(current.path):'';const response=await fetch(base+'/api/files'+query);if(!response.ok)throw Error();const items=await response.json();renderCrumbs();const q=document.querySelector('#search').value.trim().toLocaleLowerCase();const filtered=items.filter(item=>item.name.toLocaleLowerCase().includes(q));visibleItems=filtered;const available=new Set(items.map(selectionKey));for(const key of selected.keys())if(!available.has(key))selected.delete(key);list.replaceChildren();if(!filtered.length){const empty=document.createElement('div');empty.className='empty';empty.textContent=items.length?'没有匹配的项目':'此目录暂无共享内容';list.append(empty);updateSelection();return}for(const item of filtered){const row=document.createElement('div');row.className='row';const main=document.createElement('div');main.className='row-main';const name=document.createElement('div');name.className='name';name.textContent=item.name;const detail=document.createElement('div');detail.className='size';detail.textContent=item.isText?item.content:(item.isDirectory?'文件夹':formatSize(item.size));main.append(name,detail);if(!item.isText){const select=document.createElement('input');select.type='checkbox';select.className='item-select';select.dataset.itemKey=selectionKey(item);select.checked=selected.has(selectionKey(item));select.setAttribute('aria-label','选择 '+item.name);select.addEventListener('change',()=>{if(select.checked)selected.set(selectionKey(item),item);else selected.delete(selectionKey(item));updateSelection()});row.append(select)}row.append(main);if(item.isDirectory){row.append(button('打开',()=>{selected.clear();document.querySelector('#select-all').checked=false;parents.push({id:item.id,name:item.name,path:item.path});current=parents.at(-1);load()}));row.append(button('下载 ZIP',()=>{location.href=downloadUrl(item)},true))}else if(item.isText){row.append(button('复制',async()=>{try{await navigator.clipboard.writeText(item.content||'');status.textContent='已复制文本'}catch{status.textContent='复制失败'}}));row.append(button('下载',()=>{location.href=downloadUrl(item)}))}else{row.append(button('下载',()=>{location.href=downloadUrl(item)},true))}list.append(row)}updateSelection()}catch{list.innerHTML='<div class="empty">无法连接共享服务</div>'}}
+async function load(){try{const query=current.id?'?directoryId='+escPath(current.id)+'&path='+escPath(current.path):'';const response=await fetch(base+'/api/files'+query);if(!response.ok)throw Error();const items=await response.json();renderCrumbs();const q=document.querySelector('#search').value.trim().toLocaleLowerCase();const filtered=items.filter(item=>item.name.toLocaleLowerCase().includes(q));visibleItems=filtered;const available=new Set(items.map(selectionKey));for(const key of selected.keys())if(!available.has(key))selected.delete(key);list.replaceChildren();if(!filtered.length){const empty=document.createElement('div');empty.className='empty';empty.textContent=items.length?'没有匹配的项目':'此目录暂无共享内容';list.append(empty);updateSelection();return}for(const item of filtered){const row=document.createElement('div');row.className='row '+(item.isText?'row-text':item.isDirectory?'row-folder':'row-file');const main=document.createElement('div');main.className='row-main';const name=document.createElement('div');name.className='name';name.textContent=item.name;const detail=document.createElement('div');detail.className='size';detail.textContent=item.isText?item.content:(item.isDirectory?'文件夹':formatSize(item.size));main.append(name,detail);if(!item.isText){const select=document.createElement('input');select.type='checkbox';select.className='item-select';select.dataset.itemKey=selectionKey(item);select.checked=selected.has(selectionKey(item));select.setAttribute('aria-label','选择 '+item.name);select.addEventListener('change',()=>{if(select.checked)selected.set(selectionKey(item),item);else selected.delete(selectionKey(item));updateSelection()});row.append(select)}row.append(main);if(item.isDirectory){row.append(button('打开',()=>{selected.clear();document.querySelector('#select-all').checked=false;parents.push({id:item.id,name:item.name,path:item.path});current=parents.at(-1);load()}));row.append(button('下载 ZIP',()=>{location.href=downloadUrl(item)},true))}else if(item.isText){row.append(button('复制',async()=>{if(await copyText(item.content||''))status.textContent='已复制文本';else status.textContent='复制失败'}));row.append(button('下载',()=>{location.href=downloadUrl(item)}))}else{row.append(button('下载',()=>{location.href=downloadUrl(item)},true))}list.append(row)}updateSelection()}catch{list.innerHTML='<div class="empty">无法连接共享服务</div>'}}
 document.querySelector('#refresh').addEventListener('click',load);document.querySelector('#search').addEventListener('input',load);document.querySelector('#select-all').addEventListener('change',event=>{list.querySelectorAll('.item-select').forEach(box=>{box.checked=event.target.checked;const item=visibleItems.find(value=>selectionKey(value)===box.dataset.itemKey);if(event.target.checked&&item)selected.set(selectionKey(item),item);else if(item)selected.delete(selectionKey(item))});updateSelection()});
 document.querySelector('#download-selected').addEventListener('click',()=>selected.forEach(item=>{const link=document.createElement('a');link.href=downloadUrl(item);link.download='';document.body.append(link);link.click();link.remove()}));
 document.querySelector('#upload').addEventListener('change',async event=>{for(const file of event.target.files){const form=new FormData();form.append('file',file);const response=await fetch(base+'/api/upload',{method:'POST',body:form});if(!response.ok){status.textContent='上传失败：'+file.name;return}}status.textContent='上传完成';event.target.value='';load()});
 document.querySelector('#send-text').addEventListener('click',async()=>{const text=document.querySelector('#text').value;if(!text.trim())return;const response=await fetch(base+'/api/text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});if(!response.ok){status.textContent='文本发送失败';return}document.querySelector('#text').value='';status.textContent='文本已发送';selected.clear();parents=[];current={id:null,name:'',path:''};load()});const events='EventSource'in window?new EventSource(base+'/api/events'):null;const poll=events?null:setInterval(load,3000);if(events)events.onmessage=()=>load();window.addEventListener('pagehide',()=>{events?.close();if(poll)clearInterval(poll)});load();
 </script></body></html>"#;
+
+const VISITOR_STYLE_OVERRIDE: &str = r##"<style>
+:root{--ink:#14232e;--muted:#62717c;--line:#d7e0e5;--paper:#fff;--brand:#146b64;--brand-dark:#0f514c;--brand-soft:#e7f3f0;--accent:#e88953;--shadow:0 16px 38px rgba(28,51,63,.09)}
+body{background:#eef3f4;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+main{max-width:1120px;padding:clamp(22px,5vw,56px) clamp(14px,4vw,40px) 56px}
+header{align-items:flex-start;margin-bottom:22px;padding:2px 2px}
+header>div{max-width:760px}
+.eyebrow{gap:8px;margin-bottom:12px;color:var(--brand);font-size:11px;letter-spacing:.12em}
+.eyebrow::first-letter{color:var(--accent)}
+h1{font-size:clamp(28px,4.6vw,42px);letter-spacing:-.045em;line-height:1.08;margin-bottom:10px}
+header p{max-width:620px;color:#60717b;font-size:15px;line-height:1.65}
+header button#refresh{min-height:44px;padding-inline:17px;border-radius:999px;background:var(--paper);font-weight:650;color:var(--brand);border-color:#bfd2d5}
+header button#refresh:hover:not(:disabled){background:var(--brand-soft);border-color:#9fc2be;color:var(--brand-dark)}
+.toolbar{display:grid;grid-template-columns:minmax(240px,1fr) auto auto auto;align-items:center;gap:10px;margin:0;padding:12px;border-radius:18px;border-color:#d5e0e3;background:rgba(255,255,255,.88);box-shadow:var(--shadow)}
+.toolbar input[type=search]{min-width:0;height:46px;border-radius:12px;background:#f8fbfb}
+.toolbar label:not(.pick){justify-content:center;min-height:46px;padding-inline:8px;border-radius:12px;color:#51636d;background:#f5f8f8}
+.toolbar input[type=checkbox],.item-select{width:19px;height:19px}
+.toolbar button,.toolbar .pick{min-height:46px;border-radius:12px;padding-inline:16px}
+.toolbar .pick{background:var(--brand);box-shadow:0 8px 18px rgba(20,107,100,.18)}
+.toolbar .pick:hover{background:var(--brand-dark)}
+.crumbs{margin:20px 2px 10px;gap:8px;font-size:13px}
+.crumbs button{min-height:34px;border-radius:9px;padding-inline:10px}
+.crumbs button:hover{background:var(--brand-soft);color:var(--brand-dark)}
+.list,.compose{border-radius:20px;border-color:#d5e0e3;box-shadow:var(--shadow)}
+.row{min-height:78px;padding:16px 20px;border-bottom-color:#edf1f2;gap:14px}
+.row:hover{background:#f5faf9}
+.row-main{padding-block:2px}
+.name{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.size{margin-top:5px;color:#71808a;font-size:13px;line-height:1.45}
+.row-text .size{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;white-space:pre-wrap}
+.row>button{min-height:44px;border-radius:11px;padding-inline:14px}
+.row>button.primary{background:var(--brand);border-color:var(--brand)}
+.row>button.primary:hover:not(:disabled){background:var(--brand-dark);border-color:var(--brand-dark)}
+.empty{padding:68px 24px;color:#74838b}
+.compose{margin-top:18px;padding:22px;background:#fffdfa;border-color:#e6ddd4}
+.compose h2{font-size:19px;font-weight:750}
+.compose h2:after{background:var(--accent)}
+.compose textarea{min-height:132px;margin-top:12px;border-color:#e2d9d0;background:#fff}
+.form-row{margin-top:14px}
+.form-row button{min-height:44px;border-radius:11px;padding-inline:22px}
+#status{min-height:28px;margin:12px 2px 0;color:var(--brand);font-size:13px}
+@media (min-width:900px){.compose{position:sticky;top:18px}}
+@media (max-width:760px){
+  main{padding-top:18px;padding-bottom:30px}
+  header{margin-bottom:16px;padding:18px;border:1px solid #d5e0e3;border-radius:20px;background:rgba(255,255,255,.9);box-shadow:var(--shadow)}
+  header button#refresh{width:100%;margin-top:4px}
+  .toolbar{display:flex;align-items:stretch;flex-direction:column;gap:9px;padding:12px;border-radius:18px}
+  .toolbar>*{width:100%;min-width:0}
+  .toolbar label:not(.pick){justify-content:flex-start;padding-inline:8px}
+  .toolbar button,.toolbar .pick{width:100%;justify-content:center}
+  .crumbs{margin-top:14px}
+  .row{align-items:flex-start;padding:14px 12px;gap:10px}
+  .row-main{flex:1 1 calc(100% - 48px)}
+  .row>button{flex:1 1 0;min-width:0}
+  .compose{margin-top:14px;padding:18px}
+  .form-row button{width:100%}
+}
+@media (max-width:380px){h1{font-size:27px}.row{padding-inline:10px}.row>button{padding-inline:10px;font-size:13px}}
+@media (prefers-reduced-motion:reduce){button,.pick{transition:none!important}}
+</style></head>"##;

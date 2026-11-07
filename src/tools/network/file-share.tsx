@@ -6,7 +6,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import QRCode from 'qrcode';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Clipboard, Copy, File, FilePlus2, FolderOpen, FolderPlus, Link, LoaderCircle, MessageSquareText, Search, Share2, Trash2, Upload, X } from 'lucide-react';
+import { Clipboard, Copy, File, FilePlus2, Folder, FolderOpen, FolderPlus, Link, LoaderCircle, MessageSquareText, Search, Share2, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -200,88 +200,97 @@ export default function FileShare() {
   );
 
   return (
-    <div className="h-full overflow-auto p-4 md:p-6">
-      <div className="mx-auto max-w-5xl space-y-5">
-        <section className="panel-raised p-4 md:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="h-full overflow-auto bg-background/45 p-3 sm:p-4 md:p-6">
+      <div className="mx-auto max-w-6xl space-y-5 md:space-y-6">
+        <section className="panel-raised overflow-hidden border-primary/10 bg-card/95 p-4 shadow-tinted md:p-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3">
-              <span className={cn('mt-0.5 flex h-9 w-9 items-center justify-center rounded-md', server ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground')}>
+              <span className={cn('mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset', server ? 'bg-success/10 text-success ring-success/20' : 'bg-muted text-muted-foreground ring-border')}>
                 <Share2 className="h-4 w-4" />
               </span>
               <div className="min-w-0">
-                <h2 className="text-base font-semibold">{t('fileShare.title')}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{server ? t('fileShare.running', { port: server.port }) : t('fileShare.stopped')}</p>
-                {server && <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <code className="max-w-full break-all rounded border border-border bg-muted/60 px-2 py-1 text-xs">{server.url}</code>
-                  <Button size="sm" variant="outline" onClick={() => void copyLink()}><Clipboard />{t('fileShare.copyLink')}</Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-semibold tracking-tight">{t('fileShare.title')}</h2>
+                  <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', server ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground')}>
+                    {server ? t('fileShare.running', { port: server.port }) : t('fileShare.stopped')}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{t('fileShare.scanToOpen')}</p>
+                {server && <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+                  <code className="min-w-0 max-w-full flex-1 break-all rounded-lg border border-border bg-muted/60 px-2.5 py-1.5 text-xs text-foreground/80">{server.url}</code>
+                  <Button size="sm" variant="outline" className="shrink-0" onClick={() => void copyLink()}><Clipboard />{t('fileShare.copyLink')}</Button>
                 </div>}
               </div>
             </div>
-            <Button variant={server ? 'outline' : 'default'} disabled={busy || (!server && !selectedAddress)} onClick={() => void (server ? stopServer() : startServer())}>
+            <Button className="min-h-11 w-full shrink-0 sm:min-h-9 sm:w-auto" variant={server ? 'outline' : 'default'} disabled={busy || (!server && !selectedAddress)} onClick={() => void (server ? stopServer() : startServer())}>
               {busy ? <LoaderCircle className="animate-spin" /> : server ? <X /> : <Share2 />}
               {server ? t('fileShare.stop') : t('fileShare.start')}
             </Button>
           </div>
-          {!server && <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
-            <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5" role="group" aria-label={t('fileShare.ipVersion')}>
-              {(['ipv4', 'ipv6'] as const).map((version) => <Button key={version} size="sm" variant={ipVersion === version ? 'default' : 'ghost'} className="h-8" onClick={() => setIpVersion(version)}>{t(`fileShare.${version}`)}</Button>)}
+          {!server && <div className="mt-5 flex flex-col gap-3 border-t border-border/70 pt-5 sm:flex-row sm:items-center">
+            <div className="inline-flex w-full rounded-lg border border-border bg-muted/50 p-0.5 sm:w-auto" role="group" aria-label={t('fileShare.ipVersion')}>
+              {(['ipv4', 'ipv6'] as const).map((version) => <Button key={version} size="sm" variant={ipVersion === version ? 'default' : 'ghost'} className="h-10 sm:h-8" onClick={() => setIpVersion(version)}>{t(`fileShare.${version}`)}</Button>)}
             </div>
             <Select
               value={selectedAddress}
               onChange={(event) => setSelectedAddress(event.target.value)}
               options={availableAddresses.map((address) => ({ value: address.address, label: `${address.interfaceName} · ${address.address}` }))}
-              className="h-9 min-w-56 flex-1"
+              className="h-10 min-w-0 flex-1 sm:min-w-56"
               disabled={!availableAddresses.length}
               aria-label={t('fileShare.networkInterface')}
               placeholder={t('fileShare.selectAddress')}
               emptyText={t('fileShare.noAddress')}
             />
           </div>}
-          {server && <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-4">
-            {serverQr && <img src={serverQr} alt={t('fileShare.qrCode')} className="h-28 w-28 rounded border border-border bg-white p-1" />}
-            <p className="max-w-xl text-sm text-muted-foreground">{t('fileShare.scanToOpen')}</p>
+          {server && <div className="mt-5 flex flex-col items-start gap-4 border-t border-border/70 pt-5 sm:flex-row sm:items-center">
+            {serverQr && <img src={serverQr} alt={t('fileShare.qrCode')} className="h-28 w-28 rounded-xl border border-border bg-white p-1 shadow-sm" />}
+            <p className="max-w-xl text-sm leading-6 text-muted-foreground">{t('fileShare.scanToOpen')}</p>
           </div>}
         </section>
 
         <section className="panel-raised overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <div><h2 className="text-sm font-semibold">{t('fileShare.sharedFiles')}</h2><p className="mt-0.5 text-xs text-muted-foreground">{t('fileShare.itemCount', { count: items.filter((item) => !item.isText).length })}</p></div>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => void addPaths(false)}><FilePlus2 />{t('fileShare.addFiles')}</Button>
-              <Button size="sm" variant="outline" onClick={() => void addPaths(true)}><FolderPlus />{t('fileShare.addFolder')}</Button>
-              <Button size="sm" variant="ghost" disabled={!items.length} onClick={() => void clear()} title={t('fileShare.clear')} aria-label={t('fileShare.clear')}><Trash2 /></Button>
+          <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-5">
+            <div><h2 className="text-base font-semibold tracking-tight">{t('fileShare.sharedFiles')}</h2><p className="mt-1 text-xs text-muted-foreground">{t('fileShare.itemCount', { count: items.filter((item) => !item.isText).length })}</p></div>
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <Button size="sm" variant="outline" className="min-h-11 w-full sm:min-h-8" onClick={() => void addPaths(false)}><FilePlus2 />{t('fileShare.addFiles')}</Button>
+              <Button size="sm" variant="outline" className="min-h-11 w-full sm:min-h-8" onClick={() => void addPaths(true)}><FolderPlus />{t('fileShare.addFolder')}</Button>
+              <Button size="sm" variant="ghost" className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8" disabled={!items.length} onClick={() => void clear()} title={t('fileShare.clear')} aria-label={t('fileShare.clear')}><Trash2 /></Button>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
+          <div className="flex flex-col gap-2 border-b border-border bg-muted/20 px-4 py-3 sm:flex-row md:px-5">
             {renderSearch(fileQuery, setFileQuery, t('fileShare.search'))}
-            {renderSort(fileSort, setFileSort)}
+            <div className="sm:w-40">{renderSort(fileSort, setFileSort)}</div>
           </div>
           {fileItems.length ? <ul className="divide-y divide-border">
-            {fileItems.map((item) => <li key={item.id} className="flex min-w-0 items-center gap-3 px-4 py-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground"><File className="h-4 w-4" /></span>
-              <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium" title={item.name}>{item.name}</div><div className="mt-0.5 text-xs text-muted-foreground">{item.isDirectory ? t('fileShare.folderZip') : formatSize(item.size)}</div></div>
-              <Button size="icon" variant="ghost" disabled={!server} onClick={() => void showQr(item)} title={t('fileShare.itemLink')} aria-label={t('fileShare.itemLink')}><Link /></Button>
-              <Button size="icon" variant="ghost" onClick={() => void revealItem(item)} title={t('fileShare.reveal')} aria-label={t('fileShare.reveal')}><FolderOpen /></Button>
-              <Button size="icon" variant="ghost" onClick={() => void remove(item.id)} title={t('fileShare.remove')} aria-label={t('fileShare.remove')}><Trash2 /></Button>
+            {fileItems.map((item) => <li key={item.id} className="group flex min-w-0 flex-wrap items-center gap-3 px-4 py-3.5 transition-colors hover:bg-accent/30 md:px-5 sm:flex-nowrap">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/10">{item.isDirectory ? <Folder className="h-4 w-4" /> : <File className="h-4 w-4" />}</span>
+              <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium" title={item.name}>{item.name}</div><div className="mt-1 text-xs text-muted-foreground">{item.isDirectory ? t('fileShare.folderZip') : formatSize(item.size)}</div></div>
+              <div className="ml-[3.25rem] flex w-full items-center justify-end gap-1 sm:ml-0 sm:w-auto">
+                <Button size="icon" variant="ghost" className="h-11 w-11 sm:h-9 sm:w-9" disabled={!server} onClick={() => void showQr(item)} title={t('fileShare.itemLink')} aria-label={t('fileShare.itemLink')}><Link /></Button>
+                <Button size="icon" variant="ghost" className="h-11 w-11 sm:h-9 sm:w-9" onClick={() => void revealItem(item)} title={t('fileShare.reveal')} aria-label={t('fileShare.reveal')}><FolderOpen /></Button>
+                <Button size="icon" variant="ghost" className="h-11 w-11 sm:h-9 sm:w-9" onClick={() => void remove(item.id)} title={t('fileShare.remove')} aria-label={t('fileShare.remove')}><Trash2 /></Button>
+              </div>
             </li>)}
           </ul> : <div className="px-4 py-10 text-center text-sm text-muted-foreground"><Upload className="mx-auto mb-3 h-6 w-6 opacity-50" />{items.some((item) => !item.isText) ? t('fileShare.noMatches') : t('fileShare.empty')}</div>}
         </section>
 
         <section className="panel-raised overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <div><h2 className="text-sm font-semibold">{t('fileShare.sharedTexts')}</h2><p className="mt-0.5 text-xs text-muted-foreground">{t('fileShare.itemCount', { count: items.filter((item) => item.isText).length })}</p></div>
-            <Button size="sm" variant="outline" onClick={() => setTextOpen(true)}><MessageSquareText />{t('fileShare.shareText')}</Button>
+          <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-5">
+            <div><h2 className="text-base font-semibold tracking-tight">{t('fileShare.sharedTexts')}</h2><p className="mt-1 text-xs text-muted-foreground">{t('fileShare.itemCount', { count: items.filter((item) => item.isText).length })}</p></div>
+            <Button size="sm" variant="outline" className="min-h-11 w-full sm:min-h-8 sm:w-auto" onClick={() => setTextOpen(true)}><MessageSquareText />{t('fileShare.shareText')}</Button>
           </div>
-          <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
+          <div className="flex flex-col gap-2 border-b border-border bg-muted/20 px-4 py-3 sm:flex-row md:px-5">
             {renderSearch(textQuery, setTextQuery, t('fileShare.search'))}
-            {renderSort(textSort, setTextSort)}
+            <div className="sm:w-40">{renderSort(textSort, setTextSort)}</div>
           </div>
           {textItems.length ? <ul className="divide-y divide-border">
-            {textItems.map((item) => <li key={item.id} className="flex min-w-0 items-center gap-3 px-4 py-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground"><MessageSquareText className="h-4 w-4" /></span>
+            {textItems.map((item) => <li key={item.id} className="group flex min-w-0 flex-wrap items-center gap-3 px-4 py-3.5 transition-colors hover:bg-accent/30 md:px-5 sm:flex-nowrap">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/10"><MessageSquareText className="h-4 w-4" /></span>
               <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium" title={item.name}>{item.name}</div><div className="mt-0.5 truncate text-xs text-muted-foreground">{item.content}</div></div>
-              {item.content != null && <Button size="icon" variant="ghost" onClick={() => void copyText(item.content ?? '')} title={t('fileShare.copyText')} aria-label={t('fileShare.copyText')}><Copy /></Button>}
-              <Button size="icon" variant="ghost" onClick={() => void remove(item.id)} title={t('fileShare.remove')} aria-label={t('fileShare.remove')}><Trash2 /></Button>
+              <div className="ml-[3.25rem] flex w-full items-center justify-end gap-1 sm:ml-0 sm:w-auto">
+                {item.content != null && <Button size="icon" variant="ghost" className="h-11 w-11 sm:h-9 sm:w-9" onClick={() => void copyText(item.content ?? '')} title={t('fileShare.copyText')} aria-label={t('fileShare.copyText')}><Copy /></Button>}
+                <Button size="icon" variant="ghost" className="h-11 w-11 sm:h-9 sm:w-9" onClick={() => void remove(item.id)} title={t('fileShare.remove')} aria-label={t('fileShare.remove')}><Trash2 /></Button>
+              </div>
             </li>)}
           </ul> : <div className="px-4 py-10 text-center text-sm text-muted-foreground">{items.some((item) => item.isText) ? t('fileShare.noMatches') : t('fileShare.empty')}</div>}
         </section>
@@ -289,14 +298,14 @@ export default function FileShare() {
 
       {textOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setTextOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="share-text-title" className="w-full max-w-lg rounded-md border border-border bg-background p-4 shadow-xl">
-          <div className="mb-3 flex items-center justify-between"><h2 id="share-text-title" className="text-base font-semibold">{t('fileShare.shareText')}</h2><Button size="icon" variant="ghost" onClick={() => setTextOpen(false)} aria-label={t('fileShare.close')}><X /></Button></div>
+          <div className="mb-3 flex items-center justify-between"><h2 id="share-text-title" className="text-base font-semibold">{t('fileShare.shareText')}</h2><Button size="icon" variant="ghost" className="h-11 w-11 sm:h-9 sm:w-9" onClick={() => setTextOpen(false)} aria-label={t('fileShare.close')}><X /></Button></div>
           <Textarea autoFocus rows={8} value={text} onChange={(event) => setText(event.target.value)} placeholder={t('fileShare.textPlaceholder')} />
           <div className="mt-3 flex justify-end gap-2"><Button variant="outline" onClick={() => setTextOpen(false)}>{t('fileShare.cancel')}</Button><Button disabled={!text.trim()} onClick={() => void shareText()}>{t('fileShare.share')}</Button></div>
         </section>
       </div>}
       {qr && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setQr(null); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="file-share-qr-title" className="w-full max-w-sm rounded-md border border-border bg-background p-4 shadow-xl">
-          <div className="mb-3 flex items-center justify-between gap-3"><h2 id="file-share-qr-title" className="truncate text-base font-semibold">{qr.name}</h2><Button size="icon" variant="ghost" onClick={() => setQr(null)} aria-label={t('fileShare.close')}><X /></Button></div>
+          <div className="mb-3 flex items-center justify-between gap-3"><h2 id="file-share-qr-title" className="truncate text-base font-semibold">{qr.name}</h2><Button size="icon" variant="ghost" className="h-11 w-11 sm:h-9 sm:w-9" onClick={() => setQr(null)} aria-label={t('fileShare.close')}><X /></Button></div>
           <img src={qr.image} alt={t('fileShare.qrCode')} className="mx-auto h-48 w-48 border border-border bg-white p-1" />
           <code className="mt-3 block break-all rounded border border-border bg-muted/60 p-2 text-xs">{qr.link}</code>
           <div className="mt-3 flex justify-end gap-2"><Button variant="outline" onClick={() => { void navigator.clipboard.writeText(qr.link).then(() => toast.success(t('fileShare.copied'))).catch(() => toast.error(t('fileShare.copyFailed'))); }}><Clipboard />{t('fileShare.copyLink')}</Button><Button onClick={() => setQr(null)}>{t('fileShare.close')}</Button></div>
