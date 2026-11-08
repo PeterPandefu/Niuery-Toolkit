@@ -33,6 +33,8 @@ import {
 import { ImageViewer } from '@/components/media/image-viewer';
 import { getThemeTokens } from '@/lib/theme';
 import { extractMermaidImport, type MermaidImportCandidate } from './mermaid-import';
+import { EditorTabs } from '@/components/shared/EditorTabs';
+import { useEditorTabs } from '@/hooks/use-editor-tabs';
 
 type DiagramScheme = 'light' | 'dark';
 
@@ -49,10 +51,6 @@ export interface DiagramRenderer {
 interface DiagramEditorProps {
   kind: DiagramKind;
   renderer: DiagramRenderer;
-}
-
-function draftStorageKey(kind: DiagramKind) {
-  return `niuery-${kind}-editor-draft`;
 }
 
 function followThemeStorageKey(kind: DiagramKind) {
@@ -108,14 +106,22 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
     ? { title: 'Mermaid 实时编辑器', source: 'Mermaid 源码', extension: 'mmd', importExtensions: ['mmd', 'mermaid', 'txt', 'md', 'markdown'] }
     : { title: 'PlantUML 实时编辑器', source: 'PlantUML 源码', extension: 'puml', importExtensions: ['puml'] }, [kind]);
   const { monacoTheme, scheme, skin = 'forge' } = useTheme();
-  const [source, setSource] = useState(() => readLocalStorage(draftStorageKey(kind), getDiagramDefaultSource(kind)));
+  const tabs = useEditorTabs({
+    storageKey: `niuery-${kind}-editor-tabs`,
+    legacyStorageKey: `niuery-${kind}-editor-draft`,
+    defaultContent: getDiagramDefaultSource(kind),
+    extension: labels.extension,
+    defaultPrefix: kind === 'mermaid' ? '未命名 Mermaid' : '未命名 PlantUML',
+  });
+  const { content: source, setContent: setSource, activeTab, storageError, setError: setTabError, importTab } = tabs;
   const [debouncedSource, setDebouncedSource] = useState(source);
   const [followTheme, setFollowTheme] = useState(() => readFollowTheme(kind));
   const [preview, setPreview] = useState<DiagramRenderResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(activeTab.error ?? null);
   const [isRendering, setIsRendering] = useState(false);
   const [refreshRevision, setRefreshRevision] = useState(0);
   const [pendingImport, setPendingImport] = useState<MermaidImportCandidate[] | null>(null);
+  const [pendingImportName, setPendingImportName] = useState('导入.' + labels.extension);
   const [selectedImportIndex, setSelectedImportIndex] = useState(0);
   const [isReadingImport, setIsReadingImport] = useState(false);
   const importTitleId = useId();
@@ -138,9 +144,12 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
   }, [source]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => writeLocalStorage(draftStorageKey(kind), source), 500);
-    return () => window.clearTimeout(timer);
-  }, [kind, source]);
+    setError(activeTab.error ?? null);
+  }, [activeTab.error, tabs.activeTabId]);
+
+  useEffect(() => {
+    if (storageError) toast.error(storageError);
+  }, [storageError]);
 
   useEffect(() => {
     writeLocalStorage(followThemeStorageKey(kind), String(followTheme));
@@ -161,23 +170,25 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
         svg: followTheme ? ensureDiagramBackground(result.svg, themeBackground) : ensureWhiteDiagramBackground(result.svg),
       });
       setError(null);
+      setTabError(null);
     } catch (renderError) {
       if (requestId !== renderRequestRef.current) return;
       setError(renderError instanceof Error ? renderError.message : String(renderError));
+      setTabError(renderError instanceof Error ? renderError.message : String(renderError));
     } finally {
       if (requestId === renderRequestRef.current) setIsRendering(false);
     }
-  }, [debouncedSource, effectiveScheme, followTheme, renderer, themeBackground]);
+  }, [debouncedSource, effectiveScheme, followTheme, renderer, setTabError, themeBackground]);
 
   useEffect(() => {
     void render();
   }, [render, refreshRevision]);
 
   const replaceSource = useCallback((contents: string) => {
-    setSource(contents);
+    importTab(pendingImportName, contents);
     setPendingImport(null);
-    toast.success('已替换当前草稿');
-  }, []);
+    toast.success('已导入为新页签');
+  }, [importTab, pendingImportName]);
 
   const prepareImport = useCallback(async (contents: string) => {
     const candidates = kind === 'mermaid'
@@ -191,6 +202,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
     try {
       const opened = await openTextDocument(`${labels.title} 源文件`, labels.importExtensions);
       if (opened) {
+        setPendingImportName(opened.path.split(/[\\/]/).pop() ?? `导入.${labels.extension}`);
         await prepareImport(opened.contents);
       } else if (!isTauri) {
         fileInputRef.current?.click();
@@ -198,12 +210,13 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
     } catch (error) {
       toast.error(`导入失败：${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [labels.importExtensions, labels.title, prepareImport]);
+  }, [labels.extension, labels.importExtensions, labels.title, prepareImport]);
 
   const handleBrowserImport = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    setPendingImportName(file.name);
     setIsReadingImport(true);
     try {
       await prepareImport(await file.text());
@@ -262,10 +275,24 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
     setSource(clear ? '' : getDiagramDefaultSource(kind));
     setPreview(null);
     setError(null);
-  }, [kind]);
+    setTabError(null);
+  }, [kind, setSource, setTabError]);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <EditorTabs
+        tabs={tabs.tabs}
+        activeTabId={tabs.activeTabId}
+        onActivate={tabs.activateTab}
+        onCreate={() => tabs.createTab()}
+        onDuplicate={(id) => tabs.duplicateTab(id)}
+        onRename={tabs.renameTab}
+        onClose={tabs.closeTab}
+        onCloseOthers={tabs.closeOthers}
+        onCloseRight={tabs.closeToRight}
+        onCloseAll={tabs.closeAll}
+        onReorder={tabs.reorderTabs}
+      />
       <header className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <h1 className="text-sm font-semibold">{labels.title}</h1>
         <div className="flex flex-wrap items-center gap-1">
@@ -278,7 +305,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
             />
             跟随主题
           </label>
-          <Button variant="ghost" size="sm" onClick={() => resetSource()} aria-label="新建图表"><FilePlus2 />新建</Button>
+          <Button variant="ghost" size="sm" onClick={() => tabs.createTab()} aria-label="新建图表"><FilePlus2 />新建</Button>
           <Button variant="ghost" size="sm" onClick={() => resetSource(true)} aria-label="清空图表"><Trash2 />清空</Button>
           <LoadingButton variant="ghost" size="sm" onClick={handleImport} loading={isReadingImport} aria-label="导入源文件"><Upload />导入</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportSource} aria-label="导出源文件"><FileText />导出</LoadingButton>

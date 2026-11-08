@@ -51,6 +51,8 @@ import {
   MARKDOWN_TEMPLATES,
 } from '@/lib/markdown-utils';
 import { copyToClipboard } from '@/lib/utils';
+import { EditorTabs } from '@/components/shared/EditorTabs';
+import { useEditorTabs } from '@/hooks/use-editor-tabs';
 
 type ViewMode = 'split' | 'editor' | 'preview';
 
@@ -58,24 +60,7 @@ const DEFAULT_FONT_SIZE = 14;
 const MIN_FONT_SIZE = 12;
 const MAX_FONT_SIZE = 32;
 const FONT_SIZE_STEP = 2;
-
-const STORAGE_KEY = 'niuery-markdown-editor-draft';
-
-function loadDraft(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function saveDraft(content: string) {
-  try {
-    localStorage.setItem(STORAGE_KEY, content);
-  } catch {
-    /* ignore */
-  }
-}
+const DEFAULT_MARKDOWN = '# 未命名文档\n\n';
 
 /** debounce hook：延迟更新值 */
 function useDebouncedValue<T>(value: T, delay: number): T {
@@ -89,7 +74,14 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 
 export default function MarkdownEditor() {
   const { t, i18n } = useTranslation();
-  const [content, setContent] = useState(loadDraft);
+  const tabs = useEditorTabs({
+    storageKey: 'niuery-markdown-editor-tabs',
+    legacyStorageKey: 'niuery-markdown-editor-draft',
+    defaultContent: DEFAULT_MARKDOWN,
+    extension: 'md',
+    defaultPrefix: '未命名',
+  });
+  const { content, setContent, storageError } = tabs;
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
   const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
@@ -100,21 +92,15 @@ export default function MarkdownEditor() {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const previewRef = useRef<PreviewHandle>(null);
   const isEditorScrolling = useRef(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>(null);
   const { monacoTheme, scheme } = useTheme();
   const log = useToolLogger('markdown-editor');
 
   // 预览使用 debounce 150ms (NF-02)
   const debouncedContent = useDebouncedValue(content, 150);
 
-  // 自动保存（debounce 1s）
   useEffect(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveDraft(content), 1000);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, [content]);
+    if (storageError) toast.error(storageError);
+  }, [storageError]);
 
   // Monaco 编辑器挂载
   const handleEditorMount: OnMount = useCallback(
@@ -301,12 +287,12 @@ export default function MarkdownEditor() {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
       const text = await file.text();
-      setContent(text);
+      tabs.importTab(file.name, text);
       log.info('导入文件成功', { name: file.name, size: file.size });
       toast.success(t('markdownEditor.imported', { name: file.name }));
     };
     input.click();
-  }, [t, log]);
+  }, [log, t, tabs]);
 
   // 导出 Markdown
   const handleExportMd = useCallback(async () => {
@@ -469,12 +455,12 @@ export default function MarkdownEditor() {
     const file = e.dataTransfer.files?.[0];
     if (file && /\.(md|markdown|txt)$/i.test(file.name)) {
       file.text().then((text) => {
-        setContent(text);
+        tabs.importTab(file.name, text);
         log.info('拖拽导入文件成功', { name: file.name, size: file.size });
         toast.success(t('markdownEditor.imported', { name: file.name }));
       });
     }
-  }, [t, log]);
+  }, [log, t, tabs]);
 
   // 大纲跳转
   const handleJumpToLine = useCallback((line: number) => {
@@ -494,6 +480,19 @@ export default function MarkdownEditor() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+      <EditorTabs
+        tabs={tabs.tabs}
+        activeTabId={tabs.activeTabId}
+        onActivate={tabs.activateTab}
+        onCreate={() => tabs.createTab()}
+        onDuplicate={(id) => tabs.duplicateTab(id)}
+        onRename={tabs.renameTab}
+        onClose={tabs.closeTab}
+        onCloseOthers={tabs.closeOthers}
+        onCloseRight={tabs.closeToRight}
+        onCloseAll={tabs.closeAll}
+        onReorder={tabs.reorderTabs}
+      />
       {/* 顶部操作栏 */}
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b px-3 py-1">
         <div className="flex flex-wrap items-center gap-1">
