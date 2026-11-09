@@ -12,6 +12,7 @@ pub mod process_tools;
 pub mod recorder;
 pub mod resources;
 mod screenshot;
+mod socket_debug;
 mod sticky_note;
 mod system_monitor;
 mod window_chrome;
@@ -129,6 +130,7 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_global_shortcut::ShortcutState;
 use ws_server::WsServerState;
+use socket_debug::SocketDebugState;
 
 fn is_window_shown(is_visible: bool, is_minimized: bool) -> bool {
     is_visible && !is_minimized
@@ -336,6 +338,7 @@ pub fn run() {
         .manage(ai_assistant::AiState::default())
         .manage(CaptureGuardState::default())
         .manage(WsServerState::default())
+        .manage(SocketDebugState::default())
         .manage(ScreenshotState::default())
         .manage(RecorderState::default())
         .manage(ClipboardHistoryState::default())
@@ -370,6 +373,9 @@ pub fn run() {
             ws_server::start_ws_server,
             ws_server::stop_ws_server,
             ws_server::ws_broadcast,
+            socket_debug::socket_debug_start,
+            socket_debug::socket_debug_send,
+            socket_debug::socket_debug_stop,
             screenshot::start_screenshot,
             screenshot::start_recording_region_selection,
             screenshot::restore_main_window_after_recording_region,

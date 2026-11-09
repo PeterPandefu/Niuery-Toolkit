@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { ensureNetworkAccessAllowed } from '@/lib/api-client';
 
 interface SharedItem { id: string; name: string; path: string; isDirectory: boolean; isText: boolean; content?: string | null; size: number; createdAt: number }
 interface ServerInfo { url: string; port: number }
@@ -115,6 +116,8 @@ export default function FileShare() {
   };
 
   const startServer = async () => {
+    try { ensureNetworkAccessAllowed(); }
+    catch (error) { toast.error(String(error)); return; }
     setBusy(true);
     try {
       const latestAddresses = await refreshAddresses();

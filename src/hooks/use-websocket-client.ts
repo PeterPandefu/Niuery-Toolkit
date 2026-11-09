@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { ensureNetworkAccessAllowed } from '@/lib/api-client';
 
 export type WsStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -23,6 +24,14 @@ export function useWebSocketClient() {
   const connectStartRef = useRef<number>(0);
 
   const connect = useCallback((url: string) => {
+    try {
+      ensureNetworkAccessAllowed();
+    } catch (error) {
+      setErrorMessage(String(error));
+      setStatus('error');
+      return;
+    }
+
     // Close existing connection
     if (wsRef.current) {
       wsRef.current.close();
@@ -76,6 +85,12 @@ export function useWebSocketClient() {
   }, []);
 
   const send = useCallback((content: string) => {
+    try {
+      ensureNetworkAccessAllowed();
+    } catch (error) {
+      setErrorMessage(String(error));
+      return false;
+    }
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(content);
       setMessages((prev) => [

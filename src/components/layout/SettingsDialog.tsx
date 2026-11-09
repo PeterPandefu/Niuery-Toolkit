@@ -7,7 +7,7 @@ import { useAppStore } from '@/store/app-store';
 import { isTauri } from '@/lib/api-client';
 import { emitHotkeysChanged } from '@/lib/hotkeys';
 import { CATEGORY_ICONS } from '@/types/tool';
-import { Check, Contrast, Download, Feather, Keyboard, Monitor, Moon, Palette, Pin, Power, RefreshCw, RotateCcw, Search, Sparkles, Sunrise, Sun, Trees, Waves, X, Zap } from 'lucide-react';
+import { Check, Contrast, Download, Feather, Globe2, Keyboard, Monitor, Moon, Palette, Pin, Power, RefreshCw, RotateCcw, Search, ShieldAlert, Sparkles, Sunrise, Sun, Trees, Waves, X, Zap } from 'lucide-react';
 import { getThemeTokens, SKIN_IDS } from '@/lib/theme';
 import { DEFAULT_POINTER_EFFECT } from '@/lib/pointer-effect';
 import type { PointerEffect, SkinId } from '@/types/tool';
@@ -19,7 +19,7 @@ import { ReleaseNotes } from '@/components/markdown/ReleaseNotes';
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
-  initialTab?: 'alwaysOn' | 'resources' | 'updates';
+  initialTab?: 'alwaysOn' | 'resources' | 'updates' | 'network';
 }
 
 /** 开关组件 */
@@ -366,10 +366,76 @@ function UpdateSettings() {
   );
 }
 
+function NetworkSettings() {
+  const { t } = useTranslation();
+  const networkAccessAllowed = useAppStore((state) => state.networkAccessAllowed);
+  const setNetworkAccessAllowed = useAppStore((state) => state.setNetworkAccessAllowed);
+  const [confirming, setConfirming] = useState(false);
+
+  const requestToggle = (next: boolean) => {
+    if (!isTauri) return;
+    if (next) setConfirming(true);
+    else setNetworkAccessAllowed(false);
+  };
+
+  return (
+    <div className="space-y-4 px-2 py-1">
+      <div className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">{t('network.title')}</h3>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('network.description')}</p>
+        </div>
+      </div>
+
+      {!isTauri ? (
+        <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+          {t('network.desktopOnly')}
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-lg border border-border px-3 py-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
+            <Globe2 className="h-4 w-4 text-primary" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <span className="block text-[13px] font-medium text-foreground">{t('network.allow')}</span>
+            <span className="block text-[11px] leading-4 text-muted-foreground">{t('network.allowDesc')}</span>
+          </div>
+          <Toggle
+            checked={networkAccessAllowed}
+            onChange={requestToggle}
+            label={t('network.allow')}
+          />
+        </div>
+      )}
+
+      {confirming && (
+        <div role="alertdialog" aria-label={t('network.confirmTitle')} className="space-y-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+          <div className="flex items-start gap-2">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">{t('network.confirmTitle')}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('network.confirmDescription')}</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent" onClick={() => setConfirming(false)}>
+              {t('actions.cancel')}
+            </button>
+            <button type="button" className="rounded-md bg-destructive px-3 py-1.5 text-xs text-destructive-foreground hover:bg-destructive/90" onClick={() => { setNetworkAccessAllowed(true); setConfirming(false); }}>
+              {t('network.confirmEnable')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: SettingsDialogProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState('');
-  const [tab, setTab] = useState<'appearance' | 'alwaysOn' | 'pinned' | 'hotkeys' | 'resources' | 'updates'>(initialTab);
+  const [tab, setTab] = useState<'appearance' | 'alwaysOn' | 'pinned' | 'hotkeys' | 'resources' | 'updates' | 'network'>(initialTab);
   const alwaysOnTools = useToolLifecycleStore((s) => s.alwaysOnTools);
   const activeTools = useToolLifecycleStore((s) => s.activeTools);
   const setAlwaysOn = useToolLifecycleStore((s) => s.setAlwaysOn);
@@ -536,10 +602,14 @@ export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: Setti
           <button onClick={() => setTab('updates')} className={cn('rounded-t-md px-3 py-2 text-[12px] font-medium', tab === 'updates' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground')}>
             {t('updates.title')}
           </button>
+          <button onClick={() => setTab('network')} className={cn('flex items-center gap-1.5 rounded-t-md px-3 py-2 text-[12px] font-medium', tab === 'network' ? 'border-b-2 border-warning text-warning' : 'text-muted-foreground hover:text-foreground')}>
+            <Globe2 className="h-3 w-3" />
+            {t('network.title')}
+          </button>
         </div>
 
         {/* 筛选 / 快捷键头部 */}
-        {tab === 'appearance' || tab === 'resources' || tab === 'updates' ? null : tab === 'hotkeys' ? (
+        {tab === 'appearance' || tab === 'resources' || tab === 'updates' || tab === 'network' ? null : tab === 'hotkeys' ? (
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-2.5">
             <span className="text-[11px] text-muted-foreground">{t('hotkeys.hint')}</span>
             <button
@@ -574,7 +644,7 @@ export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: Setti
 
         {/* 内容区 */}
         <div className="max-h-[46vh] overflow-y-auto px-3 py-3">
-          {tab === 'resources' ? <ResourceManager /> : tab === 'updates' ? <UpdateSettings /> : tab === 'appearance' ? (
+          {tab === 'resources' ? <ResourceManager /> : tab === 'updates' ? <UpdateSettings /> : tab === 'network' ? <NetworkSettings /> : tab === 'appearance' ? (
             <AppearanceSettings />
           ) : tab === 'hotkeys' ? (
             /* 快捷键配置 */
@@ -690,7 +760,7 @@ export function SettingsDialog({ open, onClose, initialTab = 'alwaysOn' }: Setti
 
         {/* 底部提示 */}
         <div className="flex items-center gap-3 border-t border-border bg-muted/30 px-5 py-2.5 text-[10px] text-muted-foreground">
-          {tab === 'resources' ? <span>{t('resources.title', '资源管理')}</span> : tab === 'updates' ? <span>{t('updates.description')}</span> : tab === 'appearance' ? (
+          {tab === 'resources' ? <span>{t('resources.title', '资源管理')}</span> : tab === 'updates' ? <span>{t('updates.description')}</span> : tab === 'network' ? <span>{t('network.footer')}</span> : tab === 'appearance' ? (
             <span className="flex items-center gap-1.5">
               <Palette className="h-3 w-3 text-primary" />
               {t('theme.appearanceDesc')}

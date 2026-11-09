@@ -612,12 +612,12 @@ registerTool({
 // === 网络工具 ===
 registerTool({
   id: 'socket-tool',
-  name: 'WebSocket 调试',
+  name: 'Socket 调试',
   icon: Globe,
   category: 'network',
   component: lazy(() => import('@/tools/network/socket-tool')),
-  keywords: ['socket', 'websocket', 'ws', '网络', '连接', 'server', 'client', '调试'],
-  description: 'WebSocket 客户端/服务端调试',
+  keywords: ['socket', 'tcp', 'udp', 'websocket', 'ws', '网络', '连接', '服务端', '客户端', '调试'],
+  description: 'TCP、UDP 与 WebSocket 收发调试',
 });
 
 registerTool({

@@ -13,6 +13,17 @@
     "install": "下载并安装",
     "installing": "安装中…"
   },
+  "network": {
+    "title": "网络权限",
+    "description": "桌面端默认限制网络请求的目标范围。开启后，HTTP API、模型服务、翻译、更新以及 WebSocket/TCP/UDP 等网络功能不再受域名或目标范围限制。",
+    "desktopOnly": "网络权限开关仅在 Tauri 桌面版生效。",
+    "allow": "允许桌面端访问网络",
+    "allowDesc": "关闭后，桌面端网络功能会被阻止；开启后将允许访问任意 HTTP/HTTPS 地址并建立 WebSocket/TCP/UDP 连接。",
+    "confirmTitle": "确认开放桌面端网络权限？",
+    "confirmDescription": "开放后，应用及其网络功能可以向任意 HTTP/HTTPS 地址发送请求，也可以建立 WebSocket/TCP/UDP 连接。恶意请求目标、第三方脚本或误粘贴的密钥可能造成数据泄露。仅在你信任请求来源时开启。",
+    "confirmEnable": "确认开启",
+    "footer": "网络权限会影响桌面端的外部请求，请按需开启。"
+  },
   "app": {
     "name": "Niuery Toolkit",
     "description": "离线优先的开发者工具箱",

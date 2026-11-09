@@ -17,7 +17,8 @@
     {
       "identifier": "http:default",
       "allow": [
-        "https://fanyi-api.baidu.com/api/trans/vip/translate"
+        "http://*:*",
+        "https://*:*"
       ]
     },
     "global-shortcut:default",

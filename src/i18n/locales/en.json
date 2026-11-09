@@ -13,6 +13,17 @@
     "install": "Download and install",
     "installing": "Installing…"
   },
+  "network": {
+    "title": "Network permissions",
+    "description": "The desktop app normally restricts network request destinations. When enabled, HTTP APIs, model services, translation, updates, and WebSocket/TCP/UDP tools are no longer limited by a domain or destination allowlist.",
+    "desktopOnly": "The network permission switch applies only to the Tauri desktop app.",
+    "allow": "Allow desktop network access",
+    "allowDesc": "When off, desktop network features are blocked. When on, any HTTP/HTTPS address and WebSocket/TCP/UDP connection may be used.",
+    "confirmTitle": "Allow unrestricted desktop network access?",
+    "confirmDescription": "The app and its network features may send requests to any HTTP/HTTPS address and establish WebSocket/TCP/UDP connections. Malicious targets, third-party scripts, or accidentally pasted secrets could expose data. Enable this only when you trust the request sources.",
+    "confirmEnable": "Enable access",
+    "footer": "Network permissions affect external desktop requests. Enable them only when needed."
+  },
   "app": {
     "name": "Niuery Toolkit",
     "description": "Offline-first developer toolkit",

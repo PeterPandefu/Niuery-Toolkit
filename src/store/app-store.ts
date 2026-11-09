@@ -47,6 +47,10 @@ interface AppStore {
   setMascotEnabled: (enabled: boolean) => void;
   resetAppearance: () => void;
 
+  // 桌面端网络权限
+  networkAccessAllowed: boolean;
+  setNetworkAccessAllowed: (allowed: boolean) => void;
+
   // 当前展开的分类面板
   activeCategory: ToolCategory | null;
   setActiveCategory: (category: ToolCategory | null) => void;
@@ -98,6 +102,9 @@ export const useAppStore = create<AppStore>()(
           pointerEffect: DEFAULT_POINTER_EFFECT,
           mascotEnabled: false,
         }),
+
+      networkAccessAllowed: false,
+      setNetworkAccessAllowed: (networkAccessAllowed) => set({ networkAccessAllowed }),
 
       // 分类面板
       activeCategory: null,
@@ -156,13 +163,14 @@ export const useAppStore = create<AppStore>()(
         atmosphere: state.atmosphere,
         pointerEffect: state.pointerEffect,
         mascotEnabled: state.mascotEnabled,
+        networkAccessAllowed: state.networkAccessAllowed,
         pinnedTools: state.pinnedTools,
         sidebarCollapsed: state.sidebarCollapsed,
       }),
-      version: 7,
+      version: 8,
       merge: (persistedState, currentState) => {
         const persisted = (persistedState ?? {}) as Partial<
-          Pick<AppStore, 'theme' | 'skin' | 'atmosphere' | 'pointerEffect' | 'mascotEnabled' | 'pinnedTools' | 'sidebarCollapsed'>
+          Pick<AppStore, 'theme' | 'skin' | 'atmosphere' | 'pointerEffect' | 'mascotEnabled' | 'networkAccessAllowed' | 'pinnedTools' | 'sidebarCollapsed'>
         >;
         return {
           ...currentState,
@@ -172,13 +180,14 @@ export const useAppStore = create<AppStore>()(
           atmosphere: persisted.atmosphere !== undefined ? normalizeAtmosphere(persisted.atmosphere) : currentState.atmosphere,
           pointerEffect: normalizePointerEffect(persisted.pointerEffect ?? currentState.pointerEffect),
           mascotEnabled: persisted.mascotEnabled ?? currentState.mascotEnabled,
+          networkAccessAllowed: persisted.networkAccessAllowed ?? currentState.networkAccessAllowed,
           pinnedTools: normalizePinnedTools(persisted.pinnedTools ?? currentState.pinnedTools),
           sidebarCollapsed: persisted.sidebarCollapsed ?? currentState.sidebarCollapsed,
         };
       },
       migrate: (persistedState) => {
         const persisted = (persistedState ?? {}) as Partial<
-          Pick<AppStore, 'theme' | 'skin' | 'atmosphere' | 'pointerEffect' | 'mascotEnabled' | 'pinnedTools' | 'sidebarCollapsed'>
+          Pick<AppStore, 'theme' | 'skin' | 'atmosphere' | 'pointerEffect' | 'mascotEnabled' | 'networkAccessAllowed' | 'pinnedTools' | 'sidebarCollapsed'>
         >;
         return {
           theme: persisted.theme ?? 'system',
@@ -186,6 +195,7 @@ export const useAppStore = create<AppStore>()(
           atmosphere: normalizeAtmosphere(persisted.atmosphere),
           pointerEffect: normalizePointerEffect(persisted.pointerEffect),
           mascotEnabled: persisted.mascotEnabled ?? false,
+          networkAccessAllowed: persisted.networkAccessAllowed ?? false,
           pinnedTools: normalizePinnedTools(persisted.pinnedTools ?? [...DEFAULT_PINNED_TOOLS]),
           sidebarCollapsed: persisted.sidebarCollapsed ?? false,
         };
