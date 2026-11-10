@@ -282,7 +282,7 @@ function FlowBoardInner() {
     ...edge, type: 'flow-edge', markerStart: marker(edge.data?.startMarker), markerEnd: marker(edge.data?.endMarker ?? 'closed-arrow'),
   }));
   return <section ref={root} tabIndex={0} onKeyDown={keyHandler} className={'flow-board flex h-full min-h-0 flex-col' + (tool === 'connect' ? ' flow-connect-mode' : '')}>
-    <header className="flow-topbar"><div className="flow-brand"><div className="flow-brand-mark">N</div><div><strong>Niuery Draw</strong><span>{path?.split(/[\\/]/).pop() ?? '未命名流程图'}{dirty ? ' ·' : ''}</span></div></div>
+    <header className="flow-topbar">
       <nav className="flow-menu-row">{Object.keys(menuItems).map((name) => <div key={name} className="flow-menu-anchor"><button className="flow-menu" aria-expanded={menu === name} onClick={() => setMenu(menu === name ? null : name)}>{name}</button>{menu === name && <div role="menu" className="flow-dropdown">{menuItems[name].map(([action, label]) => <button key={action} role="menuitem" onClick={() => command(action)}>{label}</button>)}</div>}</div>)}</nav>
       <button className="flow-help-button" onClick={() => setHelp(true)}>快捷键</button>
     </header>
