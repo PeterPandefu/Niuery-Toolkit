@@ -1,5 +1,5 @@
 import { md5 } from 'js-md5';
-import { isTauri } from '@/lib/api-client';
+import { ensureNetworkAccessAllowed, isTauri } from '@/lib/api-client';
 
 /** 翻译服务商凭证（当前仅百度） */
 export interface BaiduCredentials {
@@ -135,6 +135,7 @@ export async function translateWithBaidu(
  */
 export async function resolveFetch(): Promise<FetchLike> {
   if (isTauri) {
+    ensureNetworkAccessAllowed();
     const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
     return tauriFetch as unknown as FetchLike;
   }

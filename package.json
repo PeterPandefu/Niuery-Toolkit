@@ -1,7 +1,7 @@
 {
   "name": "niuery-toolkit",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.6.0",
   "type": "module",
   "description": "Offline-first developer toolkit - DevToys Clone",
   "scripts": {
@@ -37,6 +37,7 @@
     "@mermaid-js/mermaid-zenuml": "^0.2.3",
     "@monaco-editor/react": "^4.7.0",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "~2.7.2",
     "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-opener": "^2.7.2",
     "@tauri-apps/plugin-process": "^2.4.0",

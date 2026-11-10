@@ -14,6 +14,7 @@ describe('useAppStore', () => {
       recentToolUsage: {},
       usageSequence: 0,
       sidebarCollapsed: false,
+      networkAccessAllowed: false,
     });
   });
 
@@ -185,6 +186,21 @@ describe('useAppStore', () => {
       useAppStore.getState().setSidebarCollapsed(true);
       const persisted = useAppStore.persist.getOptions().partialize?.(useAppStore.getState());
       expect(persisted).toMatchObject({ sidebarCollapsed: true });
+    });
+  });
+
+  describe('networkAccessAllowed', () => {
+    it('默认关闭并支持切换', () => {
+      expect(useAppStore.getState().networkAccessAllowed).toBe(false);
+      useAppStore.getState().setNetworkAccessAllowed(true);
+      expect(useAppStore.getState().networkAccessAllowed).toBe(true);
+      useAppStore.getState().setNetworkAccessAllowed(false);
+      expect(useAppStore.getState().networkAccessAllowed).toBe(false);
+    });
+
+    it('持久化网络权限选择', () => {
+      useAppStore.getState().setNetworkAccessAllowed(true);
+      expect(useAppStore.persist.getOptions().partialize?.(useAppStore.getState())).toMatchObject({ networkAccessAllowed: true });
     });
   });
 });
