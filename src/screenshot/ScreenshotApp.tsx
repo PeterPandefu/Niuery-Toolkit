@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { ScreenshotOverlay } from './ScreenshotOverlay';
+import { ColorPickerOverlay } from './ColorPickerOverlay';
 
 interface ScreenshotCapture {
   generation: number;
-  mode: 'normal' | 'longshot' | 'recording';
+  mode: 'normal' | 'longshot' | 'recording' | 'color';
+  scaleFactor?: number;
   path: string;
 }
 
@@ -19,6 +21,7 @@ interface ScreenData {
   height: number;
   generation: number;
   mode: ScreenshotCapture['mode'];
+  scaleFactor: number;
 }
 
 /**
@@ -58,6 +61,7 @@ export default function ScreenshotApp() {
         height: image.naturalHeight,
         generation,
         mode: capture.mode,
+        scaleFactor: capture.scaleFactor || 1,
       });
     } catch (reason) {
       if (expectedGeneration !== undefined && loadingGeneration.current !== expectedGeneration) return;
@@ -129,6 +133,10 @@ export default function ScreenshotApp() {
 
   if (!screen) {
     return <div className="h-screen w-screen" />;
+  }
+
+  if (screen.mode === 'color') {
+    return <ColorPickerOverlay key={screen.generation} generation={screen.generation} image={screen.image} scaleFactor={screen.scaleFactor} />;
   }
 
   return (
