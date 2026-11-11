@@ -308,18 +308,22 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
     if (!qrResult) return;
     const ok = await copyToClipboard(qrResult.rawValue);
     toast[ok ? 'success' : 'error'](ok ? '二维码结果已复制' : '复制失败，请手动复制');
-  }, [qrResult]);
+    // 复制成功后结束截图会话；失败时保留面板供用户手动复制。
+    if (ok) await closeCurrentScreenshot();
+  }, [qrResult, closeCurrentScreenshot]);
 
   const openQrUrl = useCallback(async (url: URL) => {
     try {
       await openExternalUrl(url);
       log.info('打开二维码网页', { hostname: url.hostname });
+      // 跳转浏览器后结束截图会话；失败时保留面板并提示错误。
+      await closeCurrentScreenshot();
     } catch (error) {
       const message = error instanceof Error ? error.message : '网页打开失败，请复制链接手动打开';
       setQrError(message);
       log.warn('打开二维码网页失败', { hostname: url.hostname, message });
     }
-  }, []);
+  }, [closeCurrentScreenshot]);
 
   const translateOcrText = useCallback(async (text: string) => {
     if (!ocrImageDataUrl) return;
