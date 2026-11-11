@@ -2,6 +2,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { holdAiUpdate } from './update-lock';
 import type { AiBackend, AiFlushHandler, AiProvider, AiStreamEvent, AiWorkspace } from './types';
+import { ensureNetworkAccessAllowed } from '@/lib/api-client';
 
 const inDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 const desktopRequired = () => new Error('请在桌面应用中连接模型、保存 API 密钥或打开数据目录。 / Please use the desktop app.');
@@ -84,18 +85,22 @@ export const desktopAiBackend: AiBackend = {
   },
   async listModels(providerId) {
     if (!inDesktop()) throw desktopRequired();
+    ensureNetworkAccessAllowed();
     return invoke('ai_list_models', { providerId });
   },
   async testConnection(providerId) {
     if (!inDesktop()) throw desktopRequired();
+    ensureNetworkAccessAllowed();
     return invoke('ai_test_connection', { providerId });
   },
   async testModel(providerId, modelId) {
     if (!inDesktop()) throw desktopRequired();
+    ensureNetworkAccessAllowed();
     return invoke('ai_test_model', { providerId, modelId });
   },
   async generate(request, onEvent) {
     if (!inDesktop()) throw desktopRequired();
+    ensureNetworkAccessAllowed();
     const onEventChannel = new Channel<AiStreamEvent>();
     onEventChannel.onmessage = event => {
       if (event.requestId === request.requestId && event.conversationId === request.conversationId && event.messageId === request.messageId) {

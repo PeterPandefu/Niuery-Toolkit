@@ -1,7 +1,7 @@
 import { Select } from '@/components/ui/select';
 import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Download, FileImage, FileText, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -12,6 +12,8 @@ import { isTauri } from '@/lib/api-client';
 import { useTheme } from '@/hooks/use-theme';
 import { diagnoseHtml } from '@/lib/html-diagnostics';
 import { compareImageBlobs } from '@/lib/image-diff';
+import { EditorTabs } from '@/components/shared/EditorTabs';
+import { useEditorTabs } from '@/hooks/use-editor-tabs';
 
 const DEFAULT_HTML = `<!doctype html>
 <html lang="zh-CN">
@@ -54,7 +56,13 @@ function saveBaseline(bytes: Uint8Array) {
 
 export default function HtmlRenderer() {
   const { monacoTheme } = useTheme();
-  const [source, setSource] = useState(DEFAULT_HTML);
+  const tabs = useEditorTabs({
+    storageKey: 'niuery-html-renderer-tabs',
+    defaultContent: DEFAULT_HTML,
+    extension: 'html',
+    defaultPrefix: '未命名 HTML',
+  });
+  const { content: source, setContent: setSource, storageError } = tabs;
   const [isRendering, setIsRendering] = useState(false);
   const [viewport, setViewport] = useState({ width: 1440, height: 10000 });
   const [baselinePng, setBaselinePng] = useState<Uint8Array | null>(loadBaseline);
@@ -62,6 +70,10 @@ export default function HtmlRenderer() {
   const diagnostics = useMemo(() => diagnoseHtml(source), [source]);
   const remoteResources = diagnostics.remoteResources;
   const preview = useMemo(() => source, [source]);
+
+  useEffect(() => {
+    if (storageError) toast.error(storageError);
+  }, [storageError]);
 
   const render = useCallback(async (format: 'pdf' | 'png') => {
     if (!isTauri) {
@@ -91,8 +103,8 @@ export default function HtmlRenderer() {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    setSource(await file.text());
-  }, []);
+    tabs.importTab(file.name, await file.text());
+  }, [tabs]);
 
   const exportSnapshot = useCallback(async () => {
     if (remoteResources.length > 0) {
@@ -135,6 +147,19 @@ export default function HtmlRenderer() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <EditorTabs
+        tabs={tabs.tabs}
+        activeTabId={tabs.activeTabId}
+        onActivate={tabs.activateTab}
+        onCreate={() => tabs.createTab()}
+        onDuplicate={(id) => tabs.duplicateTab(id)}
+        onRename={tabs.renameTab}
+        onClose={tabs.closeTab}
+        onCloseOthers={tabs.closeOthers}
+        onCloseRight={tabs.closeToRight}
+        onCloseAll={tabs.closeAll}
+        onReorder={tabs.reorderTabs}
+      />
       <header className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <h1 className="text-sm font-semibold">HTML 离线渲染器</h1>
         <div className="flex items-center gap-1">

@@ -7,7 +7,12 @@ import { toast } from 'sonner';
 import { AnnotationLayer } from './AnnotationLayer';
 import { EditToolbar } from './EditToolbar';
 import { ScreenshotOcrPanel } from '@/components/ocr/ScreenshotOcrPanel';
+import { ScreenshotQrPanel } from '@/components/qr/ScreenshotQrPanel';
 import { saveBytesWithFeedback } from '@/lib/file-save';
+import { copyToClipboard } from '@/lib/utils';
+import { classifyQrValue, decodeQrFromBlob, QrDecodeError, type QrDecodeResult } from '@/lib/qr-decoder';
+import { openExternalUrl } from '@/lib/external-url';
+import { createLogger } from '@/lib/logger';
 import { Check } from 'lucide-react';
 import {
   type ScreenshotPhase,
@@ -20,6 +25,8 @@ import {
   FREEHAND_MIN_POINTS,
 } from './types';
 import { HUD } from './hud';
+
+const log = createLogger('screenshot');
 
 interface ScreenshotOverlayProps {
   generation: number;
@@ -49,6 +56,10 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
   const [ocrImageDataUrl, setOcrImageDataUrl] = useState('');
   const [ocrText, setOcrText] = useState('');
   const [ocrAutoTranslate, setOcrAutoTranslate] = useState(false);
+  const [qrSource, setQrSource] = useState<Blob | null>(null);
+  const [qrResult, setQrResult] = useState<QrDecodeResult | null>(null);
+  const [qrBusy, setQrBusy] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [editToolbarSize, setEditToolbarSize] = useState<{ width: number; height: number } | null>(null);
   /** 长截图捕获间隔（框选阶段配置，确认后锁定） */
   const [longshotIntervalMs, setLongshotIntervalMs] = useState(1000);
@@ -61,6 +72,8 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
   // 框选起始事件与 React effect 之间不能存在空档：用户按下后可在同一事件循环内
   // 完成移动和松开。该清理函数保存当前同步安装的监听器，确保任意路径都能取消它们。
   const mouseTrackingCleanup = useRef<(() => void) | null>(null);
+  const qrAbortRef = useRef<AbortController | null>(null);
+  const qrRunIdRef = useRef(0);
 
   const stopMouseTracking = useCallback(() => {
     const cleanup = mouseTrackingCleanup.current;
@@ -69,6 +82,22 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
   }, []);
 
   useEffect(() => stopMouseTracking, [stopMouseTracking]);
+
+  const cancelQr = useCallback(() => {
+    qrRunIdRef.current += 1;
+    qrAbortRef.current?.abort();
+    qrAbortRef.current = null;
+    setQrBusy(false);
+  }, []);
+
+  useEffect(() => cancelQr, [cancelQr]);
+
+  const clearQrPanel = useCallback(() => {
+    cancelQr();
+    setQrSource(null);
+    setQrResult(null);
+    setQrError(null);
+  }, [cancelQr]);
 
   // ── 裁剪选区图片（用于标注画布背景 & 马赛克取色）──────────
   const { croppedImage, croppedCanvas } = useMemo(() => {
@@ -161,10 +190,11 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
     // 截图窗口隐藏后 WebView 会被复用而非卸载；关闭前必须同步断开本次
     // 鼠标跟踪，避免迟到的 mouseup 将已经取消的会话重新推进到 selected。
     stopMouseTracking();
+    clearQrPanel();
     selStart.current = null;
     isDrawing.current = false;
     return invoke('close_screenshot_window', { generation });
-  }, [generation, stopMouseTracking]);
+  }, [clearQrPanel, generation, stopMouseTracking]);
 
   const handleCopy = useCallback(async () => {
     const b64 = exportBase64();
@@ -220,6 +250,76 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
       setOcrAutoTranslate(autoTranslate);
     }, 'image/png');
   }, [croppedCanvas]);
+
+  const recognizeQr = useCallback(() => {
+    if (!croppedCanvas || qrBusy) return;
+    const runId = ++qrRunIdRef.current;
+    qrAbortRef.current?.abort();
+    const controller = new AbortController();
+    qrAbortRef.current = controller;
+    setQrBusy(true);
+    setQrError(null);
+    setQrResult(null);
+    croppedCanvas.toBlob((blob) => {
+      if (runId !== qrRunIdRef.current) return;
+      if (!blob) {
+        setQrBusy(false);
+        setQrError('识别图片生成失败，请重试');
+        toast.error('识别图片生成失败，请重试');
+        return;
+      }
+      setQrSource(blob);
+      void decodeQrFromBlob(blob, { signal: controller.signal })
+        .then((result) => {
+          if (runId !== qrRunIdRef.current) return;
+          setQrResult(result);
+          const kind = classifyQrValue(result.rawValue).kind;
+          log.info('截图二维码识别成功', {
+            kind,
+            engine: result.engine,
+            sourceWidth: result.sourceWidth,
+            sourceHeight: result.sourceHeight,
+            resultLength: result.rawValue.length,
+            durationMs: result.durationMs,
+          });
+        })
+        .catch((reason: unknown) => {
+          if (runId !== qrRunIdRef.current || (reason instanceof QrDecodeError && reason.code === 'aborted')) return;
+          const message = reason instanceof QrDecodeError
+            ? reason.code === 'not-found'
+              ? '未检测到二维码，请包含完整二维码和白边'
+              : reason.code === 'unsupported'
+                ? '当前环境不支持二维码识别'
+                : '图片处理失败，请重试'
+            : '二维码识别失败，请重试';
+          setQrError(message);
+          log.warn('截图二维码识别失败', { reason: message });
+        })
+        .finally(() => {
+          if (runId === qrRunIdRef.current) {
+            setQrBusy(false);
+            qrAbortRef.current = null;
+          }
+        });
+    }, 'image/png');
+  }, [croppedCanvas, qrBusy]);
+
+  const copyQrResult = useCallback(async () => {
+    if (!qrResult) return;
+    const ok = await copyToClipboard(qrResult.rawValue);
+    toast[ok ? 'success' : 'error'](ok ? '二维码结果已复制' : '复制失败，请手动复制');
+  }, [qrResult]);
+
+  const openQrUrl = useCallback(async (url: URL) => {
+    try {
+      await openExternalUrl(url);
+      log.info('打开二维码网页', { hostname: url.hostname });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '网页打开失败，请复制链接手动打开';
+      setQrError(message);
+      log.warn('打开二维码网页失败', { hostname: url.hostname, message });
+    }
+  }, []);
 
   const translateOcrText = useCallback(async (text: string) => {
     if (!ocrImageDataUrl) return;
@@ -668,6 +768,9 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
                 <button type="button" className="rounded px-2 py-1 text-xs text-white" style={{ background: HUD.success }} onClick={() => openOcr(true)}>
                   翻译文字
                 </button>
+                <button type="button" className="rounded px-2 py-1 text-xs text-white hover:bg-white/15" onClick={recognizeQr} disabled={qrBusy}>
+                  识别二维码
+                </button>
               </div>
             </>
           )}
@@ -688,6 +791,22 @@ export function ScreenshotOverlay({ generation, screenImage, screenW, screenH, l
               setOcrSource(null);
               setOcrAutoTranslate(false);
             }}
+          />
+        </div>
+      )}
+
+      {qrSource && (
+        <div className="fixed inset-x-4 top-4 z-[70] mx-auto max-w-5xl overflow-auto rounded-lg border border-white/20 bg-background shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+          <ScreenshotQrPanel
+            source={qrSource}
+            result={qrResult}
+            busy={qrBusy}
+            error={qrError}
+            onRetry={recognizeQr}
+            onCopy={() => void copyQrResult()}
+            onOpenUrl={(url) => void openQrUrl(url)}
+            onCancel={cancelQr}
+            onClose={clearQrPanel}
           />
         </div>
       )}

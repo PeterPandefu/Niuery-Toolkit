@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { isResourceDesktop, type ResourceId, type ResourceProgress, type ResourceStatus } from '@/lib/resources';
+import { ensureNetworkAccessAllowed } from '@/lib/api-client';
 
 interface ResourceStore {
   resources: ResourceStatus[]; loading: boolean; error: string | null;
@@ -28,7 +29,10 @@ export const useResourceStore = create<ResourceStore>((set, get) => ({
   run: async (id, command, args = {}) => {
     if (get().busy[id]) return;
     set(state => ({ busy: { ...state.busy, [id]: true }, errors: { ...state.errors, [id]: undefined } }));
-    try { await invoke(command, { id, ...args }); }
+    try {
+      if (command === 'install_resource') ensureNetworkAccessAllowed();
+      await invoke(command, { id, ...args });
+    }
     catch (error) { set(state => ({ errors: { ...state.errors, [id]: String(error) } })); }
     finally {
       set(state => ({ busy: { ...state.busy, [id]: false }, progress: { ...state.progress, [id]: undefined } }));

@@ -128,4 +128,19 @@ describe('ScreenshotOverlay selection mode', () => {
       boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
     });
   });
+
+  it('shows QR recognition only for a normal selected screenshot', async () => {
+    const { container } = render(
+      <ScreenshotOverlay generation={1} screenImage={{ src: 'screen' } as HTMLImageElement} screenW={100} screenH={100} />,
+    );
+    const overlay = container.firstElementChild!;
+
+    fireEvent.mouseDown(overlay, { clientX: 10, clientY: 10 });
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.mouseMove(window, { clientX: 40, clientY: 40 });
+    fireEvent.mouseUp(window);
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    expect(screen.getByRole('button', { name: '识别二维码' })).toBeInTheDocument();
+  });
 });

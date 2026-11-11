@@ -1,7 +1,15 @@
 import type { ApiResponse, HttpMethod, KeyValue } from '@/store/api-tester-store';
+import { useAppStore } from '@/store/app-store';
 
 /** 检测是否在 Tauri 桌面环境 */
 export const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+/** 桌面端网络请求需要用户明确开启网络权限。 */
+export function ensureNetworkAccessAllowed(): void {
+  if (isTauri && !useAppStore.getState().networkAccessAllowed) {
+    throw new Error('桌面端网络权限未开启，请在“设置 > 网络权限”中开启后重试');
+  }
+}
 
 export interface ResolvedRequest {
   method: HttpMethod;
@@ -18,6 +26,7 @@ export async function sendRequest(
   req: ResolvedRequest,
   signal?: AbortSignal
 ): Promise<ApiResponse> {
+  ensureNetworkAccessAllowed();
   const startTime = performance.now();
 
   let fetchFn: typeof fetch;

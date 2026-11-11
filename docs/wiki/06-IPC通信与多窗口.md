@@ -122,7 +122,7 @@
 ## 5. capability 权限模型（[capabilities/default.json](../../src-tauri/capabilities/default.json)）
 
 - `windows: ["main", "screenshot", "longshot-panel"]` —— 插件权限只授予这三个窗口（便签窗、录制覆盖窗无插件权限需求）；
-- 权限：`core:default`、`core:event:allow-emit-to`、窗口操作（minimize/unminimize/close/toggle-maximize/start-dragging/show/set-focus）、`opener:default`、`http:default`（**allow 白名单仅 `https://fanyi-api.baidu.com/api/trans/vip/translate`**）、`global-shortcut:default`、`autostart:default`、`dialog:default`、`updater:default`、`process:default`。
+- 权限：`core:default`、`core:event:allow-emit-to`、窗口操作（minimize/unminimize/close/toggle-maximize/start-dragging/show/set-focus）、`opener:default`、HTTP 插件的完整 fetch 权限（应用内“网络权限”设置控制内置网络功能）、`global-shortcut:default`、`autostart:default`、`dialog:default`、`updater:default`、`process:default`。
 
 ## 6. 典型跨端调用示例
 

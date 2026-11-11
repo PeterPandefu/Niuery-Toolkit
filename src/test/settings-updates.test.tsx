@@ -3,6 +3,7 @@ import { I18nextProvider } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
 import { SettingsDialog } from '@/components/layout/SettingsDialog';
+import { useAppStore } from '@/store/app-store';
 
 const { check } = vi.hoisted(() => ({ check: vi.fn() }));
 vi.mock('@/lib/api-client', () => ({ isTauri: true }));
@@ -20,7 +21,10 @@ async function checkUpdates() {
 }
 
 describe('software update status', () => {
-  beforeEach(() => { check.mockReset(); });
+  beforeEach(() => {
+    check.mockReset();
+    useAppStore.setState({ networkAccessAllowed: true });
+  });
 
   it('does not claim to be up to date before a check succeeds', () => {
     openUpdates();
