@@ -98,6 +98,7 @@ pub struct ScreenshotCapture {
     pub generation: u64,
     pub mode: String,
     pub path: String,
+    pub scale_factor: f64,
 }
 
 /// 截图数据已更新事件的轻量载荷。
@@ -154,6 +155,7 @@ pub struct ScreenshotState {
     window_ready: AtomicBool,
     /// 区分前后两次会话，避免旧看门狗误清理新会话。
     generation: AtomicU64,
+    color_picker: AtomicBool,
 }
 
 /// 截图工具配置。
@@ -181,6 +183,7 @@ impl Default for ScreenshotState {
             in_progress: AtomicBool::new(false),
             window_ready: AtomicBool::new(false),
             generation: AtomicU64::new(0),
+            color_picker: AtomicBool::new(false),
         }
     }
 }
@@ -231,6 +234,7 @@ impl ScreenshotState {
     }
 
     fn release_current(&self) {
+        self.color_picker.store(false, Ordering::Release);
         self.window_ready.store(false, Ordering::Release);
         self.in_progress.store(false, Ordering::Release);
         if let Some(item) = self.screen_data.lock().unwrap().take() {
@@ -438,6 +442,7 @@ pub fn restore_main_window_after_recording_region(app: AppHandle) -> Result<(), 
 /// mode 为 "longshot" 或 "recording" 时进入对应的专用框选模式。
 #[tauri::command]
 pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<(), String> {
+    let color_picker = mode.as_deref() == Some("color");
     // 在共享入口锁内完成冲突检查和会话占用，避免截图与录屏并发启动。
     let generation = {
         let guard_state = app.state::<crate::capture_guard::CaptureGuardState>();
@@ -445,17 +450,31 @@ pub async fn start_screenshot(app: AppHandle, mode: Option<String>) -> Result<()
         if crate::recorder::active_session_id(&app).is_some()
             || app.get_webview_window("longshot-panel").is_some()
         {
+            if color_picker {
+                return Err("截图或录屏正在使用屏幕，请结束后再取色".to_string());
+            }
             return Ok(());
         }
 
         // 防重入范围覆盖完整截图会话，而不只是捕获和建窗阶段。
         let state = app.state::<ScreenshotState>();
         match state.try_begin_session() {
-            Some(generation) => generation,
+            Some(generation) => {
+                state.color_picker.store(color_picker, Ordering::Release);
+                generation
+            }
+            None if color_picker => return Err("截图正在进行，请结束后再取色".to_string()),
             None => return Ok(()),
         }
     };
-    if mode.as_deref() == Some("recording") && should_minimize_before_capture(&app) {
+    if color_picker {
+        // 取色后总是回到颜色工具，独立于截图的最小化偏好。
+        hide_main_after_capture(&app);
+        #[cfg(windows)]
+        unsafe {
+            let _ = windows::Win32::Graphics::Dwm::DwmFlush();
+        }
+    } else if mode.as_deref() == Some("recording") && should_minimize_before_capture(&app) {
         minimize_main_before_recording_selection(&app);
     } else if mode.as_deref() == Some("longshot") || should_minimize_before_capture(&app) {
         hide_main_before_capture(&app);
@@ -521,6 +540,7 @@ pub fn current_screenshot_generation(app: &AppHandle) -> Option<u64> {
 /// 截图窗口销毁时释放会话占用，供统一窗口事件处理调用。
 pub fn release_screenshot_session(app: &AppHandle) {
     let state = app.state::<ScreenshotState>();
+    let color_picker = state.color_picker.load(Ordering::Acquire);
     let recording_selection = state
         .screen_data
         .lock()
@@ -533,6 +553,9 @@ pub fn release_screenshot_session(app: &AppHandle) {
         restore_main_after_recording_selection(app, &state);
     } else {
         restore_main_after_screenshot(app);
+    }
+    if color_picker {
+        let _ = app.emit_to("main", "screen-color-picker-closed", ());
     }
 }
 
@@ -665,6 +688,7 @@ async fn do_start_screenshot(
     std::fs::create_dir_all(&capture_dir).map_err(|e| format!("创建截图缓存目录失败: {e}"))?;
     let capture_path = capture_dir.join(format!("screenshot-session-{generation}.png"));
     let worker_capture_path = capture_path.clone();
+    let color_picker = mode.as_deref() == Some("color");
 
     // 在后台线程执行截屏并写入无压缩 PNG，避免压缩计算和大体积 Base64 IPC 复制。
     let pending_file = tauri::async_runtime::spawn_blocking(move || {
@@ -674,7 +698,8 @@ async fn do_start_screenshot(
         // 按 DPI 缩放比缩放到 CSS 像素尺寸，使前端坐标与屏幕坐标一致
         let css_w = (image.width() as f64 / scale).round() as u32;
         let css_h = (image.height() as f64 / scale).round() as u32;
-        let resized = if (scale - 1.0).abs() > 0.01 {
+        // 取色保留原始物理像素；普通截图继续使用既有 CSS 像素契约。
+        let resized = if !color_picker && (scale - 1.0).abs() > 0.01 {
             image::imageops::resize(&image, css_w, css_h, image::imageops::FilterType::Lanczos3)
         } else {
             image.clone()
@@ -694,7 +719,7 @@ async fn do_start_screenshot(
             image::ExtendedColorType::Rgb8,
         )
         .map_err(|e| format!("编码 PNG 失败: {e}"))?;
-        Ok::<PendingScreenshotFile, String>(pending_file)
+        Ok::<_, String>((pending_file, if color_picker { scale } else { 1.0 }))
     })
     .await
     .map_err(|e| format!("截屏线程异常: {e}"))??;
@@ -707,6 +732,7 @@ async fn do_start_screenshot(
     if !state.is_generation_active(generation) {
         return Ok(());
     }
+    let (pending_file, scale_factor) = pending_file;
     let capture_path = pending_file.retain();
     *state.screen_data.lock().unwrap() = Some(ScreenshotCapture {
         generation,
@@ -714,10 +740,13 @@ async fn do_start_screenshot(
             "longshot".to_string()
         } else if mode.as_deref() == Some("recording") {
             "recording".to_string()
+        } else if color_picker {
+            "color".to_string()
         } else {
             "normal".to_string()
         },
         path: capture_path.to_string_lossy().into_owned(),
+        scale_factor,
     });
     // 关闭“截图前最小化”后，必须等画面已捕获才隐藏主窗口：
     // 截图数据仍包含当前工具，而后续全屏截图窗口可独占前台与输入。
@@ -849,6 +878,7 @@ fn close_screenshot_window_inner(
     if expected_generation.is_some_and(|generation| !state.is_generation_active(generation)) {
         return Ok(());
     }
+    let color_picker = state.color_picker.load(Ordering::Acquire);
     let recording_selection = state
         .screen_data
         .lock()
@@ -876,6 +906,9 @@ fn close_screenshot_window_inner(
     if recording_selection {
         let _ = app.emit("recording-region-cancelled", ());
     }
+    if color_picker {
+        let _ = app.emit_to("main", "screen-color-picker-closed", ());
+    }
     hide_result
 }
 
@@ -888,6 +921,7 @@ fn cleanup_unready_screenshot_generation(app: &AppHandle, generation: u64) {
     if !state.should_cleanup(generation) {
         return;
     }
+    let color_picker = state.color_picker.swap(false, Ordering::AcqRel);
     let recording_selection = state
         .screen_data
         .lock()
@@ -904,6 +938,9 @@ fn cleanup_unready_screenshot_generation(app: &AppHandle, generation: u64) {
         let _ = app.emit("recording-region-cancelled", ());
     } else {
         restore_main_after_screenshot(app);
+    }
+    if color_picker {
+        let _ = app.emit_to("main", "screen-color-picker-closed", ());
     }
 }
 

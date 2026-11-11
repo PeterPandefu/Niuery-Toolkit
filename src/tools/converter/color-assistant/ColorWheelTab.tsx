@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { Pipette, Copy, Check, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { copyToClipboard } from '@/lib/utils';
 import {
   hexToRgb, rgbToHex, rgbToHsl, hslToRgb, rgbToHsv, rgbToCmyk, rgbToHsi, rgbToCielab,
@@ -17,6 +19,10 @@ interface ColorWheelTabProps {
 export default function ColorWheelTab({ onAddFavorite, removeHash = false }: ColorWheelTabProps) {
   const [hex, setHex] = useState('#908637');
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [picking, setPicking] = useState(false);
+  const pickingRef = useRef(false);
+  const pickerCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => pickerCleanup.current?.(), []);
   const wheelRef = useRef<HTMLCanvasElement>(null);
   const satSliderRef = useRef<HTMLCanvasElement>(null);
   const valSliderRef = useRef<HTMLCanvasElement>(null);
@@ -137,13 +143,45 @@ export default function ColorWheelTab({ onAddFavorite, removeHash = false }: Col
   }, [handleWheelInteraction, handleSatInteraction, handleValInteraction]);
 
   const handleEyeDropper = useCallback(async () => {
+    if (pickingRef.current) return;
+    pickingRef.current = true;
+    setPicking(true);
+    const listeners: UnlistenFn[] = [];
+    let finished = false;
+    const finish = () => {
+      finished = true;
+      listeners.splice(0).forEach((unlisten) => unlisten());
+      pickingRef.current = false;
+      setPicking(false);
+      pickerCleanup.current = null;
+    };
+    pickerCleanup.current = finish;
     try {
-      // @ts-expect-error EyeDropper API
-      const eyeDropper = new EyeDropper();
-      const result = await eyeDropper.open();
-      setHex(result.sRGBHex);
-    } catch {
-      toast.error('取色器不可用或已取消');
+      if ('__TAURI_INTERNALS__' in window) {
+        // Register before capture so even an immediate selection cannot be lost.
+        const selected = await listen<string>('screen-color-picked', ({ payload }) => {
+          if (!finished && /^#[\da-f]{6}$/i.test(payload)) setHex(payload);
+        });
+        if (finished) { selected(); return; }
+        listeners.push(selected);
+        const closed = await listen('screen-color-picker-closed', finish);
+        if (finished) { closed(); return; }
+        listeners.push(closed);
+        await invoke('start_screenshot', { mode: 'color' });
+        return;
+      }
+      const EyeDropperApi = (window as Window & {
+        EyeDropper?: new () => { open(): Promise<{ sRGBHex: string }> };
+      }).EyeDropper;
+      if (!EyeDropperApi) throw new Error('当前浏览器不支持屏幕取色，请使用桌面版或支持取色的浏览器');
+      const result = await new EyeDropperApi().open();
+      if (!finished) setHex(result.sRGBHex);
+      finish();
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        toast.error(`屏幕取色失败：${String(error)}`);
+      }
+      finish();
     }
   }, []);
 
@@ -184,6 +222,9 @@ export default function ColorWheelTab({ onAddFavorite, removeHash = false }: Col
         {/* Eyedropper */}
         <button
           onClick={handleEyeDropper}
+          disabled={picking}
+          aria-label="屏幕取色"
+          aria-busy={picking}
           className="flex h-10 w-10 items-center justify-center rounded-full shadow-md transition hover:scale-110"
           style={{ backgroundColor: hex }}
           title="屏幕取色"

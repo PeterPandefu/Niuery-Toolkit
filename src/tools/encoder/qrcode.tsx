@@ -9,6 +9,7 @@ import { Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useToolLogger } from '@/hooks/use-tool-logger';
 import { saveBytesWithFeedback } from '@/lib/file-save';
+import { classifyQrValue, decodeQrFile } from '@/lib/qr-decoder';
 
 export default function QrCodeTool() {
   const log = useToolLogger('qrcode');
@@ -74,26 +75,21 @@ export default function QrCodeTool() {
     async (file: File) => {
       log.info('开始识别二维码', { name: file.name, size: file.size });
       try {
-        const bitmap = await createImageBitmap(file);
-        if ('BarcodeDetector' in window) {
-          // @ts-expect-error BarcodeDetector API
-          const detector = new BarcodeDetector({ formats: ['qr_code'] });
-          const results = await detector.detect(bitmap);
-          if (results.length > 0) {
-            setDecodedText(results[0].rawValue);
-            toast.success('识别成功');
-            log.info('二维码识别成功', { resultLength: String(results[0].rawValue).length });
-          } else {
-            toast.error('未检测到二维码');
-            log.warn('未检测到二维码', { name: file.name });
-          }
-        } else {
-          toast.error('浏览器不支持 BarcodeDetector API');
-          log.warn('浏览器不支持 BarcodeDetector API');
-        }
+        const result = await decodeQrFile(file);
+        setDecodedText(result.rawValue);
+        toast.success('识别成功');
+        log.info('二维码识别成功', {
+          kind: classifyQrValue(result.rawValue).kind,
+          engine: result.engine,
+          sourceWidth: result.sourceWidth,
+          sourceHeight: result.sourceHeight,
+          resultLength: result.rawValue.length,
+          durationMs: result.durationMs,
+        });
       } catch (e) {
-        toast.error('识别失败');
-        log.error('二维码识别失败', e);
+        const message = e instanceof Error && e.message === '未检测到二维码' ? '未检测到二维码' : '识别失败';
+        toast.error(message);
+        log.error('二维码识别失败', { name: file.name, error: e });
       }
     },
     [log]
@@ -197,7 +193,7 @@ export default function QrCodeTool() {
           )}
 
           <p className="text-xs text-muted-foreground">
-            注意：二维码识别需要浏览器支持 BarcodeDetector API（Chrome/Edge 支持）
+            识别优先使用系统 BarcodeDetector，不支持时自动切换到本地识别引擎。
           </p>
         </div>
       </div>
