@@ -15,7 +15,7 @@ export function forkConversation(conversation: AiConversation, messageId: string
 
 function answerSnapshot(message: AiMessage): AiAnswerVersion {
   return { content: message.content, thinking: message.thinking, createdAt: message.createdAt, status: message.status, modelId: message.modelId, providerId: message.providerId,
-    error: message.error, usage: message.usage, finishReason: message.finishReason, firstTokenMs: message.firstTokenMs, durationMs: message.durationMs };
+    error: message.error, usage: message.usage, finishReason: message.finishReason, firstTokenMs: message.firstTokenMs, durationMs: message.durationMs, toolCalls: message.toolCalls };
 }
 
 export function retainAnswerVersion(previous: AiMessage, next: AiMessage): AiMessage {
@@ -27,7 +27,7 @@ export function selectAnswerVersion(message: AiMessage, index: number): AiMessag
   const version = message.versions?.[index];
   if (!Number.isInteger(index) || !version) throw new Error('回复版本不存在');
   return { ...message, thinking: undefined, error: undefined, usage: undefined, finishReason: undefined, firstTokenMs: undefined, durationMs: undefined,
-    providerId: undefined, modelId: undefined, ...version, selectedVersion: index };
+    providerId: undefined, modelId: undefined, toolCalls: undefined, ...version, selectedVersion: index };
 }
 
 export function continueFromSummary(conversation: AiConversation, summary: string): AiConversation {

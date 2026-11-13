@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { mapAiMessage } from '@/tools/ai-assistant/runtime/message-mapper';
 import { useToolCalls } from '@/tools/ai-assistant/use-tool-calls';
+import { retainAnswerVersion, selectAnswerVersion } from '@/tools/ai-assistant/branches';
+import { exportConversation } from '@/tools/ai-assistant/model';
 import type { AiConversation, AiMessage, AiStreamEvent, AiToolCall } from '@/tools/ai-assistant/types';
 
 function message(overrides: Partial<AiMessage> = {}): AiMessage {
@@ -203,5 +205,41 @@ describe('tool approval gate', () => {
     act(() => result.current.handleEvent(approval, 'c1', 'reply-1'));
     await act(async () => { await result.current.decide('approved'); });
     expect(result.current.pendingApproval).toBeNull();
+  });
+});
+
+describe('tool records across answer versions and export', () => {
+  const withTools = message({ content: 'used a tool', toolCalls: [call()] });
+  const withoutTools = message({ content: 'plain answer' });
+
+  it('snapshots tool records when retaining a version', () => {
+    const retained = retainAnswerVersion(withTools, withoutTools);
+    expect(retained.versions?.[0].toolCalls).toHaveLength(1);
+    expect(retained.versions?.[1].toolCalls).toBeUndefined();
+  });
+
+  it('clears tool records when switching to a version that had none', () => {
+    const retained = retainAnswerVersion(withTools, withoutTools);
+    const switched = selectAnswerVersion(retained, 1);
+    expect(switched.toolCalls).toBeUndefined();
+    expect(switched.content).toBe('plain answer');
+  });
+
+  it('restores tool records when switching back to the version that had them', () => {
+    const retained = retainAnswerVersion(withTools, withoutTools);
+    const back = selectAnswerVersion(selectAnswerVersion(retained, 1), 0);
+    expect(back.toolCalls).toHaveLength(1);
+    expect(back.toolCalls?.[0].id).toBe('call-1');
+  });
+
+  it('keeps tool records in both json and markdown exports', () => {
+    const conversation: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [withTools], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    const json = exportConversation(conversation, 'json');
+    expect(json).toContain('call-1');
+    expect(json).toContain('calculate');
+    expect(exportConversation(conversation, 'markdown')).toContain('used a tool');
   });
 });

@@ -173,7 +173,7 @@
 .ai-settings-shell { display:flex; flex:1; min-height:0; background:hsl(var(--background)); }
 .ai-settings-nav { width:174px; flex-shrink:0; display:flex; flex-direction:column; gap:4px; padding:20px 12px; border-right:1px solid hsl(var(--border)/.72); background:linear-gradient(180deg,hsl(var(--muted)/.48),hsl(var(--muted)/.18)); }
 .ai-settings-nav::before { content:'工作区'; display:block; padding:0 10px 7px; color:hsl(var(--muted-foreground)); font-size:10px; font-weight:700; letter-spacing:.12em; }
-.ai-settings-nav > button { display:flex; align-items:center; gap:9px; width:100%; min-height:42px; padding:6px 10px; border:1px solid transparent; border-radius:10px; background:transparent; color:hsl(var(--muted-foreground)); text-align:left; cursor:pointer; transition:background .18s,border-color .18s,color .18s,box-shadow .18s; }
+.ai-settings-nav > button { display:flex; align-items:center; justify-content:flex-start; gap:9px; width:100%; min-height:42px; padding:6px 10px; border:1px solid transparent; border-radius:10px; background:transparent; color:hsl(var(--muted-foreground)); text-align:left; cursor:pointer; transition:background .18s,border-color .18s,color .18s,box-shadow .18s; }
 .ai-settings-nav > button:hover { background:hsl(var(--card)/.72); color:hsl(var(--foreground)); }
 .ai-settings-nav > button.is-active { border-color:hsl(var(--primary)/.2); background:hsl(var(--card)); color:hsl(var(--primary)); box-shadow:0 5px 16px hsl(var(--foreground)/.06); }
 .ai-settings-nav-icon { display:grid; place-items:center; width:25px; height:25px; flex:0 0 25px; border-radius:7px; background:hsl(var(--foreground)/.06); }
