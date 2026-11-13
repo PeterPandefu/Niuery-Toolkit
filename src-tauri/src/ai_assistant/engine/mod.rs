@@ -1,15 +1,27 @@
+mod approval;
 mod request;
-mod transport;
+mod rounds;
+pub(super) mod transport;
 mod wires;
+
+pub use approval::{ApprovalError, ApprovalRegistry, APPROVAL_TIMEOUT};
 
 use super::{types::*, Outcome};
 use futures_util::StreamExt;
 use rig_core::{
-    completion::FinishReason,
+    completion::{CompletionRequest, FinishReason},
+    message::{AssistantContent, ToolCall},
     streaming::{CompletionStream, Item, StreamEvent as RigEvent},
 };
 use tauri::ipc::Channel;
 use tokio::sync::watch;
+
+/// The authoritative calls come from `stream.finish()`, whose reassembler has
+/// already joined the argument fragments. `End` events only drive the UI.
+pub struct Consumed {
+    pub outcome: Outcome,
+    pub calls: Vec<ToolCall>,
+}
 
 pub async fn generate(
     provider: &Provider,
@@ -17,11 +29,44 @@ pub async fn generate(
     input: &Request,
     channel: &Channel<StreamEvent>,
     cancel: &mut watch::Receiver<bool>,
+    approvals: &ApprovalRegistry,
 ) -> Result<Outcome, String> {
+    generate_with_tools(
+        provider,
+        key,
+        input,
+        channel,
+        cancel,
+        approvals,
+        &super::tools::ToolEnv::default(),
+    )
+    .await
+}
+
+pub async fn generate_with_tools(
+    provider: &Provider,
+    key: Option<&str>,
+    input: &Request,
+    channel: &Channel<StreamEvent>,
+    cancel: &mut watch::Receiver<bool>,
+    approvals: &ApprovalRegistry,
+    env: &super::tools::ToolEnv,
+) -> Result<Outcome, String> {
+    rounds::run(provider, key, input, channel, cancel, approvals, env).await
+}
+
+/// One model request within a task.
+async fn round(
+    provider: &Provider,
+    key: Option<&str>,
+    input: &Request,
+    request: &CompletionRequest,
+    channel: &Channel<StreamEvent>,
+    cancel: &mut watch::Receiver<bool>,
+) -> Result<Consumed, String> {
     if *cancel.borrow() {
-        return Ok(Outcome::Stopped);
+        return Ok(stopped());
     }
-    let request = request::convert(input, provider)?;
     let http = transport::GuardedHttp::new()?;
     let fault = http.fault();
     let observed = wires::ObservedMetadata::default();
@@ -29,7 +74,7 @@ pub async fn generate(
         provider,
         key,
         &input.model_id,
-        request,
+        request.clone(),
         http,
         observed.clone(),
     )
@@ -39,19 +84,42 @@ pub async fn generate(
         .map_err(|error| fault.message().unwrap_or(error))
 }
 
+fn stopped() -> Consumed {
+    Consumed {
+        outcome: Outcome::Stopped,
+        calls: Vec::new(),
+    }
+}
+
+fn emit_tool_call(
+    input: &Request,
+    channel: &Channel<StreamEvent>,
+    call: &ToolCall,
+) -> Result<(), String> {
+    let mut event = input.event("tool_call", None, None);
+    event.call_id = Some(call.id.wire().into_owned());
+    event.name = Some(call.function.name.as_str().to_string());
+    event.arguments =
+        Some(serde_json::to_string(&call.function.arguments).map_err(|_| "工具调用参数无效")?);
+    event.status = Some("pending".into());
+    channel
+        .send(event)
+        .map_err(|_| "AI 页面连接已关闭".to_string())
+}
+
 async fn consume(
     mut stream: CompletionStream,
     input: &Request,
     channel: &Channel<StreamEvent>,
     cancel: &mut watch::Receiver<bool>,
     observed: wires::ObservedMetadata,
-) -> Result<Outcome, String> {
+) -> Result<Consumed, String> {
     let mut last_metadata = String::new();
     loop {
         if *cancel.borrow() {
-            return Ok(Outcome::Stopped);
+            return Ok(stopped());
         }
-        let item = tokio::select! { biased; _ = cancel.changed() => { emit_metadata(None, input, channel, &mut last_metadata, &observed)?; return Ok(Outcome::Stopped); }, item = stream.next() => item };
+        let item = tokio::select! { biased; _ = cancel.changed() => { emit_metadata(None, input, channel, &mut last_metadata, &observed)?; return Ok(stopped()); }, item = stream.next() => item };
         emit_metadata(None, input, channel, &mut last_metadata, &observed)?;
         let Some(item) = item else {
             break;
@@ -63,7 +131,12 @@ async fn consume(
             Item::Event(RigEvent::Reasoning { text, .. }) => channel
                 .send(input.event("thinking", Some(text), None))
                 .map_err(|_| "AI 页面连接已关闭".to_string())?,
-            // End repeats full part contents; never append them a second time.
+            Item::Event(RigEvent::End {
+                content: AssistantContent::ToolCall(call),
+                ..
+            }) => emit_tool_call(input, channel, &call)?,
+            // Start and Arguments carry no call id, and End repeats full part
+            // contents; neither is forwarded nor appended a second time.
             _ => {}
         }
     }
@@ -75,7 +148,18 @@ async fn consume(
         &mut last_metadata,
         &observed,
     )?;
-    Ok(Outcome::Done)
+    let calls = response
+        .choice
+        .iter()
+        .filter_map(|part| match part {
+            AssistantContent::ToolCall(call) => Some(call.clone()),
+            _ => None,
+        })
+        .collect();
+    Ok(Consumed {
+        outcome: Outcome::Done,
+        calls,
+    })
 }
 
 fn emit_metadata(

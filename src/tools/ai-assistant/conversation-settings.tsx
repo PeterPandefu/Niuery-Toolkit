@@ -12,15 +12,18 @@ export function ParameterFields({ value, onChange, model }: { value: AiParameter
   </div>;
 }
 
-export function ConversationSettings({ conversation, model, onSave, onClose }: { conversation: AiConversation; model?: AiModel; onSave(value: Pick<AiConversation, 'systemPrompt' | 'parameters' | 'excludedMessageIds'>): void; onClose(): void }) {
+export function ConversationSettings({ conversation, model, onSave, onClose }: { conversation: AiConversation; model?: AiModel; onSave(value: Pick<AiConversation, 'systemPrompt' | 'parameters' | 'excludedMessageIds' | 'toolsEnabled'>): void; onClose(): void }) {
   const t = useAiText();
   const [prompt, setPrompt] = useState(conversation.systemPrompt);
   const [parameters, setParameters] = useState(conversation.parameters);
   const [excluded, setExcluded] = useState(conversation.excludedMessageIds ?? []);
-  return <AiDialog title={t('会话参数', 'Conversation settings')} onClose={onClose}><form className="ai-form" onSubmit={event => { event.preventDefault(); onSave({ systemPrompt: prompt, parameters, excludedMessageIds: excluded }); onClose(); }}>
+  const [toolsEnabled, setToolsEnabled] = useState(conversation.toolsEnabled ?? false);
+  return <AiDialog title={t('会话参数', 'Conversation settings')} onClose={onClose}><form className="ai-form" onSubmit={event => { event.preventDefault(); onSave({ systemPrompt: prompt, parameters, excludedMessageIds: excluded, toolsEnabled }); onClose(); }}>
     <p className="ai-muted">{t('只影响当前会话，不修改助手默认值。0 轮仅发送当前消息及系统提示词。', 'Changes apply to this conversation. Zero rounds sends only the current message and system prompt.')}</p>
     <label>{t('系统提示词', 'System prompt')}<textarea rows={6} value={prompt} onChange={event => setPrompt(event.target.value)} /></label>
     <ParameterFields value={parameters} model={model} onChange={setParameters} />
+    <label className="ai-checkbox"><input type="checkbox" checked={toolsEnabled} disabled={!model?.supportsTools} onChange={event => setToolsEnabled(event.target.checked)} />{t('允许工具调用', 'Allow tool calls')}</label>
+    <p className="ai-field-hint">{model?.supportsTools ? t('联网与读盘工具每次调用前都会弹窗征求批准，并展示原样 URL 与来源。', 'Network and file tools ask for approval before every call, showing the exact URL and its source.') : t('需先在模型设置中声明该模型支持工具。Ollama 原生协议暂不支持，请改用其 OpenAI 兼容端点（Base URL 以 /v1 结尾）。', 'Declare tool support in model settings first. Ollama native is not supported; use its OpenAI-compatible endpoint (Base URL ending in /v1).')}</p>
     {!!conversation.messages.length && <details><summary>{t('选择历史上下文', 'Choose history context')}</summary><p className="ai-muted">{t('取消勾选会排除该条消息所在的完整历史轮次，原记录保留。', 'Unchecking excludes the complete historical round. Local messages are retained.')}</p>{conversation.messages.filter(message => message.role === 'user').map(message => <label className="ai-checkbox" key={message.id}><input type="checkbox" checked={!excluded.includes(message.id)} onChange={event => setExcluded(event.target.checked ? excluded.filter(id => id !== message.id) : [...excluded, message.id])} />{message.content.slice(0, 100) || message.attachments[0]?.name}</label>)}</details>}
     <footer><button type="button" onClick={onClose}>{t('取消', 'Cancel')}</button><button type="submit" className="ai-primary">{t('保存', 'Save')}</button></footer>
   </form></AiDialog>;

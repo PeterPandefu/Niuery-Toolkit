@@ -18,6 +18,8 @@ pub struct Model {
     pub stream_usage: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub show_thinking: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_tools: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -105,6 +107,57 @@ pub struct Message {
     pub versions: Option<Vec<AnswerVersion>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_version: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCallRecord>>,
+}
+
+/// Mirrors the frontend `AiToolCall` shape exactly. The workspace round-trips
+/// through `deny_unknown_fields`, so a narrower type here would reject saves.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ToolCallRecord {
+    pub id: String,
+    pub name: String,
+    pub arguments: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<f64>,
+}
+
+/// Deliberately has no "always allow" variant: every call is re-approved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ToolDecision {
+    Approved,
+    Rejected,
+}
+
+/// What the frontend may display. Definitions live only in the Rust registry.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolInfo {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value,
+    pub approval: String,
+    pub read_only: bool,
+    pub open_world: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SearchService {
+    pub base_url: String,
+    pub has_api_key: bool,
+    pub enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -129,6 +182,8 @@ pub struct AnswerVersion {
     pub first_token_ms: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCallRecord>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -160,6 +215,8 @@ pub struct Conversation {
     pub summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tasks: Option<Vec<Task>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools_enabled: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -192,6 +249,8 @@ pub struct Workspace {
     pub active_conversation_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub templates: Option<Vec<PromptTemplate>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search_service: Option<SearchService>,
 }
 
 impl Workspace {
@@ -204,6 +263,7 @@ impl Workspace {
             active_assistant_id: String::new(),
             active_conversation_id: None,
             templates: None,
+            search_service: None,
         }
     }
 }
@@ -229,6 +289,8 @@ pub struct Request {
     pub system_prompt: String,
     pub parameters: Parameters,
     pub messages: Vec<Message>,
+    #[serde(default)]
+    pub tools_enabled: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -246,6 +308,28 @@ pub struct StreamEvent {
     pub finish_reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forced_finish: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -267,6 +351,17 @@ impl Request {
             error,
             finish_reason: None,
             usage: None,
+            call_id: None,
+            name: None,
+            arguments: None,
+            status: None,
+            result: None,
+            provenance: None,
+            url: None,
+            file_path: None,
+            file_size: None,
+            duration_ms: None,
+            forced_finish: None,
         }
     }
 }

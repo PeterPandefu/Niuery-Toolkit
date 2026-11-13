@@ -15,6 +15,10 @@ function setup(providers = [provider()]) {
   const backend: AiBackend = {
     load: vi.fn(), save: vi.fn(), saveProvider: vi.fn(), removeProvider: vi.fn(),
     listModels: vi.fn().mockResolvedValue([model('existing'), model('new-model'), model('new-model'), model('other')]),
+    listTools: vi.fn().mockResolvedValue([]),
+    decideTool: vi.fn().mockResolvedValue(undefined),
+    saveSearchService: vi.fn(async (config: { baseUrl: string; hasApiKey: boolean; enabled: boolean }) => config),
+    testSearchService: vi.fn().mockResolvedValue('搜索服务连接成功'),
     testConnection: vi.fn().mockResolvedValue('Connected'), testModel: vi.fn().mockResolvedValue('Generation OK (50 ms)'), generate: vi.fn(), cancel: vi.fn(),
     openDataDirectory: vi.fn(), reset: vi.fn(),
   };

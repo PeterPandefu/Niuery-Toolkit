@@ -24,6 +24,10 @@ function createBackend(workspace = fixture()) {
     save: vi.fn(async value => { saved.push(structuredClone(value)); }),
     saveProvider: vi.fn(async provider => provider), removeProvider: vi.fn(async () => {}),
     listModels: vi.fn(async () => []), testConnection: vi.fn(async () => 'OK'),
+    listTools: vi.fn(async () => []),
+    decideTool: vi.fn(async () => {}),
+    saveSearchService: vi.fn(async (config: { baseUrl: string; hasApiKey: boolean; enabled: boolean }) => config),
+    testSearchService: vi.fn(async () => '搜索服务连接成功'),
     generate: vi.fn((value, callback) => { request = value; emit = callback; return new Promise<void>(resolve => { resolveGenerate = resolve; }); }),
     cancel: vi.fn(async () => {}), openDataDirectory: vi.fn(async () => {}), reset: vi.fn(async () => {}),
   };

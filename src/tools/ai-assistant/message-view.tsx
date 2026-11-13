@@ -4,6 +4,7 @@ import { ActionBarPrimitive, MessagePrimitive } from '@assistant-ui/react';
 import { AiReadonlyMessage } from './runtime/thread-view';
 import { useHasAiRuntime } from './runtime/runtime-context';
 import { AiTextPart, AiReasoningPart } from './runtime/message-parts';
+import { AiToolCallPart } from './runtime/tool-call-part';
 import { BotMessageSquare, Clock3, Copy, Hash, Pencil, RefreshCw, User, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AiAttachment, AiMessage } from './types';
@@ -31,7 +32,7 @@ function RuntimeMessageView({ message, disabled, lastAssistant, onEdit, onRegene
     <div className="ai-message-avatar">{message.role === 'user' ? <User size={17} /> : <BotMessageSquare size={18} />}</div>
     <div className="ai-message-body">
       <div className="ai-message-meta"><strong>{message.role === 'user' ? t('你', 'You') : t('助手', 'Assistant')}</strong>{message.modelId && <span>{message.modelId}</span>}<time dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>
-      <MessagePrimitive.Parts components={{ Text: AiTextPart, Reasoning: AiReasoningPart }} />
+      <MessagePrimitive.Parts components={{ Text: AiTextPart, Reasoning: AiReasoningPart, tools: { Override: AiToolCallPart } }} />
       {!!message.attachments.length && <div className="ai-attachments">{message.attachments.map(attachment => <AttachmentPreview key={attachment.id} attachment={attachment} />)}</div>}
       {status && <p className={`ai-message-status ${message.status === 'failed' ? 'ai-error-text' : ''}`} role="status">{status}</p>}
       {message.error && <p role="alert" className="ai-error-text">{message.error}</p>}

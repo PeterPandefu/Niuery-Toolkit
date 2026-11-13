@@ -1,7 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { holdAiUpdate } from './update-lock';
-import type { AiBackend, AiFlushHandler, AiProvider, AiStreamEvent, AiWorkspace } from './types';
+import type { AiBackend, AiFlushHandler, AiProvider, AiStreamEvent, AiToolInfo, AiWorkspace } from './types';
 import { ensureNetworkAccessAllowed } from '@/lib/api-client';
 
 const inDesktop = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -87,6 +87,23 @@ export const desktopAiBackend: AiBackend = {
     if (!inDesktop()) throw desktopRequired();
     ensureNetworkAccessAllowed();
     return invoke('ai_list_models', { providerId });
+  },
+  async listTools() {
+    if (!inDesktop()) throw desktopRequired();
+    return invoke<AiToolInfo[]>('ai_list_tools');
+  },
+  async decideTool(callId, decision) {
+    if (!inDesktop()) throw desktopRequired();
+    await invoke<void>('ai_tool_decision', { callId, decision });
+  },
+  async saveSearchService(config, apiKey) {
+    if (!inDesktop()) throw desktopRequired();
+    return invoke('ai_save_search_service', apiKey === undefined ? { config } : { config, apiKey });
+  },
+  async testSearchService() {
+    if (!inDesktop()) throw desktopRequired();
+    ensureNetworkAccessAllowed();
+    return invoke<string>('ai_test_search_service');
   },
   async testConnection(providerId) {
     if (!inDesktop()) throw desktopRequired();

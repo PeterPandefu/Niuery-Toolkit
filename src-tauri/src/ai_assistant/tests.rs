@@ -159,7 +159,8 @@ async fn ai_assistant_http_delivers_thinking_even_before_same_chunk_error() {
         None,
         &request(),
         &channel,
-        &mut cancel
+        &mut cancel,
+        &engine::ApprovalRegistry::default(), &tools::ToolEnv::default()
     )
     .await
     .is_err());
@@ -252,6 +253,56 @@ fn ai_assistant_storage_round_trip_backup_and_corruption_protection() {
     std::fs::remove_dir_all(root).unwrap();
 }
 
+#[test]
+fn ai_assistant_tools_workspace_round_trip_preserves_tool_records() {
+    let root = std::env::temp_dir().join(format!("niuery-ai-tools-{}", nanoid::nanoid!()));
+    let mut value = workspace();
+    value.conversations[0].tools_enabled = Some(true);
+    value.conversations[0].messages.push(
+        serde_json::from_value(serde_json::json!({
+            "id":"a1","role":"assistant","content":"answer","attachments":[],"createdAt":2,"status":"complete",
+            "toolCalls":[{
+                "id":"call-1","name":"fetch_url","arguments":"{\"url\":\"https://example.com/a\"}",
+                "status":"complete","result":"page text","provenance":"userProvided",
+                "url":"https://example.com/a","durationMs":12.5
+            }]
+        }))
+        .unwrap(),
+    );
+    storage::save(&root, &value).unwrap();
+    let loaded = storage::load(&root).unwrap().unwrap();
+    assert_eq!(
+        serde_json::to_value(&loaded).unwrap(),
+        serde_json::to_value(&value).unwrap()
+    );
+    let record = &loaded.conversations[0].messages[0]
+        .tool_calls
+        .as_ref()
+        .expect("工具记录保留")[0];
+    assert_eq!(record.id, "call-1");
+    assert_eq!(record.status, "complete");
+    assert_eq!(record.provenance.as_deref(), Some("userProvided"));
+    assert_eq!(record.url.as_deref(), Some("https://example.com/a"));
+    assert_eq!(record.duration_ms, Some(12.5));
+    assert_eq!(loaded.conversations[0].tools_enabled, Some(true));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn ai_assistant_tools_legacy_workspace_without_records_still_loads() {
+    let root = std::env::temp_dir().join(format!("niuery-ai-legacy-{}", nanoid::nanoid!()));
+    let value = workspace();
+    storage::save(&root, &value).unwrap();
+    let loaded = storage::load(&root).unwrap().unwrap();
+    assert!(loaded.conversations[0].tools_enabled.is_none());
+    assert!(loaded.search_service.is_none());
+    assert_eq!(
+        serde_json::to_value(&loaded).unwrap(),
+        serde_json::to_value(&value).unwrap()
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
 pub(super) fn provider_at(base: &str, kind: &str) -> Provider {
     serde_json::from_value(serde_json::json!({"id":"p1","name":"Mock","kind":kind,"baseUrl":base,"hasApiKey":false,"models":[{"id":"model","name":"Model","supportsImages":false}],"enabled":true})).unwrap()
 }
@@ -336,7 +387,8 @@ async fn ai_assistant_real_http_streams_and_cancel_waiting_body() {
             None,
             &request(),
             &channel,
-            &mut cancel
+            &mut cancel,
+            &engine::ApprovalRegistry::default(), &tools::ToolEnv::default()
         )
         .await
         .unwrap(),
@@ -376,7 +428,8 @@ async fn ai_assistant_real_http_streams_and_cancel_waiting_body() {
                 None,
                 &request(),
                 &channel,
-                &mut cancel
+                &mut cancel,
+                &engine::ApprovalRegistry::default(), &tools::ToolEnv::default()
             )
         )
         .await
@@ -521,7 +574,7 @@ async fn ai_assistant_keeps_valid_tokens_before_same_chunk_error_and_incomplete_
         let capture = captured.clone();
         let channel = Channel::new(move |body| { capture.lock().unwrap().push(body); Ok(()) });
         let (_sender, mut cancel) = watch::channel(false);
-        assert!(stream_with_provider(&provider_at(&base, "openai"), None, &request(), &channel, &mut cancel).await.is_err());
+        assert!(stream_with_provider(&provider_at(&base, "openai"), None, &request(), &channel, &mut cancel, &engine::ApprovalRegistry::default(), &tools::ToolEnv::default()).await.is_err());
         assert_eq!(captured.lock().unwrap().len(), 1, "valid tokens were discarded before reporting a stream error");
         server.await.unwrap();
     }
@@ -644,6 +697,7 @@ async fn stream_fixture(
         &request(),
         &channel,
         &mut cancel,
+        &engine::ApprovalRegistry::default(), &tools::ToolEnv::default(),
     )
     .await;
     server.await.unwrap();

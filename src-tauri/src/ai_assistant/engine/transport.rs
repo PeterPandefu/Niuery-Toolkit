@@ -38,13 +38,18 @@ pub struct GuardedHttp {
     idle_timeout: Duration,
 }
 impl GuardedHttp {
-    pub fn new() -> std::result::Result<Self, String> {
-        let client = reqwest::Client::builder()
+    fn builder() -> reqwest::ClientBuilder {
+        reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .connect_timeout(Duration::from_secs(60))
-            .build()
-            .map_err(|_| "无法初始化模型客户端")?;
+    }
+
+    fn from_builder(
+        builder: reqwest::ClientBuilder,
+        failure: &str,
+    ) -> std::result::Result<Self, String> {
+        let client = builder.build().map_err(|_| failure.to_string())?;
         Ok(Self {
             inner: ReqwestClient::from(client.clone()),
             client,
@@ -53,8 +58,133 @@ impl GuardedHttp {
             idle_timeout: Duration::from_secs(120),
         })
     }
+
+    pub fn new() -> std::result::Result<Self, String> {
+        Self::from_builder(Self::builder(), "无法初始化模型客户端")
+    }
+
+    /// reqwest inherits system and environment proxies by default, which could
+    /// silently route a tool URL through a proxy. Tools must reach exactly the
+    /// host they were given, so proxy discovery is disabled here.
+    pub fn for_tools() -> std::result::Result<Self, String> {
+        Self::from_builder(Self::builder().no_proxy(), "无法初始化工具网络客户端")
+    }
+
     pub fn fault(&self) -> Fault {
         self.fault.clone()
+    }
+}
+
+/// Tool-layer GET outcome. Deliberately separate from the model stream's Fault
+/// so a tool failure never surfaces model-specific wording or writes its state.
+pub struct CappedResponse {
+    pub status: u16,
+    pub location: Option<String>,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub enum ToolHttpError {
+    InvalidUrl,
+    Timeout,
+    TooLarge,
+    Network,
+}
+
+impl ToolHttpError {
+    pub fn message(&self) -> &'static str {
+        match self {
+            Self::InvalidUrl => "工具 URL 无效，仅支持不含凭据的 HTTP/HTTPS 地址。",
+            Self::Timeout => "工具请求超时，已停止等待。",
+            Self::TooLarge => "工具响应过大，已停止读取。",
+            Self::Network => "工具请求失败，请检查网络或目标地址。",
+        }
+    }
+}
+
+impl GuardedHttp {
+    /// The URL is passed through verbatim: no prefixing, no mirror fallback, no
+    /// alternate-host retry. Redirects are never followed, so a genuine address
+    /// cannot be silently bounced to a proxy; the caller reports the Location
+    /// and any new address must come back as a fresh, separately approved call.
+    pub async fn get_capped(
+        &self,
+        url: &str,
+        max_bytes: usize,
+    ) -> std::result::Result<CappedResponse, ToolHttpError> {
+        self.send_capped(reqwest::Method::GET, url, None, None, max_bytes)
+            .await
+    }
+
+    /// The endpoint comes from the user's own configured base URL plus a fixed
+    /// suffix; the bearer key never leaves Rust.
+    pub async fn post_json_capped(
+        &self,
+        url: &str,
+        body: &serde_json::Value,
+        bearer: Option<&str>,
+        max_bytes: usize,
+    ) -> std::result::Result<CappedResponse, ToolHttpError> {
+        self.send_capped(reqwest::Method::POST, url, Some(body), bearer, max_bytes)
+            .await
+    }
+
+    async fn send_capped(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        body: Option<&serde_json::Value>,
+        bearer: Option<&str>,
+        max_bytes: usize,
+    ) -> std::result::Result<CappedResponse, ToolHttpError> {
+        let parsed = reqwest::Url::parse(url).map_err(|_| ToolHttpError::InvalidUrl)?;
+        let mut request = self.client.request(method, parsed);
+        if let Some(body) = body {
+            request = request.json(body);
+        }
+        if let Some(key) = bearer {
+            request = request.bearer_auth(key);
+        }
+        let deadline = Instant::now() + self.first_byte_timeout;
+        let response = timeout_at(deadline, request.send())
+            .await
+            .map_err(|_| ToolHttpError::Timeout)?
+            .map_err(|_| ToolHttpError::Network)?;
+        let status = response.status().as_u16();
+        let header = |name: reqwest::header::HeaderName| {
+            response
+                .headers()
+                .get(name)
+                .and_then(|value| value.to_str().ok())
+                .map(|value| value.chars().take(2048).collect::<String>())
+        };
+        let location = header(reqwest::header::LOCATION);
+        let content_type = header(reqwest::header::CONTENT_TYPE);
+        let mut expires = Instant::now() + self.idle_timeout;
+        let mut body = Vec::new();
+        let mut stream = response.bytes_stream();
+        loop {
+            let chunk = timeout_at(expires, stream.next())
+                .await
+                .map_err(|_| ToolHttpError::Timeout)?;
+            let Some(chunk) = chunk else { break };
+            let bytes = chunk.map_err(|_| ToolHttpError::Network)?;
+            if bytes.is_empty() {
+                continue;
+            }
+            if body.len() + bytes.len() > max_bytes {
+                return Err(ToolHttpError::TooLarge);
+            }
+            body.extend_from_slice(&bytes);
+            expires = Instant::now() + self.idle_timeout;
+        }
+        Ok(CappedResponse {
+            status,
+            location,
+            content_type,
+            body,
+        })
     }
 }
 

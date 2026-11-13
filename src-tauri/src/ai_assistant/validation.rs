@@ -21,6 +21,26 @@ pub fn endpoint(base: &str, suffix: &str) -> Result<reqwest::Url, String> {
     Ok(url)
 }
 
+/// A tool target is a full URL, so query and fragment are legitimate parts of
+/// the address. Credentials are still refused and only HTTP(S) is accepted.
+/// This validates; it never rewrites the URL that will be fetched.
+pub fn validate_tool_url(url: &str) -> Result<(), String> {
+    let parsed = reqwest::Url::parse(url.trim())
+        .map_err(|_| "工具 URL 无效，请填写完整的 HTTP 或 HTTPS 地址".to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+        return Err("工具 URL 仅支持 HTTP / HTTPS".into());
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("工具 URL 不能包含用户名或密码".into());
+    }
+    Ok(())
+}
+
+pub fn validate_search_service(base_url: &str) -> Result<(), String> {
+    endpoint(base_url, "")?;
+    Ok(())
+}
+
 pub fn validate_provider(provider: &mut Provider) -> Result<(), String> {
     super::storage::safe_id(&provider.id)?;
     if !matches!(provider.kind.as_str(), "openai" | "ollama") {
@@ -87,28 +107,32 @@ pub fn validate_attachments(attachments: &[Attachment]) -> Result<(), String> {
             "text" => {
                 texts += 1;
                 chars += item.data.chars().count();
-                let extension = item.name.rsplit('.').next().unwrap_or("").to_lowercase();
-                const EXTENSIONS: &str = "txt text md markdown json jsonl log csv tsv xml yaml yml toml ini conf config env html htm css scss sass less js jsx ts tsx mjs cjs vue svelte astro py pyi rb php java kt kts c h cc cpp cxx hpp cs fs fsx go rs swift sh bash zsh ps1 psm1 bat cmd sql graphql gql r lua pl dart dockerfile makefile gitignore";
-                if !EXTENSIONS.split(' ').any(|allowed| allowed == extension) {
-                    return Err(
-                        "文本附件仅支持纯文本和常见代码文件，不支持 PDF、Word 等文档".into(),
-                    );
-                }
-                if item.size > 1024 * 1024
-                    || item.data.len() > 1024 * 1024
-                    || item
-                        .data
-                        .bytes()
-                        .any(|byte| byte < 32 && !matches!(byte, 9 | 10 | 13))
-                {
-                    return Err("文本附件最多 1 MiB，且必须是 UTF-8 纯文本".into());
-                }
+                validate_text_payload(&item.name, item.size, &item.data)?;
             }
             _ => return Err("不支持的附件类型".into()),
         }
     }
     if images > 4 || texts > 5 || chars > 200_000 {
         return Err("每条消息最多 4 张图片、5 个文本文件，文本总计最多 200,000 字符".into());
+    }
+    Ok(())
+}
+
+/// Shared by text attachments and the read_local_file tool, so both enforce the
+/// same extension whitelist, size ceiling and plain-text requirement.
+pub fn validate_text_payload(name: &str, size: u64, data: &str) -> Result<(), String> {
+    let extension = name.rsplit('.').next().unwrap_or("").to_lowercase();
+    const EXTENSIONS: &str = "txt text md markdown json jsonl log csv tsv xml yaml yml toml ini conf config env html htm css scss sass less js jsx ts tsx mjs cjs vue svelte astro py pyi rb php java kt kts c h cc cpp cxx hpp cs fs fsx go rs swift sh bash zsh ps1 psm1 bat cmd sql graphql gql r lua pl dart dockerfile makefile gitignore";
+    if !EXTENSIONS.split(' ').any(|allowed| allowed == extension) {
+        return Err("文本附件仅支持纯文本和常见代码文件，不支持 PDF、Word 等文档".into());
+    }
+    if size > 1024 * 1024
+        || data.len() > 1024 * 1024
+        || data
+            .bytes()
+            .any(|byte| byte < 32 && !matches!(byte, 9 | 10 | 13))
+    {
+        return Err("文本附件最多 1 MiB，且必须是 UTF-8 纯文本".into());
     }
     Ok(())
 }

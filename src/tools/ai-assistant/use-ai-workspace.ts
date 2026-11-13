@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { nanoid } from 'nanoid';
 import { createWorkspace, providerTarget } from './model';
 import { requestMessages } from './request-messages';
+import { useToolCalls } from './use-tool-calls';
 import { buildBudgetedContext } from './context';
 import { retainAnswerVersion } from './branches';
 import { validateAttachments } from './attachments';
@@ -82,6 +83,8 @@ export function useAiWorkspace(backend: AiBackend) {
   const changeConversation = useCallback((id: string, updater: (conversation: AiConversation) => AiConversation) => {
     replace({ ...valueRef.current, conversations: valueRef.current.conversations.map(chat => chat.id === id ? updater(chat) : chat) });
   }, [replace]);
+
+  const toolCalls = useToolCalls({ changeConversation, saveQuietly, backend });
 
   const changeReply = useCallback((request: ActiveRequest, updater: (message: AiMessage) => AiMessage) => {
     changeConversation(request.conversationId, chat => ({ ...chat, updatedAt: Date.now(),
@@ -282,7 +285,10 @@ export function useAiWorkspace(backend: AiBackend) {
           }, 500);
         } else if (event.type === 'metadata') {
           changeConversation(conversationId, value => ({ ...value, messages: value.messages.map(message => message.id === running.messageId ? { ...message, finishReason: event.finishReason ?? message.finishReason, usage: event.usage ?? message.usage } : message) }));
+        } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required') {
+          toolCalls.handleEvent(event, conversationId, running.messageId);
         } else {
+          toolCalls.clear();
           const status = event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed';
           void finish(running, status, event.error || (event.type === 'error' ? '生成失败，请检查模型服务后重试。' : undefined)).catch(() => {});
         }
@@ -290,7 +296,7 @@ export function useAiWorkspace(backend: AiBackend) {
       networkStarted = true;
       await backend.generate({ requestId: running.requestId, conversationId, messageId: running.messageId,
         providerId: provider.id, modelId: model.id, systemPrompt: budget.systemPrompt, parameters: budget.parameters,
-        messages: requestMessages(context) }, onEvent);
+        messages: requestMessages(context), toolsEnabled: Boolean(chat.toolsEnabled && model.supportsTools) }, onEvent);
       if (active.current === running && !running.terminated) await finish(running, 'interrupted', '回复流意外结束，请重试。');
     } catch (reason) {
       const text = describeError(reason);
@@ -441,5 +447,5 @@ export function useAiWorkspace(backend: AiBackend) {
     } finally { mutationsPending.current--; }
   }, [backend, enqueue, replace, stop]);
 
-  return { workspace, loading: loading || updatePending, updating: updatePending, error, saveError, busy, update, reload, send, regenerate, runTask, stop, saveProvider, removeProvider, clearHistory, reset };
+  return { workspace, loading: loading || updatePending, updating: updatePending, error, saveError, busy, update, reload, send, regenerate, runTask, stop, saveProvider, removeProvider, clearHistory, reset, toolCalls };
 }

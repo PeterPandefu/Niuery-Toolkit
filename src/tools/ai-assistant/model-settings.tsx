@@ -39,6 +39,7 @@ export function AiEnabledModel({ model, disabled, onChange, onDisable }: { model
     <div className="ai-model-row">
       <div className="ai-model-identity"><strong>{model.name || model.id}</strong>{model.name && model.name !== model.id && <code>{model.id}</code>}</div>
       <label className="ai-checkbox"><input type="checkbox" checked={model.supportsImages} disabled={disabled} onChange={event => onChange({ ...model, supportsImages: event.target.checked })} />{t('支持图片', 'Images')}</label>
+      <label className="ai-checkbox"><input type="checkbox" checked={!!model.supportsTools} disabled={disabled} onChange={event => onChange({ ...model, supportsTools: event.target.checked })} />{t('支持工具', 'Tools')}</label>
       <button type="button" className="ai-icon-button" disabled={disabled} aria-expanded={editing} {...iconLabel(`${t('编辑模型', 'Edit model')}: ${model.id}`)} onClick={() => setEditing(!editing)}><Pencil size={15} aria-hidden="true" /></button>
       <button type="button" className="ai-icon-button" disabled={disabled} {...iconLabel(`${t('停用模型', 'Disable model')}: ${model.id}`)} onClick={onDisable}><X size={16} aria-hidden="true" /></button>
     </div>
