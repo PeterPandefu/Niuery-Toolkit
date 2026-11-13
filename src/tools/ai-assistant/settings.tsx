@@ -1,8 +1,8 @@
 import { Select } from '@/components/ui/select';
 import { useState } from 'react';
 import { nanoid } from 'nanoid';
-import { Archive, Box, Check, Database, KeyRound, Loader2, Plus, RefreshCw, Server, Unplug } from 'lucide-react';
-import type { AiBackend, AiConversation, AiModel, AiProvider } from './types';
+import { Archive, Box, Check, Database, KeyRound, Loader2, Plus, RefreshCw, Search, Server, Unplug } from 'lucide-react';
+import type { AiBackend, AiConversation, AiModel, AiProvider, AiSearchService } from './types';
 import { AiDialog, AiError } from './ui';
 import { useAiText } from './ui-text';
 import { AiEnabledModel, AiModelPicker } from './model-settings';
@@ -11,8 +11,10 @@ import { uniqueModels } from './model';
 interface SettingsProps {
   providers: AiProvider[];
   conversations?: AiConversation[];
+  searchService?: AiSearchService;
   backend: AiBackend;
   onSave(provider: AiProvider, apiKey?: string): Promise<unknown>;
+  onSearchSaved?(config: AiSearchService): void;
   onRemove(id: string): Promise<unknown>;
   onClearHistory(): Promise<unknown>;
   onReset(): Promise<unknown>;
@@ -21,7 +23,7 @@ interface SettingsProps {
   onClose(): void;
 }
 
-export function AiSettings({ providers, conversations = [], backend, onSave, onRemove, onClearHistory, onReset, onUnarchive = () => {}, onSelectConversation = () => {}, onClose }: SettingsProps) {
+export function AiSettings({ providers, conversations = [], searchService, backend, onSave, onSearchSaved = () => {}, onRemove, onClearHistory, onReset, onUnarchive = () => {}, onSelectConversation = () => {}, onClose }: SettingsProps) {
   const t = useAiText();
   const makeProvider = (): AiProvider => ({ id: nanoid(), name: '', kind: 'openai', baseUrl: 'https://api.openai.com/v1', hasApiKey: false, models: [], enabled: true });
   const [provider, setProvider] = useState<AiProvider>(providers[0] ?? makeProvider());
@@ -36,7 +38,33 @@ export function AiSettings({ providers, conversations = [], backend, onSave, onR
   const [catalog, setCatalog] = useState<AiModel[] | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [testModelId, setTestModelId] = useState('');
-  const [tab, setTab] = useState<'services' | 'archive'>('services');
+  const [tab, setTab] = useState<'services' | 'search' | 'archive'>('services');
+  const [search, setSearch] = useState<AiSearchService>(searchService ?? { baseUrl: '', hasApiKey: false, enabled: true });
+  const [searchKey, setSearchKey] = useState<string | undefined>();
+  const [searchDirty, setSearchDirty] = useState(false);
+  const [searchFeedback, setSearchFeedback] = useState('');
+  const [searchError, setSearchError] = useState<unknown>();
+  const [searchWorking, setSearchWorking] = useState(false);
+  function editSearch(next: AiSearchService) { setSearch(next); setSearchDirty(true); setSearchFeedback(''); }
+  async function runSearch(operation: () => Promise<void>) {
+    setSearchWorking(true); setSearchError(undefined); setSearchFeedback('');
+    try { await operation(); } catch (failure) { setSearchError(failure); } finally { setSearchWorking(false); }
+  }
+  function normalizedSearch() {
+    const baseUrl = search.baseUrl.trim().replace(/\/+$/, '');
+    if (!baseUrl) throw new Error(t('请输入搜索服务地址', 'Enter a search service URL.'));
+    const url = new URL(baseUrl);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error(t('请输入不含凭据、参数或片段的 HTTP(S) 地址', 'Enter an HTTP(S) URL without embedded credentials, query, or fragment.'));
+    return { ...search, baseUrl };
+  }
+  async function saveSearch() {
+    const next = normalizedSearch();
+    const saved = await backend.saveSearchService(next, searchKey) as AiSearchService;
+    setSearch(saved); setSearchKey(undefined); setSearchDirty(false);
+    setSearchFeedback(t('搜索服务已保存', 'Search service saved'));
+    onSearchSaved(saved);
+    return saved;
+  }
   function edit(next: AiProvider) {
     if (next.baseUrl !== provider.baseUrl || next.kind !== provider.kind) setCatalog(null);
     setProvider(next); setDirty(true); setFeedback('');
@@ -80,9 +108,20 @@ export function AiSettings({ providers, conversations = [], backend, onSave, onR
     <div className="ai-settings-shell">
       <nav className="ai-settings-nav" aria-label={t('设置分类', 'Settings sections')}>
         <button type="button" className={tab === 'services' ? 'is-active' : ''} aria-current={tab === 'services' ? 'page' : undefined} onClick={() => setTab('services')}><span className="ai-settings-nav-icon"><Server size={16} aria-hidden="true" /></span><strong>{t('模型服务', 'Model services')}</strong></button>
+        <button type="button" className={tab === 'search' ? 'is-active' : ''} aria-current={tab === 'search' ? 'page' : undefined} onClick={() => setTab('search')}><span className="ai-settings-nav-icon"><Search size={16} aria-hidden="true" /></span><strong>{t('搜索服务', 'Search service')}</strong></button>
         <button type="button" className={tab === 'archive' ? 'is-active' : ''} aria-current={tab === 'archive' ? 'page' : undefined} onClick={() => setTab('archive')}><span className="ai-settings-nav-icon"><Archive size={16} aria-hidden="true" /></span><strong>{t('归档', 'Archive')}</strong></button>
       </nav>
-      {tab === 'archive' ? <section className="ai-archive-panel" aria-labelledby="ai-archive-heading"><div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Archive size={18} aria-hidden="true" /></span><div><h3 id="ai-archive-heading">{t('已归档会话', 'Archived conversations')}</h3><p>{t('归档的会话会保留在本机，可随时恢复。', 'Archived conversations stay on this device and can be restored anytime.')}</p></div></div>{archived.length ? <div className="ai-archive-list">{archived.map(item => <article key={item.id} className="ai-archive-item"><button type="button" className="ai-archive-item-main" onClick={() => onSelectConversation(item)}><strong>{item.title || t('未命名会话', 'Untitled conversation')}</strong><span>{new Date(item.updatedAt).toLocaleString()} · {item.messages.length} {t('条消息', 'messages')}</span></button><button type="button" onClick={() => onUnarchive(item.id)}>{t('取消归档', 'Unarchive')}</button></article>)}</div> : <div className="ai-archive-empty"><Archive size={28} aria-hidden="true" /><strong>{t('暂无归档会话', 'No archived conversations')}</strong><span>{t('在会话操作中归档的内容会显示在这里。', 'Conversations archived from the conversation menu appear here.')}</span></div>}</section> : <div className="ai-settings-layout">
+      {tab === 'archive' ? <section className="ai-archive-panel" aria-labelledby="ai-archive-heading"><div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Archive size={18} aria-hidden="true" /></span><div><h3 id="ai-archive-heading">{t('已归档会话', 'Archived conversations')}</h3><p>{t('归档的会话会保留在本机，可随时恢复。', 'Archived conversations stay on this device and can be restored anytime.')}</p></div></div>{archived.length ? <div className="ai-archive-list">{archived.map(item => <article key={item.id} className="ai-archive-item"><button type="button" className="ai-archive-item-main" onClick={() => onSelectConversation(item)}><strong>{item.title || t('未命名会话', 'Untitled conversation')}</strong><span>{new Date(item.updatedAt).toLocaleString()} · {item.messages.length} {t('条消息', 'messages')}</span></button><button type="button" onClick={() => onUnarchive(item.id)}>{t('取消归档', 'Unarchive')}</button></article>)}</div> : <div className="ai-archive-empty"><Archive size={28} aria-hidden="true" /><strong>{t('暂无归档会话', 'No archived conversations')}</strong><span>{t('在会话操作中归档的内容会显示在这里。', 'Conversations archived from the conversation menu appear here.')}</span></div>}</section> : tab === 'search' ? <section className="ai-archive-panel" aria-labelledby="ai-search-heading">
+        <div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Search size={18} aria-hidden="true" /></span><div><h3 id="ai-search-heading">{t('搜索服务', 'Search service')}</h3><p>{t('为 web_search 工具配置检索端点；未配置或停用时该工具不会提供给模型。', 'Configure the endpoint for the web_search tool. It is not offered to the model until configured and enabled.')}</p></div><label className="ai-checkbox ai-service-toggle"><input type="checkbox" disabled={searchWorking} checked={search.enabled} onChange={event => editSearch({ ...search, enabled: event.target.checked })} />{t('启用服务', 'Enable service')}</label></div>
+        <form className="ai-form" onSubmit={event => { event.preventDefault(); void runSearch(async () => { await saveSearch(); }); }}>
+          <div><label>Base URL<input type="url" required disabled={searchWorking} value={search.baseUrl} placeholder={t('填写你自有搜索服务的真实地址', 'Enter the real URL of your own search service')} onChange={event => editSearch({ ...search, baseUrl: event.target.value })} spellCheck={false} aria-describedby="ai-search-url-help" /></label><p className="ai-field-hint" id="ai-search-url-help">{t('填写完整接口前缀，通常以 /v1 结尾，应用会在其后拼接固定的 search 路径。请使用与当前任务一致的真实地址，不要填写代理或镜像地址。', 'Use the full API prefix, usually ending in /v1; the app appends a fixed search path. Use a real address matching your task, never a proxy or mirror.')}</p></div>
+          <label>API Key<input type="password" autoComplete="new-password" disabled={searchWorking} value={searchKey ?? ''} placeholder={search.hasApiKey ? t('已安全保存，留空保持不变', 'Saved securely; leave blank to keep') : t('输入搜索服务密钥', 'Enter the search service key')} onChange={event => { setSearchKey(event.target.value || undefined); setSearchDirty(true); setSearchFeedback(''); }} /></label>
+          {search.hasApiKey && <label className="ai-checkbox ai-key-delete"><input type="checkbox" disabled={searchWorking} checked={searchKey === ''} onChange={event => { setSearchKey(event.target.checked ? '' : undefined); setSearchDirty(true); setSearchFeedback(''); }} />{t('删除已保存的密钥', 'Delete saved API key')}</label>}
+          <div className="ai-settings-network"><button type="button" disabled={searchWorking} onClick={() => void runSearch(async () => { await saveSearch(); setSearchFeedback(await backend.testSearchService()); })}>{searchWorking ? <Loader2 size={15} className="ai-spin" aria-hidden="true" /> : <Unplug size={15} aria-hidden="true" />}{t('测试连接', 'Test connection')}</button><p>{t('测试会先保存配置，再发送一条最小检索请求，不发送任何会话内容。', 'Testing saves the configuration first, then sends one minimal query. No conversation content is sent.')}</p></div>
+          <p className="ai-field-hint">{t('密钥安全存储于系统凭据中，不下发到界面。每次搜索调用仍需你在弹窗中逐次批准。', 'The key stays in system credentials and is never sent to the UI. Every search call still needs your per-call approval.')}</p>
+          <footer className="ai-settings-footer"><div className="ai-settings-feedback"><AiError error={searchError} />{!searchError && <span role="status" className={searchFeedback ? 'ai-feedback' : 'ai-muted'}>{searchFeedback ? <><Check size={14} aria-hidden="true" />{searchFeedback}</> : searchDirty ? t('有未保存的修改', 'Unsaved changes') : t('配置仅保存在本机', 'Configuration is stored locally')}</span>}</div><div className="ai-button-row"><button type="submit" className="ai-primary" disabled={searchWorking}>{searchWorking && <Loader2 size={15} className="ai-spin" aria-hidden="true" />}{searchWorking ? t('处理中…', 'Working…') : t('保存搜索服务', 'Save search service')}</button></div></footer>
+        </form>
+      </section> : <div className="ai-settings-layout">
       <nav className="ai-provider-list" aria-label={t('模型服务', 'Model services')}>
         <div className="ai-provider-caption">{t('模型服务', 'MODEL SERVICES')}<span>{providers.length}</span></div>
         <div className="ai-provider-items">{providers.map(item => <button type="button" key={item.id} disabled={working} aria-current={provider.id === item.id ? 'true' : undefined} className={provider.id === item.id ? 'is-active' : ''} onClick={() => select(item)}><span className="ai-provider-icon"><Server size={17} aria-hidden="true" /></span><span className="ai-provider-name"><strong>{item.name}</strong><small>{item.kind === 'ollama' ? 'Ollama' : 'OpenAI'} · {t(`${item.models.length} 个模型`, `${item.models.length} models`)}</small></span><span className={`ai-provider-dot ${item.enabled ? 'is-enabled' : ''}`} aria-label={item.enabled ? t('已启用', 'Enabled') : t('已停用', 'Disabled')} /></button>)}</div>
