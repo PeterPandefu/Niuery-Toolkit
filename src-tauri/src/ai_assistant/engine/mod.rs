@@ -1,6 +1,7 @@
 mod approval;
 mod request;
 mod rounds;
+mod subagent;
 pub(super) mod transport;
 mod wires;
 
@@ -52,7 +53,25 @@ pub async fn generate_with_tools(
     approvals: &ApprovalRegistry,
     env: &super::tools::ToolEnv,
 ) -> Result<Outcome, String> {
-    rounds::run(provider, key, input, channel, cancel, approvals, env).await
+    rounds::run(
+        provider, key, input, channel, cancel, approvals, env, channel,
+    )
+    .await
+}
+
+/// One tool-free round for connectivity diagnostics: the probe must stay
+/// byte-identical to a plain chat request, with no tool definitions attached.
+pub async fn generate_diagnostic(
+    provider: &Provider,
+    key: Option<&str>,
+    input: &Request,
+    channel: &Channel<StreamEvent>,
+    cancel: &mut watch::Receiver<bool>,
+) -> Result<Outcome, String> {
+    let mut request = request::convert(input, provider, &super::tools::ToolEnv::default())?;
+    request.tools.clear();
+    let consumed = round(provider, key, input, &request, channel, cancel).await?;
+    Ok(consumed.outcome)
 }
 
 /// One model request within a task.

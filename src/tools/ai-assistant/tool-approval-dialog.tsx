@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { AiStreamEvent, AiToolDecision, AiToolProvenance } from './types';
 import { AiDialog } from './ui';
 import { useAiText } from './ui-text';
@@ -8,10 +9,40 @@ function provenanceLabel(value: AiToolProvenance | undefined, t: (zh: string, en
   return t('模型自行提出，未经任何来源核实', 'Proposed by the model, unverified');
 }
 
+function questionOptions(event: AiStreamEvent): string[] {
+  try {
+    const parsed = JSON.parse(event.arguments ?? '{}') as { options?: unknown };
+    if (Array.isArray(parsed.options)) return parsed.options.filter((item): item is string => typeof item === 'string').slice(0, 4);
+  } catch { /* malformed arguments fall back to free input */ }
+  return [];
+}
+
+/** The model asked a question; the user answers with text or a preset option.
+ *  Closing without answering sends an empty answer, never consent. */
+function ToolQuestionDialog({ event, onAnswer }: { event: AiStreamEvent; onAnswer(text: string): void }) {
+  const t = useAiText();
+  const [draft, setDraft] = useState('');
+  const options = questionOptions(event);
+  return <AiDialog title={t('AI 助手提问', 'Assistant question')} onClose={() => onAnswer('')}>
+    <form className="ai-form ai-tool-approval" onSubmit={submitEvent => { submitEvent.preventDefault(); if (draft.trim()) onAnswer(draft.trim()); }}>
+      <p>{event.text ?? t('（未提供问题文本）', '(No question text)')}</p>
+      {options.length > 0 && <div className="ai-tool-question-options">
+        {options.map(option => <button key={option} type="button" onClick={() => onAnswer(option)}>{option}</button>)}
+      </div>}
+      <label>{t('自由回答', 'Free answer')}<textarea rows={3} value={draft} onChange={changeEvent => setDraft(changeEvent.target.value)} /></label>
+      <footer>
+        <button type="button" onClick={() => onAnswer('')}>{t('跳过', 'Skip')}</button>
+        <button type="submit" className="ai-primary" disabled={!draft.trim()}>{t('回答', 'Answer')}</button>
+      </footer>
+    </form>
+  </AiDialog>;
+}
+
 /** Shows the byte-exact target so the user can verify it against the current
  *  task. Approve / reject only — no "always allow", no remembered hosts. */
-export function ToolApprovalDialog({ event, onDecide, onClose }: { event: AiStreamEvent; onDecide(decision: AiToolDecision): void; onClose(): void }) {
+export function ToolApprovalDialog({ event, onDecide, onClose, onAnswer }: { event: AiStreamEvent; onDecide(decision: AiToolDecision): void; onClose(): void; onAnswer(text: string): void }) {
   const t = useAiText();
+  if (event.type === 'question_required') return <ToolQuestionDialog event={event} onAnswer={onAnswer} />;
   const unverified = event.provenance !== 'userProvided' && event.provenance !== 'searchDerived';
   return <AiDialog title={t('批准工具调用', 'Approve tool call')} onClose={onClose}>
     <div className="ai-form ai-tool-approval">

@@ -4,7 +4,7 @@ import type { AiBackend, AiConversation, AiStreamEvent, AiToolCall, AiToolDecisi
 export interface ToolCallDeps {
   changeConversation(id: string, update: (chat: AiConversation) => AiConversation): void;
   saveQuietly(): void;
-  backend: Pick<AiBackend, 'decideTool'>;
+  backend: Pick<AiBackend, 'decideTool' | 'answerTool'>;
 }
 
 function mergeCall(existing: AiToolCall | undefined, event: AiStreamEvent): AiToolCall {
@@ -22,7 +22,7 @@ function mergeCall(existing: AiToolCall | undefined, event: AiStreamEvent): AiTo
       status: event.status ?? base.status,
     };
   }
-  if (event.type === 'approval_required') {
+  if (event.type === 'approval_required' || event.type === 'question_required') {
     return {
       ...base,
       name: event.name ?? base.name,
@@ -51,10 +51,10 @@ export function useToolCalls({ changeConversation, saveQuietly, backend }: ToolC
   }, []);
 
   const handleEvent = useCallback((event: AiStreamEvent, conversationId: string, messageId: string) => {
-    if (event.type !== 'tool_call' && event.type !== 'tool_result' && event.type !== 'approval_required') return;
+    if (event.type !== 'tool_call' && event.type !== 'tool_result' && event.type !== 'approval_required' && event.type !== 'question_required') return;
     const callId = event.callId;
     if (!callId) return;
-    if (event.type === 'approval_required') setPendingApproval(event);
+    if (event.type === 'approval_required' || event.type === 'question_required') setPendingApproval(event);
     changeConversation(conversationId, chat => ({
       ...chat,
       updatedAt: Date.now(),
@@ -88,7 +88,18 @@ export function useToolCalls({ changeConversation, saveQuietly, backend }: ToolC
     }
   }, [pendingApproval, backend]);
 
+  const answer = useCallback(async (text: string) => {
+    const callId = pendingApproval?.callId;
+    setPendingApproval(null);
+    if (!callId) return;
+    try {
+      await backend.answerTool(callId, text);
+    } catch {
+      // A timed-out, cancelled or already-answered question is harmless here.
+    }
+  }, [pendingApproval, backend]);
+
   const clear = useCallback(() => setPendingApproval(null), []);
 
-  return { handleEvent, pendingApproval, decide, clear };
+  return { handleEvent, pendingApproval, decide, answer, clear };
 }

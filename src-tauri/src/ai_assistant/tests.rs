@@ -160,7 +160,8 @@ async fn ai_assistant_http_delivers_thinking_even_before_same_chunk_error() {
         &request(),
         &channel,
         &mut cancel,
-        &engine::ApprovalRegistry::default(), &tools::ToolEnv::default()
+        &engine::ApprovalRegistry::default(),
+        &tools::ToolEnv::default()
     )
     .await
     .is_err());
@@ -257,7 +258,6 @@ fn ai_assistant_storage_round_trip_backup_and_corruption_protection() {
 fn ai_assistant_tools_workspace_round_trip_preserves_tool_records() {
     let root = std::env::temp_dir().join(format!("niuery-ai-tools-{}", nanoid::nanoid!()));
     let mut value = workspace();
-    value.conversations[0].tools_enabled = Some(true);
     value.conversations[0].messages.push(
         serde_json::from_value(serde_json::json!({
             "id":"a1","role":"assistant","content":"answer","attachments":[],"createdAt":2,"status":"complete",
@@ -284,7 +284,6 @@ fn ai_assistant_tools_workspace_round_trip_preserves_tool_records() {
     assert_eq!(record.provenance.as_deref(), Some("userProvided"));
     assert_eq!(record.url.as_deref(), Some("https://example.com/a"));
     assert_eq!(record.duration_ms, Some(12.5));
-    assert_eq!(loaded.conversations[0].tools_enabled, Some(true));
     std::fs::remove_dir_all(root).unwrap();
 }
 
@@ -294,8 +293,41 @@ fn ai_assistant_tools_legacy_workspace_without_records_still_loads() {
     let value = workspace();
     storage::save(&root, &value).unwrap();
     let loaded = storage::load(&root).unwrap().unwrap();
-    assert!(loaded.conversations[0].tools_enabled.is_none());
     assert!(loaded.search_service.is_none());
+    assert_eq!(
+        serde_json::to_value(&loaded).unwrap(),
+        serde_json::to_value(&value).unwrap()
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn ai_assistant_tools_legacy_tool_flags_are_stripped_on_load() {
+    let root = std::env::temp_dir().join(format!("niuery-ai-legacy-flags-{}", nanoid::nanoid!()));
+    let mut value = workspace();
+    value
+        .providers
+        .push(provider_at("http://localhost/custom", "openai"));
+    storage::save(&root, &value).unwrap();
+
+    let index_path = root.join("workspace.json");
+    let mut index: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&index_path).unwrap()).unwrap();
+    index["workspace"]["providers"][0]["models"][0]["supportsTools"] = serde_json::json!(true);
+    std::fs::write(&index_path, serde_json::to_vec(&index).unwrap()).unwrap();
+
+    for entry in std::fs::read_dir(root.join("conversations")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.to_string_lossy().contains(".bak.") {
+            continue;
+        }
+        let mut conversation: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        conversation["toolsEnabled"] = serde_json::json!(true);
+        std::fs::write(&path, serde_json::to_vec(&conversation).unwrap()).unwrap();
+    }
+
+    let loaded = storage::load(&root).unwrap().unwrap();
     assert_eq!(
         serde_json::to_value(&loaded).unwrap(),
         serde_json::to_value(&value).unwrap()
@@ -388,7 +420,8 @@ async fn ai_assistant_real_http_streams_and_cancel_waiting_body() {
             &request(),
             &channel,
             &mut cancel,
-            &engine::ApprovalRegistry::default(), &tools::ToolEnv::default()
+            &engine::ApprovalRegistry::default(),
+            &tools::ToolEnv::default()
         )
         .await
         .unwrap(),
@@ -429,7 +462,8 @@ async fn ai_assistant_real_http_streams_and_cancel_waiting_body() {
                 &request(),
                 &channel,
                 &mut cancel,
-                &engine::ApprovalRegistry::default(), &tools::ToolEnv::default()
+                &engine::ApprovalRegistry::default(),
+                &tools::ToolEnv::default()
             )
         )
         .await
@@ -697,7 +731,8 @@ async fn stream_fixture(
         &request(),
         &channel,
         &mut cancel,
-        &engine::ApprovalRegistry::default(), &tools::ToolEnv::default(),
+        &engine::ApprovalRegistry::default(),
+        &tools::ToolEnv::default(),
     )
     .await;
     server.await.unwrap();

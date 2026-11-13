@@ -9,8 +9,8 @@ const MAX_RESULTS: u64 = 10;
 
 pub fn spec() -> ToolSpec {
     ToolSpec {
-        name: NAME,
-        description: "通过用户自行配置的搜索服务检索公开网页，返回标题、链接与摘要。每次调用都需用户批准。返回的链接可作为后续 fetch_url 的依据；不要凭空推测地址，也不要使用任何代理或镜像地址。",
+        name: NAME.into(),
+        description: "通过用户自行配置的搜索服务检索公开网页，返回标题、链接与摘要。每次调用都需用户批准。返回的链接可作为后续 fetch_url 的依据；不要凭空推测地址，也不要使用任何代理或镜像地址。".into(),
         parameters: json!({
             "type": "object",
             "properties": {
@@ -71,7 +71,10 @@ pub async fn run(
         Err(error) => return fail(error.message()),
     };
     if !(200..300).contains(&response.status) {
-        return fail(format!("搜索服务返回 HTTP {}，未获取结果。", response.status));
+        return fail(format!(
+            "搜索服务返回 HTTP {}，未获取结果。",
+            response.status
+        ));
     }
     let parsed: Value = match serde_json::from_slice(&response.body) {
         Ok(value) => value,
@@ -83,7 +86,11 @@ pub async fn run(
     let mut urls = Vec::new();
     let mut lines = Vec::new();
     for item in results.iter().take(max_results as usize) {
-        let Some(url) = item.get("url").and_then(Value::as_str).filter(|v| !v.is_empty()) else {
+        let Some(url) = item
+            .get("url")
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+        else {
             continue;
         };
         let title = item.get("title").and_then(Value::as_str).unwrap_or("");
@@ -118,7 +125,7 @@ mod tests {
     #[tokio::test]
     async fn ai_assistant_tools_search_posts_to_configured_endpoint_and_collects_urls() {
         let (base, server) = super::super::super::tests::mock_server(
-            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 108\r\nConnection: close\r\n\r\n{\"results\":[{\"title\":\"T\",\"url\":\"https://example.com/found\",\"content\":\"snippet\"}]}",
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 81\r\nConnection: close\r\n\r\n{\"results\":[{\"title\":\"T\",\"url\":\"https://example.com/found\",\"content\":\"snippet\"}]}",
             false,
         )
         .await;
@@ -134,7 +141,9 @@ mod tests {
         assert_eq!(result.urls, vec!["https://example.com/found".to_string()]);
         let received = String::from_utf8(server.await.unwrap()).unwrap();
         assert!(received.starts_with("POST /v1/search "));
-        assert!(received.to_lowercase().contains("authorization: bearer search-key"));
+        assert!(received
+            .to_lowercase()
+            .contains("authorization: bearer search-key"));
         assert!(received.contains("\"max_results\":3"));
     }
 
@@ -146,7 +155,13 @@ mod tests {
         )
         .await;
         let http = GuardedHttp::for_tools().unwrap();
-        let result = run(&json!({ "query": "x" }), &config(&base), Some("secret-key"), &http).await;
+        let result = run(
+            &json!({ "query": "x" }),
+            &config(&base),
+            Some("secret-key"),
+            &http,
+        )
+        .await;
         assert!(result.outcome.is_error);
         assert!(!result.outcome.content.contains("secret-key"));
         assert!(result.urls.is_empty());
@@ -157,14 +172,23 @@ mod tests {
     async fn ai_assistant_tools_search_validates_arguments_before_any_request() {
         let http = GuardedHttp::for_tools().unwrap();
         let service = config("https://example.com/v1");
-        assert!(run(&json!({}), &service, None, &http).await.outcome.is_error);
-        assert!(run(&json!({ "query": "  " }), &service, None, &http)
-            .await
-            .outcome
-            .is_error);
-        assert!(run(&json!({ "query": "x" }), &config("not a url"), None, &http)
-            .await
-            .outcome
-            .is_error);
+        assert!(
+            run(&json!({}), &service, None, &http)
+                .await
+                .outcome
+                .is_error
+        );
+        assert!(
+            run(&json!({ "query": "  " }), &service, None, &http)
+                .await
+                .outcome
+                .is_error
+        );
+        assert!(
+            run(&json!({ "query": "x" }), &config("not a url"), None, &http)
+                .await
+                .outcome
+                .is_error
+        );
     }
 }

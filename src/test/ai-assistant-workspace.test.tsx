@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createWorkspace, newConversation, providerTarget } from '@/tools/ai-assistant/model';
 import { useAiWorkspace } from '@/tools/ai-assistant/use-ai-workspace';
 import { createComparisonTask } from '@/tools/ai-assistant/tasks';
-import type { AiBackend, AiFlushHandler, AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant/types';
+import type { AiBackend, AiFlushHandler, AiMediaService, AiMcpServer, AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant/types';
 
 function fixture() {
   const workspace = createWorkspace();
@@ -26,6 +26,9 @@ function createBackend(workspace = fixture()) {
     listModels: vi.fn(async () => []), testConnection: vi.fn(async () => 'OK'),
     listTools: vi.fn(async () => []),
     decideTool: vi.fn(async () => {}),
+    answerTool: vi.fn(async () => {}),
+    saveMediaService: vi.fn(async (config: AiMediaService) => config),
+    saveMcpServers: vi.fn(async (servers: AiMcpServer[]) => servers),
     saveSearchService: vi.fn(async (config: { baseUrl: string; hasApiKey: boolean; enabled: boolean }) => config),
     testSearchService: vi.fn(async () => '搜索服务连接成功'),
     generate: vi.fn((value, callback) => { request = value; emit = callback; return new Promise<void>(resolve => { resolveGenerate = resolve; }); }),

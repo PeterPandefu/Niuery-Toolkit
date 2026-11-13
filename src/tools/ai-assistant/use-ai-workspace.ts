@@ -296,7 +296,7 @@ export function useAiWorkspace(backend: AiBackend) {
       networkStarted = true;
       await backend.generate({ requestId: running.requestId, conversationId, messageId: running.messageId,
         providerId: provider.id, modelId: model.id, systemPrompt: budget.systemPrompt, parameters: budget.parameters,
-        messages: requestMessages(context), toolsEnabled: Boolean(chat.toolsEnabled && model.supportsTools) }, onEvent);
+        messages: requestMessages(context) }, onEvent);
       if (active.current === running && !running.terminated) await finish(running, 'interrupted', '回复流意外结束，请重试。');
     } catch (reason) {
       const text = describeError(reason);

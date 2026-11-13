@@ -120,6 +120,7 @@ use hotkey::{
 };
 use recorder::RecorderState;
 use screenshot::ScreenshotState;
+use socket_debug::SocketDebugState;
 use std::sync::atomic::{AtomicBool, Ordering};
 use system_monitor::SystemMonitorState;
 use tauri::image::Image;
@@ -130,7 +131,6 @@ use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_global_shortcut::ShortcutState;
 use ws_server::WsServerState;
-use socket_debug::SocketDebugState;
 
 fn is_window_shown(is_visible: bool, is_minimized: bool) -> bool {
     is_visible && !is_minimized
@@ -184,8 +184,17 @@ pub fn run() {
             std::thread::spawn(move || {
                 let result = resources::read_ocr_asset(&app, request.uri().path());
                 let response = match result {
-                    Ok((bytes, mime)) => tauri::http::Response::builder().header("Content-Type", mime).header("Access-Control-Allow-Origin", "*").header("X-Content-Type-Options", "nosniff").body(bytes).unwrap(),
-                    Err(_) => tauri::http::Response::builder().status(404).header("Access-Control-Allow-Origin", "*").body(Vec::new()).unwrap(),
+                    Ok((bytes, mime)) => tauri::http::Response::builder()
+                        .header("Content-Type", mime)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .header("X-Content-Type-Options", "nosniff")
+                        .body(bytes)
+                        .unwrap(),
+                    Err(_) => tauri::http::Response::builder()
+                        .status(404)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Vec::new())
+                        .unwrap(),
                 };
                 responder.respond(response);
             });
@@ -360,6 +369,9 @@ pub fn run() {
             ai_assistant::ai_generate,
             ai_assistant::ai_cancel,
             ai_assistant::ai_tool_decision,
+            ai_assistant::ai_tool_answer,
+            ai_assistant::ai_save_media_service,
+            ai_assistant::ai_save_mcp_servers,
             ai_assistant::ai_open_data_directory,
             ai_assistant::ai_reset,
             ai_assistant::ai_set_exit_listener,
@@ -647,7 +659,9 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { code, api, .. } = &event {
-                if ai_assistant::defer_exit(app, *code) { api.prevent_exit(); }
+                if ai_assistant::defer_exit(app, *code) {
+                    api.prevent_exit();
+                }
             }
             if let tauri::RunEvent::Exit = event {
                 #[cfg(all(debug_assertions, windows))]

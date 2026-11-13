@@ -284,6 +284,9 @@
 .ai-tool-approval-row code { font-family:var(--font-mono,monospace); color:hsl(var(--foreground)); }
 .ai-tool-approval-url { display:block; padding:8px; border:1px solid hsl(var(--border)); border-radius:6px; background:hsl(var(--background)/.65); font-family:var(--font-mono,monospace); font-size:12px; line-height:1.6; overflow-wrap:anywhere; user-select:all; }
 .ai-tool-approval-warn { color:hsl(var(--destructive)); font-size:12px; line-height:1.6; }
+.ai-tool-question-options { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+.ai-tool-question-options button { padding:6px 12px; border:1px solid hsl(var(--border)); border-radius:6px; background:hsl(var(--background)/.65); font-size:13px; cursor:pointer; }
+.ai-tool-question-options button:hover { border-color:hsl(var(--primary)); }
 @media (prefers-reduced-motion:reduce) { .ai-thinking-toggle::before { transition:none; } }
 .ai-search-hit { outline:2px solid hsl(var(--primary)); outline-offset:6px; border-radius:6px; }
 .ai-template-list { display:flex; flex-direction:column; gap:8px; max-height:230px; overflow:auto; }

@@ -6,8 +6,8 @@ pub const NAME: &str = "get_current_time";
 
 pub fn spec() -> ToolSpec {
     ToolSpec {
-        name: NAME,
-        description: "获取本机当前的本地时间与 Unix 毫秒时间戳。无需参数。当用户询问当前时间、日期，或推理需要时间基准时使用。",
+        name: NAME.into(),
+        description: "获取本机当前的本地时间与 Unix 毫秒时间戳。无需参数。当用户询问当前时间、日期，或推理需要时间基准时使用。".into(),
         parameters: json!({
             "type": "object",
             "properties": {},

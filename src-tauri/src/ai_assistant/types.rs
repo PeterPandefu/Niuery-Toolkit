@@ -18,8 +18,6 @@ pub struct Model {
     pub stream_usage: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub show_thinking: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub supports_tools: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -160,6 +158,32 @@ pub struct SearchService {
     pub enabled: bool,
 }
 
+/// OpenAI-compatible media endpoint: /images/generations for images and
+/// /videos (create + poll) for video. One config serves both tools.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MediaService {
+    pub base_url: String,
+    pub has_api_key: bool,
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_model: Option<String>,
+}
+
+/// A stdio MCP server whose tools are exposed to the model as mcp__<name>__<tool>.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct McpServer {
+    pub id: String,
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    pub enabled: bool,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AnswerVersion {
@@ -215,8 +239,6 @@ pub struct Conversation {
     pub summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tasks: Option<Vec<Task>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tools_enabled: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -251,6 +273,10 @@ pub struct Workspace {
     pub templates: Option<Vec<PromptTemplate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub search_service: Option<SearchService>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media_service: Option<MediaService>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<Vec<McpServer>>,
 }
 
 impl Workspace {
@@ -264,6 +290,8 @@ impl Workspace {
             active_conversation_id: None,
             templates: None,
             search_service: None,
+            media_service: None,
+            mcp_servers: None,
         }
     }
 }
@@ -289,11 +317,9 @@ pub struct Request {
     pub system_prompt: String,
     pub parameters: Parameters,
     pub messages: Vec<Message>,
-    #[serde(default)]
-    pub tools_enabled: bool,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamEvent {
     pub request_id: String,

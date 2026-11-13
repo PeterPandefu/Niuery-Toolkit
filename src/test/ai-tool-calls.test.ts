@@ -77,8 +77,9 @@ describe('tool call event state machine', () => {
     const changeConversation = vi.fn();
     const saveQuietly = vi.fn();
     const decideTool = vi.fn(async () => {});
-    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool } }));
-    return { changeConversation, saveQuietly, decideTool, apply: result.current.handleEvent, result };
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, saveQuietly, decideTool, answerTool, apply: result.current.handleEvent, result };
   }
 
   it('upserts by call id instead of appending duplicates', () => {
@@ -146,8 +147,9 @@ describe('tool approval gate', () => {
     const changeConversation = vi.fn();
     const saveQuietly = vi.fn();
     const decideTool = vi.fn(async () => {});
-    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool } }));
-    return { changeConversation, decideTool, result };
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, decideTool, answerTool, result };
   }
 
   const approval = event({
@@ -201,7 +203,8 @@ describe('tool approval gate', () => {
   it('a stale answer failing in Rust does not throw into the UI', async () => {
     const changeConversation = vi.fn();
     const decideTool = vi.fn(async () => { throw new Error('该调用已失效'); });
-    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly: vi.fn(), backend: { decideTool } }));
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly: vi.fn(), backend: { decideTool, answerTool } }));
     act(() => result.current.handleEvent(approval, 'c1', 'reply-1'));
     await act(async () => { await result.current.decide('approved'); });
     expect(result.current.pendingApproval).toBeNull();
@@ -241,5 +244,41 @@ describe('tool records across answer versions and export', () => {
     expect(json).toContain('call-1');
     expect(json).toContain('calculate');
     expect(exportConversation(conversation, 'markdown')).toContain('used a tool');
+  });
+});
+describe('ask_user question flow', () => {
+  function setup() {
+    const changeConversation = vi.fn();
+    const saveQuietly = vi.fn();
+    const decideTool = vi.fn(async () => {});
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, decideTool, answerTool, result };
+  }
+
+  it('surfaces question_required as the pending dialog and records the call', () => {
+    const { changeConversation, result } = setup();
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q1', name: 'ask_user', arguments: '{"question":"选哪个？","options":["A","B"]}', text: '选哪个？' }), 'c1', 'reply-1'));
+    expect(result.current.pendingApproval?.type).toBe('question_required');
+    expect(result.current.pendingApproval?.callId).toBe('q1');
+    expect(changeConversation).toHaveBeenCalled();
+  });
+
+  it('answer sends the text through answerTool and clears the dialog', async () => {
+    const { answerTool, decideTool, result } = setup();
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q1', name: 'ask_user', arguments: '{"question":"选哪个？"}', text: '选哪个？' }), 'c1', 'reply-1'));
+    await act(async () => { await result.current.answer('选 A'); });
+    expect(answerTool).toHaveBeenCalledWith('q1', '选 A');
+    expect(decideTool).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it('a failed answer is harmless and still clears the dialog', async () => {
+    const changeConversation = vi.fn();
+    const answerTool = vi.fn(async () => { throw new Error('该提问已失效'); });
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly: vi.fn(), backend: { decideTool: vi.fn(async () => {}), answerTool } }));
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q2', name: 'ask_user', arguments: '{}', text: '问题' }), 'c1', 'reply-1'));
+    await act(async () => { await result.current.answer(''); });
+    expect(result.current.pendingApproval).toBeNull();
   });
 });

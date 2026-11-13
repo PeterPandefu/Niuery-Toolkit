@@ -96,9 +96,21 @@ export const desktopAiBackend: AiBackend = {
     if (!inDesktop()) throw desktopRequired();
     await invoke<void>('ai_tool_decision', { callId, decision });
   },
+  async answerTool(callId, answer) {
+    if (!inDesktop()) throw desktopRequired();
+    await invoke<void>('ai_tool_answer', { callId, answer });
+  },
   async saveSearchService(config, apiKey) {
     if (!inDesktop()) throw desktopRequired();
     return invoke('ai_save_search_service', apiKey === undefined ? { config } : { config, apiKey });
+  },
+  async saveMediaService(config, apiKey) {
+    if (!inDesktop()) throw desktopRequired();
+    return invoke('ai_save_media_service', apiKey === undefined ? { config } : { config, apiKey });
+  },
+  async saveMcpServers(servers) {
+    if (!inDesktop()) throw desktopRequired();
+    return invoke('ai_save_mcp_servers', { servers });
   },
   async testSearchService() {
     if (!inDesktop()) throw desktopRequired();

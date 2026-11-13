@@ -16,12 +16,18 @@ struct Pending {
     tx: oneshot::Sender<ToolDecision>,
 }
 
+struct QuestionPending {
+    request_id: String,
+    tx: oneshot::Sender<String>,
+}
+
 /// Sequential approval plus the single active-request slot mean this map holds
 /// at most one entry. Every exit path removes it, so a stale answer can never
 /// unblock a later call.
 #[derive(Default)]
 pub struct ApprovalRegistry {
     pending: Mutex<HashMap<String, Pending>>,
+    questions: Mutex<HashMap<String, QuestionPending>>,
 }
 
 impl ApprovalRegistry {
@@ -39,7 +45,10 @@ impl ApprovalRegistry {
         }
         let (tx, rx) = oneshot::channel();
         {
-            let mut pending = self.pending.lock().map_err(|_| ApprovalError::Unavailable)?;
+            let mut pending = self
+                .pending
+                .lock()
+                .map_err(|_| ApprovalError::Unavailable)?;
             pending.insert(
                 call_id.to_string(),
                 Pending {
@@ -82,11 +91,75 @@ impl ApprovalRegistry {
         Ok(())
     }
 
+    /// Like `request`, but waits for a free-text answer instead of a decision.
+    /// A dropped sender yields an empty answer, which the caller treats as
+    /// "the user did not answer" — never as consent.
+    pub async fn ask(
+        &self,
+        request_id: &str,
+        call_id: &str,
+        event: StreamEvent,
+        channel: &Channel<StreamEvent>,
+        cancel: &mut watch::Receiver<bool>,
+        timeout: Duration,
+    ) -> Result<String, ApprovalError> {
+        if *cancel.borrow() {
+            return Err(ApprovalError::Stopped);
+        }
+        let (tx, rx) = oneshot::channel();
+        {
+            let mut pending = self
+                .questions
+                .lock()
+                .map_err(|_| ApprovalError::Unavailable)?;
+            pending.insert(
+                call_id.to_string(),
+                QuestionPending {
+                    request_id: request_id.to_string(),
+                    tx,
+                },
+            );
+        }
+        let outcome = async {
+            if channel.send(event).is_err() {
+                return Err(ApprovalError::Unavailable);
+            }
+            tokio::select! {
+                biased;
+                _ = cancel.changed() => Err(ApprovalError::Stopped),
+                result = rx => Ok(result.unwrap_or_default()),
+                _ = tokio::time::sleep(timeout) => Ok(String::new()),
+            }
+        }
+        .await;
+        if let Ok(mut pending) = self.questions.lock() {
+            pending.remove(call_id);
+        }
+        outcome
+    }
+
+    pub fn answer(&self, request_id: &str, call_id: &str, text: String) -> Result<(), String> {
+        let mut pending = self.questions.lock().map_err(|_| "审批状态不可用")?;
+        let Some(entry) = pending.remove(call_id) else {
+            return Err("该提问已失效".into());
+        };
+        if entry.request_id != request_id {
+            return Err("该提问已失效".into());
+        }
+        let _ = entry.tx.send(text);
+        Ok(())
+    }
+
     /// Unblocks a suspended approval so cancel, reset and app exit never hang.
     pub fn drain(&self, decision: ToolDecision) {
         if let Ok(mut pending) = self.pending.lock() {
             for (_, entry) in pending.drain() {
                 let _ = entry.tx.send(decision);
+            }
+        }
+        if let Ok(mut pending) = self.questions.lock() {
+            for (_, entry) in pending.drain() {
+                let _ = entry.tx.send(String::new());
             }
         }
     }
@@ -167,7 +240,9 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
-        registry.decide("r1", "call-1", ToolDecision::Approved).unwrap();
+        registry
+            .decide("r1", "call-1", ToolDecision::Approved)
+            .unwrap();
         assert_eq!(waiter.await.unwrap().unwrap(), ToolDecision::Approved);
         assert_eq!(registry.pending_len(), 0);
     }
@@ -175,14 +250,23 @@ mod tests {
     #[tokio::test]
     async fn ai_assistant_approval_rejects_stale_and_cross_request_answers() {
         let registry = std::sync::Arc::new(ApprovalRegistry::default());
-        assert!(registry.decide("r1", "absent", ToolDecision::Approved).is_err());
+        assert!(registry
+            .decide("r1", "absent", ToolDecision::Approved)
+            .is_err());
         let (_sender, mut cancel) = watch::channel(false);
         let waiter = {
             let registry = registry.clone();
             let channel = channel();
             tokio::spawn(async move {
                 registry
-                    .request("r1", "call-1", event(), &channel, &mut cancel, Duration::from_secs(30))
+                    .request(
+                        "r1",
+                        "call-1",
+                        event(),
+                        &channel,
+                        &mut cancel,
+                        Duration::from_secs(30),
+                    )
                     .await
             })
         };
@@ -192,7 +276,9 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
-        assert!(registry.decide("other-request", "call-1", ToolDecision::Approved).is_err());
+        assert!(registry
+            .decide("other-request", "call-1", ToolDecision::Approved)
+            .is_err());
         registry.drain(ToolDecision::Rejected);
         assert_eq!(waiter.await.unwrap().unwrap(), ToolDecision::Rejected);
         assert_eq!(registry.pending_len(), 0);
@@ -207,7 +293,14 @@ mod tests {
             let channel = channel();
             tokio::spawn(async move {
                 registry
-                    .request("r1", "call-1", event(), &channel, &mut cancel, Duration::from_secs(30))
+                    .request(
+                        "r1",
+                        "call-1",
+                        event(),
+                        &channel,
+                        &mut cancel,
+                        Duration::from_secs(30),
+                    )
                     .await
             })
         };

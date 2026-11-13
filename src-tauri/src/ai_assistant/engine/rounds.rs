@@ -21,6 +21,7 @@ pub async fn run(
     cancel: &mut watch::Receiver<bool>,
     approvals: &ApprovalRegistry,
     env: &tools::ToolEnv,
+    approval_channel: &Channel<StreamEvent>,
 ) -> Result<Outcome, String> {
     if *cancel.borrow() {
         return Ok(Outcome::Stopped);
@@ -52,8 +53,11 @@ pub async fn run(
         }
         used += 1;
         let Some((assistant, results)) = execute(
+            provider,
+            key,
             input,
             channel,
+            approval_channel,
             cancel,
             approvals,
             &http,
@@ -76,8 +80,11 @@ pub async fn run(
 /// Calls run one at a time so each gets its own approval and its own URL check.
 #[allow(clippy::too_many_arguments)]
 async fn execute(
+    provider: &Provider,
+    key: Option<&str>,
     input: &Request,
     channel: &Channel<StreamEvent>,
+    approval_channel: &Channel<StreamEvent>,
     cancel: &mut watch::Receiver<bool>,
     approvals: &ApprovalRegistry,
     http: &super::transport::GuardedHttp,
@@ -104,51 +111,105 @@ async fn execute(
                     tools::execute(&name, &arguments, http, env).await
                 }
                 Some(tools::ApprovalLevel::Approve) => {
-                    let preview = if name == "read_local_file" {
-                        tools::file_preview(&arguments)
-                    } else {
-                        None
-                    };
-                    // An unresolvable path reads nothing, so ask no approval and
-                    // let the tool report the error to the model.
-                    if name == "read_local_file" && preview.is_none() {
-                        tools::execute(&name, &arguments, http, env).await
-                    } else {
-                        let mut event = input.event("approval_required", None, None);
+                    if name == tools::ask::NAME {
+                        let mut event = input.event("question_required", None, None);
                         event.call_id = Some(id.clone());
                         event.name = Some(name.clone());
                         event.arguments = Some(arguments.to_string());
-                        if let Some((path, size)) = preview {
-                            event.file_path = Some(path);
-                            event.file_size = Some(size);
-                        }
-                        // Re-classified on every call; never cached across calls.
-                        if let Some(url) = arguments.get("url").and_then(serde_json::Value::as_str) {
-                            event.provenance = Some(
-                                tools::provenance::classify(url, corpus, search_urls).as_str().to_string(),
-                            );
-                            event.url = Some(url.to_string());
-                        }
+                        event.text = arguments
+                            .get("question")
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::to_string);
                         match approvals
-                            .request(
+                            .ask(
                                 &input.request_id,
                                 &id,
                                 event,
-                                channel,
+                                approval_channel,
                                 cancel,
                                 APPROVAL_TIMEOUT,
                             )
                             .await
                         {
-                            Ok(ToolDecision::Approved) => {
-                                tools::execute(&name, &arguments, http, env).await
+                            Ok(answer) if answer.trim().is_empty() => {
+                                tools::ToolOutcome::error("用户未提供回答。")
                             }
-                            Ok(ToolDecision::Rejected) => {
-                                tools::ToolOutcome::error("用户拒绝了此次调用。")
-                            }
+                            Ok(answer) => tools::ToolOutcome::ok(format!("用户回答：{answer}")),
                             Err(ApprovalError::Stopped) => return Ok(None),
                             Err(ApprovalError::Unavailable) => {
                                 return Err("AI 页面连接已关闭，生成已结束".into());
+                            }
+                        }
+                    } else {
+                        let fs_tool = tools::is_path_tool(&name);
+                        let preview = if fs_tool {
+                            tools::file_preview(&name, &arguments)
+                        } else {
+                            None
+                        };
+                        // An unresolvable path touches nothing, so ask no approval
+                        // and let the tool report the error to the model.
+                        if fs_tool && preview.is_none() {
+                            tools::execute(&name, &arguments, http, env).await
+                        } else {
+                            let mut event = input.event("approval_required", None, None);
+                            event.call_id = Some(id.clone());
+                            event.name = Some(name.clone());
+                            event.arguments = Some(arguments.to_string());
+                            if let Some((path, size)) = preview {
+                                event.file_path = Some(path);
+                                event.file_size = Some(size);
+                            }
+                            // Re-classified on every call; never cached across calls.
+                            if let Some(url) =
+                                arguments.get("url").and_then(serde_json::Value::as_str)
+                            {
+                                event.provenance = Some(
+                                    tools::provenance::classify(url, corpus, search_urls)
+                                        .as_str()
+                                        .to_string(),
+                                );
+                                event.url = Some(url.to_string());
+                            }
+                            match approvals
+                                .request(
+                                    &input.request_id,
+                                    &id,
+                                    event,
+                                    approval_channel,
+                                    cancel,
+                                    APPROVAL_TIMEOUT,
+                                )
+                                .await
+                            {
+                                Ok(ToolDecision::Approved) => {
+                                    if name == tools::subagent::NAME {
+                                        let prompt = arguments
+                                            .get("prompt")
+                                            .and_then(serde_json::Value::as_str)
+                                            .unwrap_or("");
+                                        super::subagent::run(
+                                            provider,
+                                            key,
+                                            input,
+                                            approval_channel,
+                                            cancel,
+                                            approvals,
+                                            env,
+                                            prompt,
+                                        )
+                                        .await
+                                    } else {
+                                        tools::execute(&name, &arguments, http, env).await
+                                    }
+                                }
+                                Ok(ToolDecision::Rejected) => {
+                                    tools::ToolOutcome::error("用户拒绝了此次调用。")
+                                }
+                                Err(ApprovalError::Stopped) => return Ok(None),
+                                Err(ApprovalError::Unavailable) => {
+                                    return Err("AI 页面连接已关闭，生成已结束".into());
+                                }
                             }
                         }
                     }
@@ -186,7 +247,14 @@ fn emit_result(
     let mut event = input.event("tool_result", None, None);
     event.call_id = Some(call.id.wire().into_owned());
     event.name = Some(call.function.name.as_str().to_string());
-    event.status = Some(if outcome.is_error { "failed" } else { "complete" }.into());
+    event.status = Some(
+        if outcome.is_error {
+            "failed"
+        } else {
+            "complete"
+        }
+        .into(),
+    );
     if outcome.is_error {
         event.error = Some(outcome.content.clone());
     } else {

@@ -11,8 +11,8 @@ const NOT_PLAIN_TEXT: &str = "文本附件最多 1 MiB，且必须是 UTF-8 纯�
 
 pub fn spec() -> ToolSpec {
     ToolSpec {
-        name: NAME,
-        description: "读取用户本机上的一个纯文本或代码文件。每次调用都需用户批准，批准前会展示完整绝对路径与文件大小。仅支持文本与常见代码文件，不支持 PDF、Word 等文档。",
+        name: NAME.into(),
+        description: "读取用户本机上的一个纯文本或代码文件。每次调用都需用户批准，批准前会展示完整绝对路径与文件大小。仅支持文本与常见代码文件，不支持 PDF、Word 等文档。".into(),
         parameters: json!({
             "type": "object",
             "properties": {
@@ -47,12 +47,60 @@ pub fn resolve(path: &str) -> Result<(PathBuf, u64), String> {
         .canonicalize()
         .map_err(|_| "文件不存在或无法访问。".to_string())?;
     reject_links(&canonical).map_err(|_| LINK_REFUSED.to_string())?;
-    let metadata =
-        std::fs::metadata(&canonical).map_err(|_| "无法读取文件信息。".to_string())?;
+    let metadata = std::fs::metadata(&canonical).map_err(|_| "无法读取文件信息。".to_string())?;
     if !metadata.is_file() {
         return Err("目标不是普通文件。".into());
     }
     Ok((canonical, metadata.len()))
+}
+
+/// Resolves a write target that may not exist yet: the parent directory must
+/// exist and be link-free; an existing target must be a regular file.
+pub fn resolve_target(path: &str) -> Result<PathBuf, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("路径不能为空。".into());
+    }
+    let candidate = Path::new(trimmed);
+    if !candidate.is_absolute() {
+        return Err("只接受绝对路径。".into());
+    }
+    reject_links(candidate).map_err(|_| LINK_REFUSED.to_string())?;
+    let parent = candidate.parent().ok_or("路径缺少父目录。")?;
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|_| "父目录不存在或无法访问。".to_string())?;
+    reject_links(&canonical_parent).map_err(|_| LINK_REFUSED.to_string())?;
+    let name = candidate.file_name().ok_or("路径必须以文件名结尾。")?;
+    let target = canonical_parent.join(name);
+    if target.exists() {
+        let metadata =
+            std::fs::symlink_metadata(&target).map_err(|_| "无法读取文件信息。".to_string())?;
+        if !metadata.is_file() {
+            return Err("目标已存在且不是普通文件。".into());
+        }
+    }
+    Ok(target)
+}
+
+pub fn resolve_dir(path: &str) -> Result<PathBuf, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("路径不能为空。".into());
+    }
+    let candidate = Path::new(trimmed);
+    if !candidate.is_absolute() {
+        return Err("只接受绝对路径。".into());
+    }
+    reject_links(candidate).map_err(|_| LINK_REFUSED.to_string())?;
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|_| "目录不存在或无法访问。".to_string())?;
+    reject_links(&canonical).map_err(|_| LINK_REFUSED.to_string())?;
+    if !canonical.is_dir() {
+        return Err("目标不是目录。".into());
+    }
+    Ok(canonical)
 }
 
 pub async fn run(arguments: &Value) -> ToolOutcome {
