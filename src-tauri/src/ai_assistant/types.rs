@@ -184,6 +184,8 @@ pub struct McpServer {
     pub command: String,
     #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub env: std::collections::BTreeMap<String, String>,
     pub enabled: bool,
 }
 

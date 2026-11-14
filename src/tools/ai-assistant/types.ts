@@ -130,7 +130,7 @@ export interface AiSearchService { baseUrl: string; hasApiKey: boolean; enabled:
 
 export interface AiMediaService { baseUrl: string; hasApiKey: boolean; enabled: boolean; imageModel?: string; videoModel?: string }
 
-export interface AiMcpServer { id: string; name: string; command: string; args: string[]; enabled: boolean }
+export interface AiMcpServer { id: string; name: string; command: string; args: string[]; env?: Record<string, string>; enabled: boolean }
 
 export interface AiWorkspace {
   version: 1;

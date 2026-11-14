@@ -81,6 +81,7 @@ async fn connect(server: &McpServer, label: &str) -> Result<McpEntry, String> {
     let mut command = tokio::process::Command::new(&server.command);
     command
         .args(&server.args)
+        .envs(&server.env)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
