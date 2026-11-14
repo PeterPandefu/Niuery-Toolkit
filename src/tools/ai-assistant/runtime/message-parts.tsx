@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import katex from 'katex';
@@ -7,15 +7,26 @@ import { toast } from 'sonner';
 import { useAuiState, type TextMessagePartProps, type ReasoningMessagePartProps } from '@assistant-ui/react';
 import { useAiText } from '../ui-text';
 
+/** Pins a streaming panel to its newest output unless the reader scrolls up.
+ *  The distance is measured against the height before this commit's growth, so
+ *  a single large chunk can never knock the follow off the bottom. */
+function useFollowBottom(active: boolean) {
+  const ref = useRef<HTMLDivElement>(null);
+  const prevHeight = useRef(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !active) { prevHeight.current = 0; return; }
+    const grew = Math.max(0, el.scrollHeight - prevHeight.current);
+    prevHeight.current = el.scrollHeight;
+    if (el.scrollHeight - grew - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
+  });
+  return ref;
+}
+
 export function AiTextPart({ text }: TextMessagePartProps) {
   const t = useAiText(); const copyLabel = t('复制代码', 'Copy code'); const blocked = t('远程图片未自动加载', 'Remote image not loaded');
   const running = useAuiState(state => state.message.status?.type === 'running');
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!running || !el) return;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
-  }, [text, running]);
+  const scrollRef = useFollowBottom(running);
   const rendered = useMemo(() => {
     const blocks: string[] = []; const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
     md.renderer.rules.image = (tokens, index) => `<span class="ai-blocked-image">[${md.utils.escapeHtml(tokens[index].content || blocked)} · ${md.utils.escapeHtml(blocked)}]</span>`;
@@ -36,13 +47,7 @@ export function AiTextPart({ text }: TextMessagePartProps) {
 
 function ThinkingFold({ text, running, thinking }: { text: string; running: boolean; thinking: boolean }) {
   const t = useAiText(); const [open, setOpen] = useState(running); const id = useId();
-  const contentRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { if (open && thinking && contentRef.current) contentRef.current.scrollTop = contentRef.current.scrollHeight; }, [open, thinking]);
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!thinking || !open || !el) return;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
-  }, [text, thinking, open]);
+  const contentRef = useFollowBottom(open && thinking);
   return <section className={`ai-thinking ${open ? 'is-open' : ''}`} aria-label={t('思考', 'Thinking')}><button type="button" className="ai-thinking-toggle" aria-label={open ? t('隐藏思考', 'Hide thinking') : t('显示思考', 'Show thinking')} aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}>{open ? t('隐藏思考', 'Hide thinking') : t('显示思考', 'Show thinking')}{thinking && <span> · {t('模型思考中…', 'Thinking…')}</span>}</button><div ref={contentRef} id={id} className="ai-thinking-content" hidden={!open}>{text}</div></section>;
 }
 
@@ -61,13 +66,7 @@ export function AiToolCallGroup({ groupKey, indices, children }: PropsWithChildr
   const id = useId();
   const parts = useAuiState(state => state.message.content);
   const live = parts.some(part => part.type === 'tool-call' && part.result === undefined);
-  const contentRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { if (open && groupKey && live && contentRef.current) contentRef.current.scrollTop = contentRef.current.scrollHeight; }, [open, groupKey, live]);
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!groupKey || !open || !live || !el) return;
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) el.scrollTop = el.scrollHeight;
-  }, [parts, groupKey, open, live]);
+  const contentRef = useFollowBottom(!!groupKey && open && live);
   if (!groupKey) return <>{children}</>;
   const calls = indices.flatMap(index => { const part = parts[index]; return part && part.type === 'tool-call' ? [part] : []; });
   const failed = calls.filter(call => call.isError).length;

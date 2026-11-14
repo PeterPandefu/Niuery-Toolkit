@@ -101,3 +101,18 @@ it('pins the streaming thinking fold to the newest line unless the reader scroll
   rerender(view('plan line one two three'));
   expect(fold.scrollTop).toBe(0);
 });
+
+it('keeps following the thinking fold when one streamed chunk grows past the follow threshold', async () => {
+  const { MessageView } = await import('@/tools/ai-assistant/message-view');
+  const view = (thinking: string) => <MessageView message={message({ status: 'streaming', content: '', thinking })} disabled={false} lastAssistant={false} onEdit={() => {}} onRegenerate={() => {}} />;
+  const { container, rerender } = render(view('plan'));
+  const fold = container.querySelector('.ai-thinking-content') as HTMLElement;
+  Object.defineProperty(fold, 'scrollHeight', { configurable: true, value: 1000 });
+  Object.defineProperty(fold, 'clientHeight', { configurable: true, value: 240 });
+  fold.scrollTop = 760;
+  rerender(view('plan baseline'));
+  expect(fold.scrollTop).toBe(1000);
+  Object.defineProperty(fold, 'scrollHeight', { configurable: true, value: 1400 });
+  rerender(view('plan baseline more'));
+  expect(fold.scrollTop).toBe(1400);
+});
