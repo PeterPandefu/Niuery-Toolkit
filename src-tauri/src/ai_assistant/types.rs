@@ -210,6 +210,18 @@ pub struct AnswerVersion {
     pub tool_calls: Option<Vec<ToolCallRecord>>,
 }
 
+/// Session-wide tool permission level, chosen by the user in the composer.
+/// `Ask` interrupts before every gated call, `Auto` only on detected risk,
+/// `Full` never interrupts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PermissionMode {
+    #[default]
+    Ask,
+    Auto,
+    Full,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Conversation {
@@ -226,6 +238,8 @@ pub struct Conversation {
     pub draft: String,
     pub draft_attachments: Vec<Attachment>,
     pub approved_targets: Vec<String>,
+    #[serde(default)]
+    pub permission_mode: PermissionMode,
     pub updated_at: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub excluded_message_ids: Option<Vec<String>>,
@@ -317,6 +331,8 @@ pub struct Request {
     pub system_prompt: String,
     pub parameters: Parameters,
     pub messages: Vec<Message>,
+    #[serde(default)]
+    pub permission_mode: PermissionMode,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

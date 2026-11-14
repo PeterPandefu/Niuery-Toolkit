@@ -15,7 +15,7 @@ const VIDEO_MAX_POLLS: usize = 60;
 pub fn image_spec() -> ToolSpec {
     ToolSpec {
         name: IMAGE_NAME.into(),
-        description: "调用用户自行配置的图像生成服务（OpenAI 兼容 /images/generations），按提示词生成一张图片并保存到本机指定路径。每次调用都需用户批准，批准前会展示保存路径。生成可能产生费用，提示词应忠实反映用户的要求。".into(),
+        description: "调用用户自行配置的图像生成服务（OpenAI 兼容 /images/generations），按提示词生成一张图片并保存到本机指定路径。调用前按会话权限模式审批（默认每次询问），批准前会展示保存路径。生成可能产生费用，提示词应忠实反映用户的要求。".into(),
         parameters: json!({
             "type": "object",
             "properties": {
@@ -36,7 +36,7 @@ pub fn image_spec() -> ToolSpec {
 pub fn video_spec() -> ToolSpec {
     ToolSpec {
         name: VIDEO_NAME.into(),
-        description: "调用用户自行配置的视频生成服务（OpenAI 兼容 /videos：创建任务后轮询进度），按提示词生成一段视频并保存到本机指定路径。耗时可能达数分钟。每次调用都需用户批准，批准前会展示保存路径。生成可能产生费用。".into(),
+        description: "调用用户自行配置的视频生成服务（OpenAI 兼容 /videos：创建任务后轮询进度），按提示词生成一段视频并保存到本机指定路径。耗时可能达数分钟。调用前按会话权限模式审批（默认每次询问），批准前会展示保存路径。生成可能产生费用。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

@@ -54,6 +54,10 @@ export type AiMessageStatus = 'waiting' | 'streaming' | 'complete' | 'stopped' |
 
 export type AiToolCallStatus = 'pending' | 'running' | 'complete' | 'failed' | 'rejected';
 
+/** Session tool permission level: ask before every gated call, ask only on
+ *  detected risk, or never ask. Chosen in the composer when a session starts. */
+export type AiPermissionMode = 'ask' | 'auto' | 'full';
+
 /** Where a tool URL came from. History never upgrades a URL to a trusted source. */
 export type AiToolProvenance = 'userProvided' | 'searchDerived' | 'modelProposed';
 
@@ -107,6 +111,7 @@ export interface AiConversation {
   draft: string;
   draftAttachments: AiAttachment[];
   approvedTargets: string[];
+  permissionMode?: AiPermissionMode;
   updatedAt: number;
   excludedMessageIds?: string[];
   pinned?: boolean;
@@ -163,6 +168,7 @@ export interface AiRequest {
   systemPrompt: string;
   parameters: AiParameters;
   messages: AiMessage[];
+  permissionMode: AiPermissionMode;
 }
 
 export interface AiStreamEvent {

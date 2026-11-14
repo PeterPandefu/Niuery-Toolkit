@@ -46,7 +46,7 @@ export function ToolApprovalDialog({ event, onDecide, onClose, onAnswer }: { eve
   const unverified = event.provenance !== 'userProvided' && event.provenance !== 'searchDerived';
   return <AiDialog title={t('批准工具调用', 'Approve tool call')} onClose={onClose}>
     <div className="ai-form ai-tool-approval">
-      <p className="ai-muted">{t('每次调用都需单独批准。请核对下方目标是否与当前任务一致。', 'Every call needs its own approval. Check that the target below matches the current task.')}</p>
+      <p className="ai-muted">{t('此次调用需要批准。请核对下方目标是否与当前任务一致。', 'This call needs approval. Check that the target below matches the current task.')}</p>
       <div className="ai-tool-approval-row"><span>{t('工具', 'Tool')}</span><code>{event.name ?? ''}</code></div>
       {event.url !== undefined && <>
         <div className="ai-tool-approval-row"><span>{t('目标 URL（原样）', 'Target URL (verbatim)')}</span></div>

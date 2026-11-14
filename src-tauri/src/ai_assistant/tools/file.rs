@@ -12,7 +12,7 @@ const NOT_PLAIN_TEXT: &str = "文本附件最多 1 MiB，且必须是 UTF-8 纯�
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "读取用户本机上的一个纯文本或代码文件。每次调用都需用户批准，批准前会展示完整绝对路径与文件大小。仅支持文本与常见代码文件，不支持 PDF、Word 等文档。".into(),
+        description: "读取用户本机上的一个纯文本或代码文件。调用前按会话权限模式审批（默认每次询问），批准前会展示完整绝对路径与文件大小。仅支持文本与常见代码文件，不支持 PDF、Word 等文档。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

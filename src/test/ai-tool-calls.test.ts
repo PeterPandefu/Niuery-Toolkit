@@ -173,6 +173,23 @@ describe('tool approval gate', () => {
     expect(recorded?.provenance).toBe('modelProposed');
   });
 
+  it('records URL and provenance from a tool_call when the permission mode skips the dialog', () => {
+    const { changeConversation, result } = setup();
+    act(() => result.current.handleEvent(event({
+      type: 'tool_call', callId: 'call-8', name: 'fetch_url',
+      arguments: '{"url":"https://example.com/b"}', url: 'https://example.com/b', provenance: 'userProvided',
+    }), 'c1', 'reply-1'));
+    expect(result.current.pendingApproval).toBeNull();
+    const updater = changeConversation.mock.calls[0][1] as (chat: AiConversation) => AiConversation;
+    const chat: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [message({ status: 'streaming' })], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    const recorded = updater(chat).messages[0].toolCalls?.[0];
+    expect(recorded?.url).toBe('https://example.com/b');
+    expect(recorded?.provenance).toBe('userProvided');
+  });
+
   it('sends approve and reject decisions and closes the dialog', async () => {
     for (const decision of ['approved', 'rejected'] as const) {
       const { decideTool, result } = setup();

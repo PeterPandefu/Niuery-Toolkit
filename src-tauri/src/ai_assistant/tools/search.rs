@@ -10,7 +10,7 @@ const MAX_RESULTS: u64 = 10;
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "通过用户自行配置的搜索服务检索公开网页，返回标题、链接与摘要。每次调用都需用户批准。返回的链接可作为后续 fetch_url 的依据；不要凭空推测地址，也不要使用任何代理或镜像地址。".into(),
+        description: "通过用户自行配置的搜索服务检索公开网页，返回标题、链接与摘要。调用前按会话权限模式审批（默认每次询问）。返回的链接可作为后续 fetch_url 的依据；不要凭空推测地址，也不要使用任何代理或镜像地址。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

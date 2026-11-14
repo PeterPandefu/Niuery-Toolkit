@@ -30,7 +30,7 @@ export function createComparisonTask(conversation: AiConversation, providers: Ai
   return { id, kind: 'comparison', createdAt: Date.now(), prompt: conversation.draft || question.attachments.map(file => file.name).join(', '), results,
     targets: [...new Set(results.map(result => result.target))], droppedRounds: common.droppedRounds,
     requests: destinations.map(({ provider, model }, index) => ({ requestId: nanoid(), conversationId: conversation.id, messageId: results[index].message.id, providerId: provider.id, modelId: model.id,
-      systemPrompt: common.systemPrompt, parameters: budgets[index].parameters, messages: requestMessages(copy(common.messages)) })) };
+      systemPrompt: common.systemPrompt, parameters: budgets[index].parameters, permissionMode: conversation.permissionMode ?? 'ask', messages: requestMessages(copy(common.messages)) })) };
 }
 
 export function createSummaryTask(conversation: AiConversation, providers: AiProvider[], rounds: number): AiTaskPlan {
@@ -44,5 +44,5 @@ export function createSummaryTask(conversation: AiConversation, providers: AiPro
   const message: AiMessage = { id: nanoid(), role: 'assistant', content: '', attachments: [], status: 'waiting', createdAt: Date.now(), providerId: provider.id, modelId: model.id };
   return { id: nanoid(), kind: 'summary', createdAt: Date.now(), prompt: source, targets: [providerTarget(provider)], droppedRounds: 0,
     results: [{ label: `${provider.name} · ${model.name}`, target: providerTarget(provider), message }],
-    requests: [{ requestId: nanoid(), conversationId: conversation.id, messageId: message.id, providerId: provider.id, modelId: model.id, systemPrompt: budget.systemPrompt, parameters: budget.parameters, messages: budget.messages }] };
+    requests: [{ requestId: nanoid(), conversationId: conversation.id, messageId: message.id, providerId: provider.id, modelId: model.id, systemPrompt: budget.systemPrompt, parameters: budget.parameters, permissionMode: conversation.permissionMode ?? 'ask', messages: budget.messages }] };
 }

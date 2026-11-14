@@ -394,3 +394,138 @@ fn ai_assistant_tools_unsettled_call_still_gets_a_paired_result() {
     assert!(text.contains("call-9"));
     assert!(text.contains("任务已中断"));
 }
+
+#[tokio::test]
+async fn ai_assistant_permission_mode_decides_when_tools_ask() {
+    use super::super::types::{PermissionMode, ToolDecision};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+
+    async fn two_rounds(first: String, second: String) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}/v1", listener.local_addr().unwrap());
+        let handle = tokio::spawn(async move {
+            for body in [first, second] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                let mut chunk = [0u8; 8192];
+                loop {
+                    let count = socket.read(&mut chunk).await.unwrap();
+                    if count == 0 {
+                        break;
+                    }
+                    request.extend_from_slice(&chunk[..count]);
+                    if let Some(end) = request.windows(4).position(|value| value == b"\r\n\r\n") {
+                        let headers = String::from_utf8_lossy(&request[..end]);
+                        let length = headers
+                            .lines()
+                            .find_map(|line| {
+                                line.to_ascii_lowercase()
+                                    .strip_prefix("content-length:")
+                                    .and_then(|value| value.trim().parse::<usize>().ok())
+                            })
+                            .unwrap_or(0);
+                        if request.len() >= end + 4 + length {
+                            break;
+                        }
+                    }
+                }
+                let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n{body}");
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        (base, handle)
+    }
+
+    fn tool_round(name: &str, arguments: &str) -> String {
+        let delta = serde_json::json!({"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":name,"arguments":arguments}}]}}]});
+        format!("data: {delta}\n\ndata: {{\"choices\":[{{\"delta\":{{}},\"finish_reason\":\"tool_calls\"}}]}}\n\ndata: [DONE]\n\n")
+    }
+
+    let final_round = "data: {\"choices\":[{\"delta\":{\"content\":\"done\"}}]}\n\ndata: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".to_string();
+    let root = std::env::temp_dir().join(format!("niuery-ai-permission-{}", nanoid::nanoid!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let target = root.join("note.txt");
+    let write_args =
+        serde_json::json!({"path": target.display().to_string(), "content": "hello"}).to_string();
+    let list_args = serde_json::json!({"path": root.display().to_string()}).to_string();
+    let cases = [
+        (PermissionMode::Ask, "write_local_file", write_args.as_str(), true),
+        (PermissionMode::Auto, "write_local_file", write_args.as_str(), true),
+        (PermissionMode::Full, "write_local_file", write_args.as_str(), false),
+        (PermissionMode::Ask, "list_directory", list_args.as_str(), true),
+        (PermissionMode::Auto, "list_directory", list_args.as_str(), false),
+        (PermissionMode::Full, "list_directory", list_args.as_str(), false),
+    ];
+    for (mode, tool, arguments, expect_approval) in cases {
+        let (base, server) = two_rounds(tool_round(tool, arguments), final_round.clone()).await;
+        let mut input = super::super::tests::request();
+        input.permission_mode = mode;
+        let capture = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let shared = capture.clone();
+        let channel = Channel::new(move |body| {
+            if let tauri::ipc::InvokeResponseBody::Json(body) = body {
+                shared
+                    .lock()
+                    .unwrap()
+                    .push(serde_json::from_str::<serde_json::Value>(&body).unwrap());
+            }
+            Ok(())
+        });
+        let approvals = std::sync::Arc::new(ApprovalRegistry::default());
+        let watcher = expect_approval.then(|| {
+            let registry = approvals.clone();
+            tokio::spawn(async move {
+                for _ in 0..400 {
+                    if registry.pending_len() == 1 {
+                        break;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                }
+                registry
+                    .decide("r1", "call-1", ToolDecision::Approved)
+                    .unwrap();
+            })
+        });
+        let (_sender, mut cancel) = watch::channel(false);
+        let outcome = generate(
+            &super::super::tests::provider_at(&base, "openai"),
+            None,
+            &input,
+            &channel,
+            &mut cancel,
+            &approvals,
+        )
+        .await;
+        let error = outcome.as_ref().err().cloned();
+        assert!(
+            matches!(outcome, Ok(Outcome::Done)),
+            "{mode:?} {tool}: {error:?}"
+        );
+        if let Some(watcher) = watcher {
+            watcher.await.unwrap();
+        }
+        server.await.unwrap();
+        let events = capture.lock().unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event["type"] == "approval_required")
+                .count(),
+            usize::from(expect_approval),
+            "{mode:?} {tool}"
+        );
+        let result = events
+            .iter()
+            .find(|event| event["type"] == "tool_result")
+            .expect("tool result");
+        assert_eq!(result["status"], "complete", "{mode:?} {tool}");
+        if tool == "write_local_file" {
+            assert_eq!(std::fs::read_to_string(&target).unwrap(), "hello");
+            std::fs::remove_file(&target).unwrap();
+        }
+    }
+    std::fs::remove_dir_all(&root).unwrap();
+}

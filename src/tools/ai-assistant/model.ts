@@ -24,7 +24,7 @@ export function newConversation(assistant: AiAssistant): AiConversation {
   return {
     id: nanoid(), assistantId: assistant.id, title: '新会话', systemPrompt: assistant.systemPrompt,
     providerId: assistant.providerId, modelId: assistant.modelId, parameters: { ...assistant.parameters },
-    messages: [], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: Date.now(),
+    messages: [], draft: '', draftAttachments: [], approvedTargets: [], permissionMode: 'ask', updatedAt: Date.now(),
   };
 }
 

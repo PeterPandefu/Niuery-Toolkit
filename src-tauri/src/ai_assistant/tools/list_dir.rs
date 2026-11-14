@@ -8,7 +8,7 @@ const MAX_ENTRIES: usize = 200;
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "列出用户本机上某个目录的直接子项（名称、类型、文件大小），不递归。最多返回 200 条。每次调用都需用户批准，批准前会展示完整绝对路径。".into(),
+        description: "列出用户本机上某个目录的直接子项（名称、类型、文件大小），不递归。最多返回 200 条。调用前按会话权限模式审批（默认每次询问），批准前会展示完整绝对路径。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

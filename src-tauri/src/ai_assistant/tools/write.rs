@@ -7,7 +7,7 @@ pub const NAME: &str = "write_local_file";
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "在用户本机创建或覆盖一个纯文本／代码文件（UTF-8，最多 1 MiB）。目标已存在时会整体覆盖。每次调用都需用户批准，批准前会展示完整绝对路径与写入大小。父目录必须已存在；不支持 PDF、Word 等文档。".into(),
+        description: "在用户本机创建或覆盖一个纯文本／代码文件（UTF-8，最多 1 MiB）。目标已存在时会整体覆盖。调用前按会话权限模式审批（默认每次询问），批准前会展示完整绝对路径与写入大小。父目录必须已存在；不支持 PDF、Word 等文档。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

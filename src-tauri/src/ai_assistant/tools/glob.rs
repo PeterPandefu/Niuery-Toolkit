@@ -11,7 +11,7 @@ const MAX_DEPTH: usize = 24;
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "在一个目录下按文件名模式查找文件，例如 src/**/*.ts 或 *.md。支持 *、?、** 通配符，返回相对路径列表（最多 200 条）。只读，不读取文件内容。每次调用都需用户批准，批准前会展示目标目录的绝对路径。".into(),
+        description: "在一个目录下按文件名模式查找文件，例如 src/**/*.ts 或 *.md。支持 *、?、** 通配符，返回相对路径列表（最多 200 条）。只读，不读取文件内容。调用前按会话权限模式审批（默认每次询问），批准前会展示目标目录的绝对路径。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

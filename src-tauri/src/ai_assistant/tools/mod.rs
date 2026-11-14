@@ -175,6 +175,28 @@ pub fn approval_of(name: &str) -> Option<ApprovalLevel> {
         .map(|spec| spec.approval)
 }
 
+/// Risk heuristic for the session's `Auto` permission mode: terminal execution,
+/// file mutations, foreign MCP code and network targets the user never supplied
+/// still interrupt; reads and trusted destinations run without asking.
+pub fn auto_risk(name: &str, provenance: Option<&str>) -> bool {
+    if mcp::split_name(name).is_some() {
+        return true;
+    }
+    match name {
+        command::NAME
+        | write::NAME
+        | append::NAME
+        | edit::NAME
+        | create_dir::NAME
+        | media::IMAGE_NAME
+        | media::VIDEO_NAME => true,
+        web::NAME | browser::NAME => {
+            !matches!(provenance, Some("userProvided" | "searchDerived"))
+        }
+        _ => false,
+    }
+}
+
 /// Path-bearing tools get a resolved-path preview before approval; when the
 /// path cannot resolve, the call touches nothing and skips the dialog.
 pub fn is_path_tool(name: &str) -> bool {
@@ -490,6 +512,33 @@ mod tests {
         }
         assert!(specs.iter().any(|spec| spec.name == file::NAME));
         assert!(specs.iter().any(|spec| spec.name == grep::NAME));
+    }
+
+    #[test]
+    fn ai_assistant_tools_auto_mode_asks_only_for_risky_calls() {
+        assert!(auto_risk(command::NAME, None));
+        assert!(auto_risk(write::NAME, None));
+        assert!(auto_risk(append::NAME, None));
+        assert!(auto_risk(edit::NAME, None));
+        assert!(auto_risk(create_dir::NAME, None));
+        assert!(auto_risk(media::IMAGE_NAME, None));
+        assert!(auto_risk(media::VIDEO_NAME, None));
+        assert!(auto_risk("mcp__server__tool", None));
+        assert!(auto_risk(web::NAME, None));
+        assert!(auto_risk(web::NAME, Some("modelProposed")));
+        assert!(auto_risk(browser::NAME, Some("modelProposed")));
+        assert!(!auto_risk(web::NAME, Some("userProvided")));
+        assert!(!auto_risk(web::NAME, Some("searchDerived")));
+        assert!(!auto_risk(browser::NAME, Some("userProvided")));
+        assert!(!auto_risk(file::NAME, None));
+        assert!(!auto_risk(list_dir::NAME, None));
+        assert!(!auto_risk(glob::NAME, None));
+        assert!(!auto_risk(grep::NAME, None));
+        assert!(!auto_risk(search::NAME, None));
+        assert!(!auto_risk(images::NAME, None));
+        assert!(!auto_risk(command::OUTPUT_NAME, None));
+        assert!(!auto_risk(command::STOP_NAME, None));
+        assert!(!auto_risk(subagent::NAME, None));
     }
 
     #[test]

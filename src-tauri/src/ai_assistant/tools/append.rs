@@ -8,7 +8,7 @@ const MAX_BYTES: u64 = 1024 * 1024;
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "向用户本机上已存在的纯文本／代码文件末尾追加文本（UTF-8）。追加后总大小不能超过 1 MiB。每次调用都需用户批准，批准前会展示完整绝对路径与当前文件大小。文件不存在时请先用 write_local_file 创建。".into(),
+        description: "向用户本机上已存在的纯文本／代码文件末尾追加文本（UTF-8）。追加后总大小不能超过 1 MiB。调用前按会话权限模式审批（默认每次询问），批准前会展示完整绝对路径与当前文件大小。文件不存在时请先用 write_local_file 创建。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

@@ -10,7 +10,7 @@ const LINK_REFUSED: &str = "路径包含符号链接或重解析点，已拒绝�
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "在用户本机创建一个目录（可递归创建缺失的父目录）。目录已存在时直接返回成功。每次调用都需用户批准，批准前会展示完整绝对路径。".into(),
+        description: "在用户本机创建一个目录（可递归创建缺失的父目录）。目录已存在时直接返回成功。调用前按会话权限模式审批（默认每次询问），批准前会展示完整绝对路径。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

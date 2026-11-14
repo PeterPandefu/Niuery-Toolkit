@@ -53,6 +53,7 @@ pub async fn run(
         provider_id: parent.provider_id.clone(),
         model_id: parent.model_id.clone(),
         system_prompt: SUBAGENT_PROMPT.into(),
+        permission_mode: parent.permission_mode,
         parameters: Parameters {
             history_rounds: 0,
             temperature: None,

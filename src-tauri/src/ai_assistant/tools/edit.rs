@@ -7,7 +7,7 @@ pub const NAME: &str = "edit_local_file";
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "对一个已存在的纯文本／代码文件做精确字符串替换。old_string 必须与文件内容逐字符一致（含空白与换行）；默认要求它在文件中恰好出现一次，否则报错。设置 allow_multiple 为 true 时替换全部出现位置。每次调用都需用户批准，批准前会展示完整绝对路径与文件大小。".into(),
+        description: "对一个已存在的纯文本／代码文件做精确字符串替换。old_string 必须与文件内容逐字符一致（含空白与换行）；默认要求它在文件中恰好出现一次，否则报错。设置 allow_multiple 为 true 时替换全部出现位置。调用前按会话权限模式审批（默认每次询问），批准前会展示完整绝对路径与文件大小。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

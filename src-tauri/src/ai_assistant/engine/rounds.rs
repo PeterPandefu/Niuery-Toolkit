@@ -152,43 +152,75 @@ async fn execute(
                         if fs_tool && preview.is_none() {
                             tools::execute(&name, &arguments, http, env).await
                         } else {
-                            let mut event = input.event("approval_required", None, None);
-                            event.call_id = Some(id.clone());
-                            event.name = Some(name.clone());
-                            event.arguments = Some(arguments.to_string());
-                            if let Some((path, size)) = preview {
-                                event.file_path = Some(path);
-                                event.file_size = Some(size);
-                            }
                             // Re-classified on every call; never cached across calls.
-                            if let Some(url) =
-                                arguments.get("url").and_then(serde_json::Value::as_str)
-                            {
-                                event.provenance = Some(
-                                    tools::provenance::classify(url, corpus, search_urls)
-                                        .as_str()
-                                        .to_string(),
-                                );
-                                event.url = Some(url.to_string());
-                            }
-                            match approvals
-                                .request(
-                                    &input.request_id,
-                                    &id,
-                                    event,
+                            let provenance = arguments
+                                .get("url")
+                                .and_then(serde_json::Value::as_str)
+                                .map(|url| {
+                                    tools::provenance::classify(url, corpus, search_urls).as_str()
+                                });
+                            let needs_approval = match input.permission_mode {
+                                PermissionMode::Ask => true,
+                                PermissionMode::Full => false,
+                                PermissionMode::Auto => tools::auto_risk(&name, provenance),
+                            };
+                            if !needs_approval {
+                                // Modes that skip the dialog still surface the exact
+                                // URL and its source on the call record.
+                                if let Some(url) =
+                                    arguments.get("url").and_then(serde_json::Value::as_str)
+                                {
+                                    let mut event = input.event("tool_call", None, None);
+                                    event.call_id = Some(id.clone());
+                                    event.name = Some(name.clone());
+                                    event.status = Some("pending".into());
+                                    event.url = Some(url.to_string());
+                                    event.provenance = provenance.map(str::to_string);
+                                    channel
+                                        .send(event)
+                                        .map_err(|_| "AI 页面连接已关闭".to_string())?;
+                                }
+                                run_approved(
+                                    provider,
+                                    key,
+                                    input,
                                     approval_channel,
                                     cancel,
-                                    APPROVAL_TIMEOUT,
+                                    approvals,
+                                    env,
+                                    http,
+                                    &name,
+                                    &arguments,
                                 )
                                 .await
-                            {
-                                Ok(ToolDecision::Approved) => {
-                                    if name == tools::subagent::NAME {
-                                        let prompt = arguments
-                                            .get("prompt")
-                                            .and_then(serde_json::Value::as_str)
-                                            .unwrap_or("");
-                                        super::subagent::run(
+                            } else {
+                                let mut event = input.event("approval_required", None, None);
+                                event.call_id = Some(id.clone());
+                                event.name = Some(name.clone());
+                                event.arguments = Some(arguments.to_string());
+                                if let Some((path, size)) = preview {
+                                    event.file_path = Some(path);
+                                    event.file_size = Some(size);
+                                }
+                                if let Some(url) =
+                                    arguments.get("url").and_then(serde_json::Value::as_str)
+                                {
+                                    event.provenance = provenance.map(str::to_string);
+                                    event.url = Some(url.to_string());
+                                }
+                                match approvals
+                                    .request(
+                                        &input.request_id,
+                                        &id,
+                                        event,
+                                        approval_channel,
+                                        cancel,
+                                        APPROVAL_TIMEOUT,
+                                    )
+                                    .await
+                                {
+                                    Ok(ToolDecision::Approved) => {
+                                        run_approved(
                                             provider,
                                             key,
                                             input,
@@ -196,19 +228,19 @@ async fn execute(
                                             cancel,
                                             approvals,
                                             env,
-                                            prompt,
+                                            http,
+                                            &name,
+                                            &arguments,
                                         )
                                         .await
-                                    } else {
-                                        tools::execute(&name, &arguments, http, env).await
                                     }
-                                }
-                                Ok(ToolDecision::Rejected) => {
-                                    tools::ToolOutcome::error("用户拒绝了此次调用。")
-                                }
-                                Err(ApprovalError::Stopped) => return Ok(None),
-                                Err(ApprovalError::Unavailable) => {
-                                    return Err("AI 页面连接已关闭，生成已结束".into());
+                                    Ok(ToolDecision::Rejected) => {
+                                        tools::ToolOutcome::error("用户拒绝了此次调用。")
+                                    }
+                                    Err(ApprovalError::Stopped) => return Ok(None),
+                                    Err(ApprovalError::Unavailable) => {
+                                        return Err("AI 页面连接已关闭，生成已结束".into());
+                                    }
                                 }
                             }
                         }
@@ -236,6 +268,42 @@ async fn execute(
         Message::Assistant(AssistantMessage::new(content)),
         results,
     )))
+}
+
+/// Execution shared by the approved and the approval-free paths, so a skipped
+/// dialog never changes what a tool is allowed to do.
+#[allow(clippy::too_many_arguments)]
+async fn run_approved(
+    provider: &Provider,
+    key: Option<&str>,
+    input: &Request,
+    approval_channel: &Channel<StreamEvent>,
+    cancel: &mut watch::Receiver<bool>,
+    approvals: &ApprovalRegistry,
+    env: &tools::ToolEnv,
+    http: &super::transport::GuardedHttp,
+    name: &str,
+    arguments: &serde_json::Value,
+) -> tools::ToolOutcome {
+    if name == tools::subagent::NAME {
+        let prompt = arguments
+            .get("prompt")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        super::subagent::run(
+            provider,
+            key,
+            input,
+            approval_channel,
+            cancel,
+            approvals,
+            env,
+            prompt,
+        )
+        .await
+    } else {
+        tools::execute(name, arguments, http, env).await
+    }
 }
 
 fn emit_result(

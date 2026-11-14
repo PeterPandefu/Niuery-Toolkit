@@ -9,7 +9,7 @@ const MAX_BYTES: usize = 2 * 1024 * 1024;
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "抓取一个 HTTP/HTTPS 网页并返回其纯文本。每次调用都需用户批准，批准前会展示原样 URL 与来源。只应抓取与当前任务直接相关、且来自用户消息或本次搜索结果的地址；不要抓取模型凭空推测的地址，也不要使用任何代理或镜像地址。".into(),
+        description: "抓取一个 HTTP/HTTPS 网页并返回其纯文本。调用前按会话权限模式审批（默认每次询问），批准前会展示原样 URL 与来源。只应抓取与当前任务直接相关、且来自用户消息或本次搜索结果的地址；不要抓取模型凭空推测的地址，也不要使用任何代理或镜像地址。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

@@ -20,6 +20,8 @@ function mergeCall(existing: AiToolCall | undefined, event: AiStreamEvent): AiTo
       name: event.name ?? base.name,
       arguments: event.arguments ?? base.arguments,
       status: event.status ?? base.status,
+      ...(event.url === undefined ? {} : { url: event.url }),
+      ...(event.provenance === undefined ? {} : { provenance: event.provenance }),
     };
   }
   if (event.type === 'approval_required' || event.type === 'question_required') {

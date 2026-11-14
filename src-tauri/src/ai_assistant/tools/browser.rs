@@ -14,7 +14,7 @@ const MAX_TEXT_CHARS: usize = 20_000;
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "用内置无头浏览器真实渲染一个网页（执行 JavaScript），返回页面正文文本；可选同时截图保存到本机路径。适合 fetch_url 拿不到内容的动态页面。每次调用都需用户批准，批准前会展示原样 URL。只访问与当前任务直接相关的地址。".into(),
+        description: "用内置无头浏览器真实渲染一个网页（执行 JavaScript），返回页面正文文本；可选同时截图保存到本机路径。适合 fetch_url 拿不到内容的动态页面。调用前按会话权限模式审批（默认每次询问），批准前会展示原样 URL。只访问与当前任务直接相关的地址。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

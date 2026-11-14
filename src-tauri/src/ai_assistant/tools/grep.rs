@@ -13,7 +13,7 @@ const MAX_LINE_CHARS: usize = 400;
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "在一个目录或单个文件中按正则表达式搜索文本内容，返回 文件路径:行号:匹配行（最多 100 条）。跳过二进制文件与符号链接。只读。每次调用都需用户批准，批准前会展示目标绝对路径。".into(),
+        description: "在一个目录或单个文件中按正则表达式搜索文本内容，返回 文件路径:行号:匹配行（最多 100 条）。跳过二进制文件与符号链接。只读。调用前按会话权限模式审批（默认每次询问），批准前会展示目标绝对路径。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

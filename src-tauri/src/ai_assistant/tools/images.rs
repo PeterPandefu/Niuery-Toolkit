@@ -10,7 +10,7 @@ const MAX_IMAGES: u64 = 10;
 pub fn spec() -> ToolSpec {
     ToolSpec {
         name: NAME.into(),
-        description: "通过用户自行配置的搜索服务检索公开图片，返回图片直链列表（最多 10 条）。每次调用都需用户批准。返回的链接可作为后续 fetch_url 或下载保存的依据；不要凭空推测地址。".into(),
+        description: "通过用户自行配置的搜索服务检索公开图片，返回图片直链列表（最多 10 条）。调用前按会话权限模式审批（默认每次询问）。返回的链接可作为后续 fetch_url 或下载保存的依据；不要凭空推测地址。".into(),
         parameters: json!({
             "type": "object",
             "properties": {

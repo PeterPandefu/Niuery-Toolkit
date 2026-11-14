@@ -60,6 +60,23 @@ describe('AI workspace lifecycle', () => {
     expect(result.current.workspace.conversations[0].draft).toBe('Next draft');
     act(() => fake.event('done'));
   });
+  it('carries the session permission mode into the generate request', async () => {
+    const workspace = fixture();
+    workspace.conversations[0].permissionMode = 'full';
+    const { result, fake, chatId } = await setup(workspace);
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    expect(fake.request?.permissionMode).toBe('full');
+    act(() => fake.event('done'));
+  });
+  it('defaults a new session to ask-every-time and sends that mode', async () => {
+    const { result, fake, chatId } = await setup();
+    expect(result.current.workspace.conversations[0].permissionMode).toBe('ask');
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    expect(fake.request?.permissionMode).toBe('ask');
+    act(() => fake.event('done'));
+  });
   it('keeps reset workspace intact when a cancelled comparison returns late', async () => {
     const workspace = fixture(); workspace.providers[0].models.push({ id: 'm2', name: 'Second', supportsImages: false });
     const { result, fake, chatId } = await setup(workspace);

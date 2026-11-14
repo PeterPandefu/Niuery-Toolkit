@@ -70,7 +70,7 @@ pub fn output_spec() -> ToolSpec {
 pub fn stop_spec() -> ToolSpec {
     ToolSpec {
         name: STOP_NAME.into(),
-        description: "终止一个由 run_command 以 background 启动、仍在运行的命令。只能终止本次任务自己启动的进程。每次调用都需用户批准。".into(),
+        description: "终止一个由 run_command 以 background 启动、仍在运行的命令。只能终止本次任务自己启动的进程。调用前按会话权限模式审批（默认每次询问）。".into(),
         parameters: json!({
             "type": "object",
             "properties": {
