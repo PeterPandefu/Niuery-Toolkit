@@ -203,6 +203,7 @@ pub fn specs(entries: &[McpEntry]) -> Vec<ToolSpec> {
     let mut specs = Vec::new();
     for entry in entries {
         for tool in &entry.tools {
+            let readonly = super::super::office::is_readonly(&entry.server, &tool.name);
             specs.push(ToolSpec {
                 name: full_name(&entry.server, &tool.name),
                 description: format!(
@@ -215,9 +216,13 @@ pub fn specs(entries: &[McpEntry]) -> Vec<ToolSpec> {
                     }
                 ),
                 parameters: tool.schema.clone(),
-                approval: ApprovalLevel::Approve,
+                approval: if readonly {
+                    ApprovalLevel::Auto
+                } else {
+                    ApprovalLevel::Approve
+                },
                 annotations: ToolAnnotations::default()
-                    .with_read_only(false)
+                    .with_read_only(readonly)
                     .with_open_world(true),
             });
         }
@@ -308,6 +313,31 @@ mod tests {
         assert_eq!(specs[0].approval, ApprovalLevel::Approve);
         assert!(specs[0].annotations.open_world());
         assert!(specs[0].description.contains("MCP:demo"));
+    }
+
+    #[tokio::test]
+    async fn ai_assistant_tools_mcp_office_readonly_specs_are_auto() {
+        let entry = McpEntry {
+            server: "office_docx".into(),
+            tools: vec![
+                McpToolDef {
+                    name: "read_blocks".into(),
+                    description: "读取".into(),
+                    schema: json!({ "type": "object", "properties": {} }),
+                },
+                McpToolDef {
+                    name: "save_document".into(),
+                    description: "保存".into(),
+                    schema: json!({ "type": "object", "properties": {} }),
+                },
+            ],
+            client: Arc::new(Mutex::new(dummy_client())),
+        };
+        let specs = specs(&[entry]);
+        assert_eq!(specs[0].approval, ApprovalLevel::Auto);
+        assert!(specs[0].annotations.read_only());
+        assert_eq!(specs[1].approval, ApprovalLevel::Approve);
+        assert!(!specs[1].annotations.read_only());
     }
 
     fn dummy_client() -> McpClient {

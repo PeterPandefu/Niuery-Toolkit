@@ -20,6 +20,7 @@ function setup(providers = [provider()]) {
     answerTool: vi.fn().mockResolvedValue(undefined),
     saveMediaService: vi.fn().mockResolvedValue(undefined),
     saveMcpServers: vi.fn().mockResolvedValue([]),
+    saveOfficeEnabled: vi.fn(async (enabled: boolean) => enabled),
     saveSearchService: vi.fn(async (config: { baseUrl: string; hasApiKey: boolean; enabled: boolean }) => config),
     testSearchService: vi.fn().mockResolvedValue('搜索服务连接成功'),
     testConnection: vi.fn().mockResolvedValue('Connected'), testModel: vi.fn().mockResolvedValue('Generation OK (50 ms)'), generate: vi.fn(), cancel: vi.fn(),

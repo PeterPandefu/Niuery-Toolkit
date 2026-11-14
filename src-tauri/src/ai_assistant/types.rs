@@ -299,6 +299,9 @@ pub struct Workspace {
     pub media_service: Option<MediaService>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<Vec<McpServer>>,
+    /// Built-in Office MCP servers; None means enabled (default on).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub office_enabled: Option<bool>,
 }
 
 impl Workspace {
@@ -314,6 +317,7 @@ impl Workspace {
             search_service: None,
             media_service: None,
             mcp_servers: None,
+            office_enabled: None,
         }
     }
 }

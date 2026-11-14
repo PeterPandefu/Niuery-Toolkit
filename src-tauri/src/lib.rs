@@ -482,6 +482,7 @@ pub fn run() {
             ai_assistant::ai_tool_answer,
             ai_assistant::ai_save_media_service,
             ai_assistant::ai_save_mcp_servers,
+            ai_assistant::ai_save_office_enabled,
             ai_assistant::ai_open_data_directory,
             ai_assistant::ai_reset,
             ai_assistant::ai_set_exit_listener,

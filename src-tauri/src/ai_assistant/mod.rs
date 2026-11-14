@@ -1,5 +1,6 @@
 mod credentials;
 mod engine;
+mod office;
 mod storage;
 mod tools;
 mod types;
@@ -412,6 +413,23 @@ pub async fn ai_save_mcp_servers(
 }
 
 #[tauri::command]
+pub async fn ai_save_office_enabled(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+    enabled: bool,
+) -> Result<bool, String> {
+    let _guard = state.storage.lock().await;
+    let root = directory(&app)?;
+    blocking(move || {
+        let mut workspace = storage::load(&root)?.unwrap_or_else(Workspace::empty);
+        workspace.office_enabled = Some(enabled);
+        storage::save(&root, &workspace)?;
+        Ok(enabled)
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn ai_remove_provider(
     app: tauri::AppHandle,
     state: State<'_, AiState>,
@@ -723,7 +741,7 @@ async fn stream_response(
 /// Service keys are read here and never leave Rust; the frontend only ever
 /// sees `hasApiKey`.
 async fn tool_env(app: &tauri::AppHandle, state: &AiState) -> Result<tools::ToolEnv, String> {
-    let (search, media, mcp_servers) = {
+    let (search, media, mcp_servers, office_enabled) = {
         let _guard = state.storage.lock().await;
         let root = directory(app)?;
         let workspace = blocking(move || storage::load(&root)).await?;
@@ -738,6 +756,10 @@ async fn tool_env(app: &tauri::AppHandle, state: &AiState) -> Result<tools::Tool
                 .as_ref()
                 .and_then(|value| value.mcp_servers.clone())
                 .unwrap_or_default(),
+            workspace
+                .as_ref()
+                .and_then(|value| value.office_enabled)
+                .unwrap_or(true),
         )
     };
     let search_key = match search
@@ -757,7 +779,22 @@ async fn tool_env(app: &tauri::AppHandle, state: &AiState) -> Result<tools::Tool
     let chromium = crate::resources::resolve(app, "chromium")
         .ok()
         .map(|(path, _)| path);
-    let mcp = tools::mcp::discover(&mcp_servers).await;
+    let mut servers = mcp_servers;
+    let mut office_lease = None;
+    if office_enabled {
+        if let Some((builtin, lease)) = office::servers(app) {
+            let labels: Vec<String> = builtin
+                .iter()
+                .map(|server| tools::mcp::sanitize(&server.name))
+                .collect();
+            // Built-in entries win over user-configured servers with the same
+            // name so the pack never registers duplicate tool names.
+            servers.retain(|server| !labels.contains(&tools::mcp::sanitize(&server.name)));
+            servers.extend(builtin);
+            office_lease = Some(lease);
+        }
+    }
+    let mcp = tools::mcp::discover(&servers).await;
     Ok(tools::ToolEnv {
         search,
         search_key,
@@ -765,6 +802,7 @@ async fn tool_env(app: &tauri::AppHandle, state: &AiState) -> Result<tools::Tool
         media_key,
         chromium,
         mcp,
+        office_lease,
         ..Default::default()
     })
 }

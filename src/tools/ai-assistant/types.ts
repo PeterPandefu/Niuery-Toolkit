@@ -143,6 +143,7 @@ export interface AiWorkspace {
   searchService?: AiSearchService;
   mediaService?: AiMediaService;
   mcpServers?: AiMcpServer[];
+  officeEnabled?: boolean;
 }
 
 export interface AiPromptTemplate { id: string; name: string; content: string; favorite?: boolean }
@@ -211,6 +212,7 @@ export interface AiBackend {
   saveSearchService(config: AiSearchService, apiKey?: string): Promise<AiSearchService>;
   saveMediaService(config: AiMediaService, apiKey?: string): Promise<AiMediaService>;
   saveMcpServers(servers: AiMcpServer[]): Promise<AiMcpServer[]>;
+  saveOfficeEnabled(enabled: boolean): Promise<boolean>;
   testSearchService(): Promise<string>;
   testConnection(providerId: string): Promise<string>;
   testModel?(providerId: string, modelId: string): Promise<string>;

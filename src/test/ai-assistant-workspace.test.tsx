@@ -29,6 +29,7 @@ function createBackend(workspace = fixture()) {
     answerTool: vi.fn(async () => {}),
     saveMediaService: vi.fn(async (config: AiMediaService) => config),
     saveMcpServers: vi.fn(async (servers: AiMcpServer[]) => servers),
+    saveOfficeEnabled: vi.fn(async (enabled: boolean) => enabled),
     saveSearchService: vi.fn(async (config: { baseUrl: string; hasApiKey: boolean; enabled: boolean }) => config),
     testSearchService: vi.fn(async () => '搜索服务连接成功'),
     generate: vi.fn((value, callback) => { request = value; emit = callback; return new Promise<void>(resolve => { resolveGenerate = resolve; }); }),

@@ -95,6 +95,19 @@ pub fn validate(id: &str, path: &Path) -> Result<(), String> {
                 return Err("Java 17 or newer is required".into());
             }
         }
+        "office" => {
+            let output = command_output(path, &["--version"], timeout)?;
+            let version = output
+                .trim()
+                .trim_start_matches('v')
+                .split('.')
+                .next()
+                .and_then(|v| v.parse::<u32>().ok())
+                .unwrap_or(0);
+            if version < 22 {
+                return Err("Node 22 or newer is required for the Office engines".into());
+            }
+        }
         "chromium" => {
             let root =
                 std::env::temp_dir().join(format!("niuery-browser-probe-{}", nanoid::nanoid!()));

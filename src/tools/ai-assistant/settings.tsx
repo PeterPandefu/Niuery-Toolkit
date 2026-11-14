@@ -1,5 +1,5 @@
 import { Select } from '@/components/ui/select';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { nanoid } from 'nanoid';
 import { Archive, Box, Cable, Check, Database, Image as ImageIcon, KeyRound, Loader2, Plus, RefreshCw, Search, Server, Trash2, Unplug } from 'lucide-react';
 import type { AiBackend, AiConversation, AiMediaService, AiMcpServer, AiModel, AiProvider, AiSearchService } from './types';
@@ -7,6 +7,8 @@ import { AiDialog, AiError } from './ui';
 import { useAiText } from './ui-text';
 import { AiEnabledModel, AiModelPicker } from './model-settings';
 import { uniqueModels } from './model';
+import { useResourceStore } from '@/store/resource-store';
+import { openResourceManager } from '@/lib/resources';
 
 interface SettingsProps {
   providers: AiProvider[];
@@ -14,11 +16,13 @@ interface SettingsProps {
   searchService?: AiSearchService;
   mediaService?: AiMediaService;
   mcpServers?: AiMcpServer[];
+  officeEnabled?: boolean;
   backend: AiBackend;
   onSave(provider: AiProvider, apiKey?: string): Promise<unknown>;
   onSearchSaved?(config: AiSearchService): void;
   onMediaSaved?(config: AiMediaService): void;
   onMcpSaved?(servers: AiMcpServer[]): void;
+  onOfficeSaved?(enabled: boolean): void;
   onRemove(id: string): Promise<unknown>;
   onClearHistory(): Promise<unknown>;
   onReset(): Promise<unknown>;
@@ -27,7 +31,7 @@ interface SettingsProps {
   onClose(): void;
 }
 
-export function AiSettings({ providers, conversations = [], searchService, mediaService, mcpServers, backend, onSave, onSearchSaved = () => {}, onMediaSaved = () => {}, onMcpSaved = () => {}, onRemove, onClearHistory, onReset, onUnarchive = () => {}, onSelectConversation = () => {}, onClose }: SettingsProps) {
+export function AiSettings({ providers, conversations = [], searchService, mediaService, mcpServers, officeEnabled, backend, onSave, onSearchSaved = () => {}, onMediaSaved = () => {}, onMcpSaved = () => {}, onOfficeSaved = () => {}, onRemove, onClearHistory, onReset, onUnarchive = () => {}, onSelectConversation = () => {}, onClose }: SettingsProps) {
   const t = useAiText();
   const makeProvider = (): AiProvider => ({ id: nanoid(), name: '', kind: 'openai', baseUrl: 'https://api.openai.com/v1', hasApiKey: false, models: [], enabled: true });
   const [provider, setProvider] = useState<AiProvider>(providers[0] ?? makeProvider());
@@ -127,7 +131,7 @@ export function AiSettings({ providers, conversations = [], searchService, media
           <p className="ai-field-hint">{t('密钥安全存储于系统凭据中，不下发到界面。每次搜索调用仍需你在弹窗中逐次批准。', 'The key stays in system credentials and is never sent to the UI. Every search call still needs your per-call approval.')}</p>
           <footer className="ai-settings-footer"><div className="ai-settings-feedback"><AiError error={searchError} />{!searchError && <span role="status" className={searchFeedback ? 'ai-feedback' : 'ai-muted'}>{searchFeedback ? <><Check size={14} aria-hidden="true" />{searchFeedback}</> : searchDirty ? t('有未保存的修改', 'Unsaved changes') : t('配置仅保存在本机', 'Configuration is stored locally')}</span>}</div><div className="ai-button-row"><button type="submit" className="ai-primary" disabled={searchWorking}>{searchWorking && <Loader2 size={15} className="ai-spin" aria-hidden="true" />}{searchWorking ? t('处理中…', 'Working…') : t('保存搜索服务', 'Save search service')}</button></div></footer>
         </form>
-      </section> : tab === 'media' ? <MediaServicePanel backend={backend} initial={mediaService} onSaved={onMediaSaved} /> : tab === 'mcp' ? <McpServersPanel backend={backend} initial={mcpServers} onSaved={onMcpSaved} /> : <div className="ai-settings-layout">
+      </section> : tab === 'media' ? <MediaServicePanel backend={backend} initial={mediaService} onSaved={onMediaSaved} /> : tab === 'mcp' ? <McpServersPanel backend={backend} initial={mcpServers} onSaved={onMcpSaved} officeEnabled={officeEnabled} onOfficeSaved={onOfficeSaved} /> : <div className="ai-settings-layout">
       <nav className="ai-provider-list" aria-label={t('模型服务', 'Model services')}>
         <div className="ai-provider-caption">{t('模型服务', 'MODEL SERVICES')}<span>{providers.length}</span></div>
         <div className="ai-provider-items">{providers.map(item => <button type="button" key={item.id} disabled={working} aria-current={provider.id === item.id ? 'true' : undefined} className={provider.id === item.id ? 'is-active' : ''} onClick={() => select(item)}><span className="ai-provider-icon"><Server size={17} aria-hidden="true" /></span><span className="ai-provider-name"><strong>{item.name}</strong><small>{item.kind === 'ollama' ? 'Ollama' : 'OpenAI'} · {t(`${item.models.length} 个模型`, `${item.models.length} models`)}</small></span><span className={`ai-provider-dot ${item.enabled ? 'is-enabled' : ''}`} aria-label={item.enabled ? t('已启用', 'Enabled') : t('已停用', 'Disabled')} /></button>)}</div>
@@ -199,13 +203,26 @@ function MediaServicePanel({ backend, initial, onSaved }: { backend: AiBackend; 
   </section>;
 }
 
-function McpServersPanel({ backend, initial, onSaved }: { backend: AiBackend; initial?: AiMcpServer[]; onSaved(servers: AiMcpServer[]): void }) {
+function McpServersPanel({ backend, initial, onSaved, officeEnabled = true, onOfficeSaved }: { backend: AiBackend; initial?: AiMcpServer[]; onSaved(servers: AiMcpServer[]): void; officeEnabled?: boolean; onOfficeSaved(enabled: boolean): void }) {
   const t = useAiText();
   const [servers, setServers] = useState<AiMcpServer[]>(initial ?? []);
   const [dirty, setDirty] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState<unknown>();
   const [working, setWorking] = useState(false);
+  const resources = useResourceStore(state => state.resources);
+  const refreshResources = useResourceStore(state => state.refresh);
+  const [officeBusy, setOfficeBusy] = useState(false);
+  const [officeError, setOfficeError] = useState<unknown>();
+  useEffect(() => { void refreshResources(); }, [refreshResources]);
+  const officeResource = resources.find(resource => resource.id === 'office');
+  const officeReady = officeResource?.status === 'ready';
+  async function toggleOffice(enabled: boolean) {
+    setOfficeBusy(true); setOfficeError(undefined);
+    try { onOfficeSaved(await backend.saveOfficeEnabled(enabled)); }
+    catch (caught) { setOfficeError(caught); }
+    finally { setOfficeBusy(false); }
+  }
   function edit(next: AiMcpServer[]) { setServers(next); setDirty(true); setFeedback(''); }
   function patch(id: string, next: Partial<AiMcpServer>) { edit(servers.map(item => item.id === id ? { ...item, ...next } : item)); }
   async function save() {
@@ -219,6 +236,15 @@ function McpServersPanel({ backend, initial, onSaved }: { backend: AiBackend; in
   }
   return <section className="ai-archive-panel" aria-labelledby="ai-mcp-heading">
     <div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Cable size={18} aria-hidden="true" /></span><div><h3 id="ai-mcp-heading">{t('MCP 服务', 'MCP servers')}</h3><p>{t('通过 stdio 连接本地 MCP 服务，其工具会以 mcp__服务名__工具名 注册给模型。MCP 调用视为潜在风险，除完全访问模式外都会逐次批准。', 'Connect local MCP servers over stdio; their tools are registered as mcp__server__tool. MCP calls count as risky and ask per call unless the session uses full access.')}</p></div></div>
+    <div className="ai-settings-section ai-mcp-server">
+      <div className="ai-form-row">
+        <label className="ai-checkbox ai-service-toggle"><input type="checkbox" disabled={officeBusy} checked={officeEnabled !== false} onChange={event => void toggleOffice(event.target.checked)} />{t('内置 Office 文档', 'Built-in Office documents')}</label>
+        <span className="ai-muted">{officeReady ? t('引擎已就绪', 'Engine ready') : t('引擎未下载', 'Engine not downloaded')}</span>
+        {!officeReady && <button type="button" disabled={officeBusy} onClick={() => openResourceManager()}>{t('下载资源', 'Download resource')}</button>}
+      </div>
+      <p className="ai-field-hint">{t('启用后注册 Word/Excel/PPT 读写工具，引擎由资源管理中的 Office 资源包提供，无需手动配置。自动权限模式下只读工具免审批，写入与保存逐次审批。', 'Registers Word/Excel/PPT tools backed by the Office resource pack; no manual setup. In Auto mode read-only tools skip approval; writes and saves ask per call.')}</p>
+      <AiError error={officeError} />
+    </div>
     <form className="ai-form" onSubmit={event => { event.preventDefault(); setWorking(true); setError(undefined); setFeedback(''); void save().catch(setError).finally(() => setWorking(false)); }}>
       {servers.map(server => <div key={server.id} className="ai-settings-section ai-mcp-server">
         <div className="ai-form-row"><label>{t('名称', 'Name')}<input required disabled={working} value={server.name} placeholder="filesystem" onChange={event => patch(server.id, { name: event.target.value })} /></label><label className="ai-checkbox ai-service-toggle"><input type="checkbox" disabled={working} checked={server.enabled} onChange={event => patch(server.id, { enabled: event.target.checked })} />{t('启用', 'Enabled')}</label><button type="button" className="ai-danger" disabled={working} aria-label={t('删除该服务', 'Remove server')} onClick={() => edit(servers.filter(item => item.id !== server.id))}><Trash2 size={15} aria-hidden="true" /></button></div>

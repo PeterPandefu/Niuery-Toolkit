@@ -112,6 +112,10 @@ export const desktopAiBackend: AiBackend = {
     if (!inDesktop()) throw desktopRequired();
     return invoke('ai_save_mcp_servers', { servers });
   },
+  async saveOfficeEnabled(enabled) {
+    if (!inDesktop()) throw desktopRequired();
+    return invoke('ai_save_office_enabled', { enabled });
+  },
   async testSearchService() {
     if (!inDesktop()) throw desktopRequired();
     ensureNetworkAccessAllowed();

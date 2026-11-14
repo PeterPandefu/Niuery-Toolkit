@@ -78,6 +78,10 @@ pub struct ToolEnv {
     pub chromium: Option<std::path::PathBuf>,
     /// Connected MCP servers for this request; their tools join the registry.
     pub mcp: Vec<mcp::McpEntry>,
+    /// Holds the office resource lease while built-in servers are connected;
+    /// released on drop, never read directly.
+    #[allow(dead_code)]
+    pub office_lease: Option<std::sync::Arc<crate::resources::ResourceLease>>,
     /// Per-request todo board shared by the task tools.
     pub tasks: tasks::TaskBoard,
     /// Per-request background command board.
@@ -161,9 +165,14 @@ pub fn list(env: &ToolEnv) -> Vec<ToolSpec> {
 }
 
 pub fn approval_of(name: &str) -> Option<ApprovalLevel> {
-    // Every MCP tool is gated, regardless of which server exposes it.
-    if mcp::split_name(name).is_some() {
-        return Some(ApprovalLevel::Approve);
+    // MCP tools are gated, except the built-in Office read-only tools which
+    // only inspect documents and never mutate anything.
+    if let Some((server, tool)) = mcp::split_name(name) {
+        return Some(if super::office::is_readonly(server, tool) {
+            ApprovalLevel::Auto
+        } else {
+            ApprovalLevel::Approve
+        });
     }
     list(&ToolEnv::default())
         .into_iter()
@@ -179,8 +188,8 @@ pub fn approval_of(name: &str) -> Option<ApprovalLevel> {
 /// file mutations, foreign MCP code and network targets the user never supplied
 /// still interrupt; reads and trusted destinations run without asking.
 pub fn auto_risk(name: &str, provenance: Option<&str>) -> bool {
-    if mcp::split_name(name).is_some() {
-        return true;
+    if let Some((server, tool)) = mcp::split_name(name) {
+        return !super::office::is_readonly(server, tool);
     }
     match name {
         command::NAME
@@ -200,19 +209,26 @@ pub fn auto_risk(name: &str, provenance: Option<&str>) -> bool {
 /// Path-bearing tools get a resolved-path preview before approval; when the
 /// path cannot resolve, the call touches nothing and skips the dialog.
 pub fn is_path_tool(name: &str) -> bool {
-    matches!(
-        name,
-        file::NAME
-            | write::NAME
-            | append::NAME
-            | edit::NAME
-            | list_dir::NAME
-            | create_dir::NAME
-            | glob::NAME
-            | grep::NAME
-            | media::IMAGE_NAME
-            | media::VIDEO_NAME
-    )
+    office_tool(name).is_some()
+        || matches!(
+            name,
+            file::NAME
+                | write::NAME
+                | append::NAME
+                | edit::NAME
+                | list_dir::NAME
+                | create_dir::NAME
+                | glob::NAME
+                | grep::NAME
+                | media::IMAGE_NAME
+                | media::VIDEO_NAME
+        )
+}
+
+/// Splits a built-in Office tool name into (server, tool); None otherwise.
+fn office_tool(name: &str) -> Option<(&str, &str)> {
+    let (server, tool) = mcp::split_name(name)?;
+    super::office::is_office_server(server).then_some((server, tool))
 }
 
 /// The approval dialog shows the resolved absolute path and real size, never
@@ -242,6 +258,11 @@ pub fn file_preview(name: &str, arguments: &Value) -> Option<(String, u64)> {
             (canonical, size)
         }
         create_dir::NAME => (create_dir::resolve(path).ok()?, 0),
+        name if office_tool(name).is_some() => {
+            let target = file::resolve_target(path).ok()?;
+            let size = std::fs::metadata(&target).map(|meta| meta.len()).unwrap_or(0);
+            (target, size)
+        }
         _ => return None,
     };
     Some((target.display().to_string(), size))
@@ -471,6 +492,18 @@ mod tests {
         assert_eq!(approval_of(browser::NAME), Some(ApprovalLevel::Approve));
         assert_eq!(approval_of(search::NAME), Some(ApprovalLevel::Approve));
         assert_eq!(approval_of("missing"), None);
+        assert_eq!(
+            approval_of("mcp__office_docx__read_blocks"),
+            Some(ApprovalLevel::Auto)
+        );
+        assert_eq!(
+            approval_of("mcp__office_excel__apply_ops"),
+            Some(ApprovalLevel::Approve)
+        );
+        assert_eq!(
+            approval_of("mcp__other__read_blocks"),
+            Some(ApprovalLevel::Approve)
+        );
     }
 
     #[test]
@@ -524,6 +557,9 @@ mod tests {
         assert!(auto_risk(media::IMAGE_NAME, None));
         assert!(auto_risk(media::VIDEO_NAME, None));
         assert!(auto_risk("mcp__server__tool", None));
+        assert!(!auto_risk("mcp__office_pptx__read_slide", None));
+        assert!(auto_risk("mcp__office_pptx__put_page", None));
+        assert!(is_path_tool("mcp__office_excel__save_document"));
         assert!(auto_risk(web::NAME, None));
         assert!(auto_risk(web::NAME, Some("modelProposed")));
         assert!(auto_risk(browser::NAME, Some("modelProposed")));
