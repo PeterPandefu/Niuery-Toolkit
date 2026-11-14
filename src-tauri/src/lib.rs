@@ -128,7 +128,6 @@ use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_autostart::ManagerExt;
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_global_shortcut::ShortcutState;
 use ws_server::WsServerState;
 
@@ -162,6 +161,117 @@ impl CloseBehaviorState {
         *self.choice.lock().unwrap() = Some(choice);
         self.dialog_open.store(false, Ordering::Release);
     }
+}
+
+/// 关闭确认弹窗必须置顶，否则点击后面的窗口会把它挡住。
+/// tauri-plugin-dialog 无法设置置顶，Windows 下直接调 TaskDialogIndirect，
+/// 在创建回调里 SetWindowPos(HWND_TOPMOST)；其余平台回退到插件弹窗并绑定父窗口。
+#[cfg(windows)]
+fn show_close_confirm_dialog(
+    window: &tauri::Window,
+    on_choice: impl FnOnce(bool) + Send + 'static,
+) {
+    use windows::core::HRESULT;
+    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+    use windows::Win32::System::Com::{
+        CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
+    };
+    use windows::Win32::UI::Controls::{
+        TaskDialogIndirect, TASKDIALOG_BUTTON, TASKDIALOG_NOTIFICATIONS, TASKDIALOGCONFIG,
+        TASKDIALOGCONFIG_0, TDF_ALLOW_DIALOG_CANCELLATION, TDF_SIZE_TO_CONTENT, TDN_CREATED,
+        TD_INFORMATION_ICON,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    };
+
+    const ID_EXIT: i32 = 100;
+    const ID_TRAY: i32 = 101;
+
+    unsafe extern "system" fn pin_topmost(
+        hwnd: HWND,
+        msg: TASKDIALOG_NOTIFICATIONS,
+        _wparam: WPARAM,
+        _lparam: LPARAM,
+        _data: isize,
+    ) -> HRESULT {
+        if msg == TDN_CREATED {
+            let _ = SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+        }
+        HRESULT(0)
+    }
+
+    let parent = match window.hwnd() {
+        // HWND 含裸指针不是 Send，跨线程只传地址值
+        Ok(handle) => handle.0 as isize,
+        Err(_) => {
+            on_choice(false);
+            return;
+        }
+    };
+
+    // TaskDialogIndirect 自带模态循环，放到独立线程避免阻塞主事件循环
+    std::thread::spawn(move || {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        }
+        let buttons = [
+            TASKDIALOG_BUTTON {
+                nButtonID: ID_EXIT,
+                pszButtonText: windows::core::w!("退出程序"),
+            },
+            TASKDIALOG_BUTTON {
+                nButtonID: ID_TRAY,
+                pszButtonText: windows::core::w!("最小化到托盘"),
+            },
+        ];
+        let config = TASKDIALOGCONFIG {
+            cbSize: std::mem::size_of::<TASKDIALOGCONFIG>() as u32,
+            hwndParent: HWND(parent as *mut core::ffi::c_void),
+            dwFlags: TDF_ALLOW_DIALOG_CANCELLATION | TDF_SIZE_TO_CONTENT,
+            pszWindowTitle: windows::core::w!("Niuery Toolkit"),
+            Anonymous1: TASKDIALOGCONFIG_0 {
+                pszMainIcon: TD_INFORMATION_ICON,
+            },
+            pszContent: windows::core::w!("关闭窗口时，您希望执行什么操作？"),
+            cButtons: buttons.len() as u32,
+            pButtons: buttons.as_ptr(),
+            pfCallback: Some(pin_topmost),
+            ..Default::default()
+        };
+
+        let mut button = 0;
+        let result = unsafe { TaskDialogIndirect(&config, Some(&mut button), None, None) };
+        unsafe { CoUninitialize() };
+        // 点 X / Esc 与“最小化到托盘”一致，不退出
+        on_choice(result.is_ok() && button == ID_EXIT);
+    });
+}
+
+#[cfg(not(windows))]
+fn show_close_confirm_dialog(
+    window: &tauri::Window,
+    on_choice: impl FnOnce(bool) + Send + 'static,
+) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+    window
+        .dialog()
+        .message("关闭窗口时，您希望执行什么操作？")
+        .title("Niuery Toolkit")
+        .parent(window)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "退出程序".to_string(),
+            "最小化到托盘".to_string(),
+        ))
+        .show(on_choice);
 }
 
 fn current_capture_activity(app: &tauri::AppHandle) -> CaptureActivity {
@@ -631,26 +741,19 @@ pub fn run() {
                         }
                         // 首次关闭，弹窗询问
                         let app_handle = app.clone();
-                        app.dialog()
-                            .message("关闭窗口时，您希望执行什么操作？")
-                            .title("Niuery Toolkit")
-                            .buttons(MessageDialogButtons::OkCancelCustom(
-                                "退出程序".to_string(),
-                                "最小化到托盘".to_string(),
-                            ))
-                            .show(move |exit| {
-                                // 仅在本次运行期间记住选择，下次启动重新询问
-                                {
-                                    let state = app_handle.state::<CloseBehaviorState>();
-                                    state.finish_dialog(exit);
-                                }
+                        show_close_confirm_dialog(window, move |exit| {
+                            // 仅在本次运行期间记住选择，下次启动重新询问
+                            {
+                                let state = app_handle.state::<CloseBehaviorState>();
+                                state.finish_dialog(exit);
+                            }
 
-                                if exit {
-                                    app_handle.exit(0);
-                                } else if let Some(win) = app_handle.get_webview_window("main") {
-                                    let _ = win.hide();
-                                }
-                            });
+                            if exit {
+                                app_handle.exit(0);
+                            } else if let Some(win) = app_handle.get_webview_window("main") {
+                                let _ = win.hide();
+                            }
+                        });
                     }
                 }
             }
