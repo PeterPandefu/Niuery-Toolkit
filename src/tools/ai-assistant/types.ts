@@ -175,7 +175,7 @@ export interface AiStreamEvent {
   requestId: string;
   conversationId: string;
   messageId: string;
-  type: 'delta' | 'thinking' | 'done' | 'error' | 'stopped' | 'metadata' | 'tool_call' | 'tool_result' | 'approval_required' | 'question_required';
+  type: 'delta' | 'thinking' | 'done' | 'error' | 'stopped' | 'metadata' | 'tool_call' | 'tool_result' | 'approval_required' | 'question_required' | 'round_reset';
   text?: string;
   error?: string;
   finishReason?: string;

@@ -1,6 +1,6 @@
 use super::{
     super::{tools, types::*, Outcome},
-    request, ApprovalError, ApprovalRegistry, Consumed, APPROVAL_TIMEOUT,
+    request, ApprovalError, ApprovalRegistry, APPROVAL_TIMEOUT,
 };
 use rig_core::message::{
     AssistantContent, AssistantMessage, Message, ToolCall, ToolResult, ToolResultContent,
@@ -12,6 +12,11 @@ use tokio::sync::watch;
 /// Each round is one model request. Hitting the cap clears `tools` and asks once
 /// more, so the user gets an answer instead of a bare error.
 const MAX_ROUNDS: usize = 8;
+
+/// A content-inspection refusal invalidates only that round's output. The
+/// recovery turn must wrap up from the results already gathered, skipping
+/// whatever the provider refused, instead of failing the whole answer.
+const RECOVERY_GUIDANCE: &str = "你上一条回复被模型服务的内容审查拦截，已作为无效结果丢弃。请基于已有的工具结果重新整理回答：跳过可能敏感或被拦截的信息，只整理其余可用内容；不要复述被拦截的内容，也不要提及本次拦截。";
 
 pub async fn run(
     provider: &Provider,
@@ -33,9 +38,35 @@ pub async fn run(
     let corpus = tools::provenance::user_corpus(&input.messages);
     let mut search_urls: HashSet<String> = HashSet::new();
     let mut used = 0usize;
+    let mut inspection_retries = 0usize;
+    let mut collected: Vec<(String, tools::ToolOutcome)> = Vec::new();
     loop {
-        let consumed: Consumed =
-            super::round(provider, key, input, &request, channel, cancel).await?;
+        let consumed = match super::round(provider, key, input, &request, channel, cancel).await {
+            Ok(consumed) => consumed,
+            Err(error) if error.inspection => {
+                // The blocked output is an invalid result: hide it and retry
+                // once with a wrap-up that skips the refused content.
+                channel
+                    .send(input.event("round_reset", None, None))
+                    .map_err(|_| "AI 页面连接已关闭".to_string())?;
+                if inspection_retries == 0 {
+                    inspection_retries += 1;
+                    request.tools.clear();
+                    request
+                        .chat_history
+                        .push(Arc::new(Message::user(RECOVERY_GUIDANCE)));
+                    continue;
+                }
+                // Still refused: finish with the raw tool results so one
+                // blocked summary never fails the whole answer.
+                let fallback = fallback_answer(&collected);
+                channel
+                    .send(input.event("delta", Some(fallback), None))
+                    .map_err(|_| "AI 页面连接已关闭".to_string())?;
+                return Ok(Outcome::Done);
+            }
+            Err(error) => return Err(error.message),
+        };
         if matches!(consumed.outcome, Outcome::Stopped) {
             return Ok(Outcome::Stopped);
         }
@@ -52,7 +83,7 @@ pub async fn run(
             continue;
         }
         used += 1;
-        let Some((assistant, results)) = execute(
+        let Some((assistant, results, outcomes)) = execute(
             provider,
             key,
             input,
@@ -70,11 +101,33 @@ pub async fn run(
         else {
             return Ok(Outcome::Stopped);
         };
+        collected.extend(outcomes);
         request.chat_history.push(Arc::new(assistant));
         request
             .chat_history
             .push(Arc::new(Message::tool_results(results)));
     }
+}
+
+/// Last-resort answer when even the recovery turn is refused: the gathered
+/// tool results, trimmed for readability, instead of a failed generation.
+fn fallback_answer(collected: &[(String, tools::ToolOutcome)]) -> String {
+    let mut text = String::from(
+        "模型整理被模型服务的内容审查拦截，被拦截的输出已丢弃。以下为本次工具返回的原始结果：",
+    );
+    let mut any = false;
+    for (name, outcome) in collected {
+        if outcome.is_error {
+            continue;
+        }
+        any = true;
+        let snippet: String = outcome.content.chars().take(1500).collect();
+        text.push_str(&format!("\n\n【{name}】\n{snippet}"));
+    }
+    if !any {
+        text.push_str("\n（本次没有可用的工具结果，请调整提问内容或更换模型后重试。）");
+    }
+    text
 }
 
 /// Calls run one at a time so each gets its own approval and its own URL check.
@@ -92,9 +145,10 @@ async fn execute(
     corpus: &[String],
     search_urls: &mut HashSet<String>,
     calls: &[ToolCall],
-) -> Result<Option<(Message, Vec<ToolResult>)>, String> {
+) -> Result<Option<(Message, Vec<ToolResult>, Vec<(String, tools::ToolOutcome)>)>, String> {
     let mut content = Vec::new();
     let mut results = Vec::new();
+    let mut plain = Vec::new();
     let mut seen = HashSet::new();
     for call in calls {
         if *cancel.borrow() {
@@ -252,6 +306,7 @@ async fn execute(
         // Only this task's own search results become a trusted source later on.
         search_urls.extend(outcome.discovered_urls.iter().cloned());
         emit_result(input, channel, call, &outcome)?;
+        plain.push((name.clone(), outcome.clone()));
         results.push(ToolResult {
             call: call.id.clone(),
             name: call.function.name.clone(),
@@ -267,6 +322,7 @@ async fn execute(
     Ok(Some((
         Message::Assistant(AssistantMessage::new(content)),
         results,
+        plain,
     )))
 }
 

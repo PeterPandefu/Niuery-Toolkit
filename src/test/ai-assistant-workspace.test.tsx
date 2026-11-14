@@ -38,7 +38,7 @@ function createBackend(workspace = fixture()) {
     event(type: AiStreamEvent['type'], text?: string, overrides?: Partial<AiStreamEvent>) {
       if (!request || !emit) throw new Error('generation not started');
       emit({ requestId: request.requestId, conversationId: request.conversationId, messageId: request.messageId, type, text, ...overrides });
-      if (type !== 'delta' && type !== 'thinking' && type !== 'metadata') resolveGenerate?.();
+      if (type !== 'delta' && type !== 'thinking' && type !== 'metadata' && type !== 'round_reset') resolveGenerate?.();
     },
   };
 }
@@ -198,6 +198,20 @@ describe('AI workspace lifecycle', () => {
     act(() => { fake.event('thinking', 'New thought'); fake.event('delta', 'New answer'); fake.event('done'); });
     expect(result.current.workspace.conversations[0].messages[1].thinking).toBe('Old thinking');
     expect(result.current.workspace.conversations[0].messages[3]).toMatchObject({ thinking: 'New thought', content: 'New answer' });
+  });
+  it('discards blocked round output on round_reset and keeps the generation alive', async () => {
+    const { result, fake, chatId } = await setup();
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    act(() => { fake.event('thinking', 'blocked thought'); fake.event('delta', 'partial'); });
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ thinking: 'blocked thought', content: 'partial', status: 'streaming' });
+    act(() => { fake.event('round_reset'); });
+    expect(result.current.busy).not.toBeNull();
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: '', status: 'streaming' });
+    expect(result.current.workspace.conversations[0].messages[1].thinking).toBeUndefined();
+    act(() => { fake.event('delta', 'recovered'); fake.event('done'); });
+    await waitFor(() => expect(result.current.busy).toBeNull());
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'recovered', status: 'complete' });
   });
   it('keeps thinking-only generation active and persists the partial thinking on stop', async () => {
     const { result, fake, chatId } = await setup();

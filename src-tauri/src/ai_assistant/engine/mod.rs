@@ -24,6 +24,32 @@ pub struct Consumed {
     pub calls: Vec<ToolCall>,
 }
 
+/// A failed round. `inspection` marks a provider content-inspection refusal so
+/// the rounds loop can discard the blocked output and recover instead of
+/// failing the whole answer.
+pub(super) struct RoundError {
+    pub message: String,
+    pub inspection: bool,
+}
+
+impl RoundError {
+    fn from_provider(error: &rig_core::error::ProviderError) -> Self {
+        Self {
+            message: safe_error(error),
+            inspection: inspection_blocked(error),
+        }
+    }
+}
+
+impl From<String> for RoundError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            inspection: false,
+        }
+    }
+}
+
 pub async fn generate(
     provider: &Provider,
     key: Option<&str>,
@@ -70,7 +96,9 @@ pub async fn generate_diagnostic(
 ) -> Result<Outcome, String> {
     let mut request = request::convert(input, provider, &super::tools::ToolEnv::default())?;
     request.tools.clear();
-    let consumed = round(provider, key, input, &request, channel, cancel).await?;
+    let consumed = round(provider, key, input, &request, channel, cancel)
+        .await
+        .map_err(|error| error.message)?;
     Ok(consumed.outcome)
 }
 
@@ -82,11 +110,11 @@ async fn round(
     request: &CompletionRequest,
     channel: &Channel<StreamEvent>,
     cancel: &mut watch::Receiver<bool>,
-) -> Result<Consumed, String> {
+) -> Result<Consumed, RoundError> {
     if *cancel.borrow() {
         return Ok(stopped());
     }
-    let http = transport::GuardedHttp::new()?;
+    let http = transport::GuardedHttp::new().map_err(RoundError::from)?;
     let fault = http.fault();
     let observed = wires::ObservedMetadata::default();
     let stream = wires::open(
@@ -97,10 +125,16 @@ async fn round(
         http,
         observed.clone(),
     )
-    .map_err(|error| safe_error(&error))?;
+    .map_err(|error| RoundError::from_provider(&error))?;
     consume(stream, input, channel, cancel, observed)
         .await
-        .map_err(|error| fault.message().unwrap_or(error))
+        .map_err(|mut error| {
+            if let Some(message) = fault.message() {
+                error.message = message;
+                error.inspection = false;
+            }
+            error
+        })
 }
 
 fn stopped() -> Consumed {
@@ -132,7 +166,7 @@ async fn consume(
     channel: &Channel<StreamEvent>,
     cancel: &mut watch::Receiver<bool>,
     observed: wires::ObservedMetadata,
-) -> Result<Consumed, String> {
+) -> Result<Consumed, RoundError> {
     let mut last_metadata = String::new();
     loop {
         if *cancel.borrow() {
@@ -143,7 +177,7 @@ async fn consume(
         let Some(item) = item else {
             break;
         };
-        match item.map_err(|error| safe_error(&error))? {
+        match item.map_err(|error| RoundError::from_provider(&error))? {
             Item::Event(RigEvent::Text { text, .. }) => channel
                 .send(input.event("delta", Some(text), None))
                 .map_err(|_| "AI 页面连接已关闭".to_string())?,
@@ -159,7 +193,10 @@ async fn consume(
             _ => {}
         }
     }
-    let response = stream.finish().await.map_err(|error| safe_error(&error))?;
+    let response = stream
+        .finish()
+        .await
+        .map_err(|error| RoundError::from_provider(&error))?;
     emit_metadata(
         Some(&response),
         input,
@@ -229,8 +266,37 @@ fn safe_error(error: &rig_core::error::ProviderError) -> String {
     if matches!(error, rig_core::error::ProviderError::Truncated) {
         return "模型连接意外中断，未收到完成标志；已接收内容已保留".into();
     }
+    // A 200 stream can still end in an error envelope (e.g. the gateway's
+    // content inspection). That is a provider-side refusal, not a local
+    // config/network problem; only fixed host-controlled wording reaches IPC.
+    if inspection_blocked(error) {
+        return "模型服务的内容审查拦截了本次生成（输入或输出被判定为敏感内容），已接收内容已保留；请调整提问内容或更换模型后重试。".into();
+    }
+    if error.provider_response_json().is_ok_and(|json| json.is_some()) {
+        return "模型服务在生成过程中返回错误，已接收内容已保留，可手动重试。".into();
+    }
     // Provider bodies may echo secrets. Only fixed host-controlled messages reach IPC.
     "模型请求失败，请检查服务地址、网络、上下文及参数；已接收内容已保留，可手动重试。".into()
+}
+
+/// True when the provider ended a 200 stream with a content-inspection error
+/// envelope; the blocked output is treated as an invalid result, not a fatal
+/// request failure.
+fn inspection_blocked(error: &rig_core::error::ProviderError) -> bool {
+    if error.provider_response_status().is_some() {
+        return false;
+    }
+    let Ok(Some(json)) = error.provider_response_json() else {
+        return false;
+    };
+    let code = json
+        .pointer("/error/code")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| json.pointer("/error/type").and_then(serde_json::Value::as_str));
+    matches!(
+        code,
+        Some("data_inspection_failed" | "content_filter" | "content_policy_violation")
+    )
 }
 
 #[cfg(test)]

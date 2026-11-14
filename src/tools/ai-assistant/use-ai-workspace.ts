@@ -285,6 +285,8 @@ export function useAiWorkspace(backend: AiBackend) {
           }, 500);
         } else if (event.type === 'metadata') {
           changeConversation(conversationId, value => ({ ...value, messages: value.messages.map(message => message.id === running.messageId ? { ...message, finishReason: event.finishReason ?? message.finishReason, usage: event.usage ?? message.usage } : message) }));
+        } else if (event.type === 'round_reset') {
+          changeConversation(conversationId, value => ({ ...value, updatedAt: Date.now(), messages: value.messages.map(message => message.id === running.messageId ? { ...message, content: '', thinking: undefined, status: 'streaming' } : message) }));
         } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required') {
           toolCalls.handleEvent(event, conversationId, running.messageId);
         } else {
@@ -346,6 +348,8 @@ export function useAiWorkspace(backend: AiBackend) {
               if (progressTimer.current === null) progressTimer.current = setTimeout(() => { progressTimer.current = null; saveQuietly(); }, 500);
             } else if (event.type === 'metadata') {
               changeReply(running, message => ({ ...message, finishReason: event.finishReason ?? message.finishReason, usage: event.usage ?? message.usage }));
+            } else if (event.type === 'round_reset') {
+              changeReply(running, message => ({ ...message, content: '', thinking: undefined, status: 'streaming' }));
             } else void finish(running, event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed', event.error).catch(() => {});
           });
           if (active.current === running && !running.terminated) await finish(running, 'interrupted', '任务回复流意外结束');
