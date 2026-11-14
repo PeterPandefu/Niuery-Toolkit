@@ -21,6 +21,18 @@ function toolCallPart(call: AiToolCall): AiPart {
   };
 }
 
+/** Adjacent tool-call parts share one collapsible group; everything else renders ungrouped. */
+export function groupToolCalls(parts: readonly { type: string }[]) {
+  const groups: { groupKey: string | undefined; indices: number[] }[] = [];
+  parts.forEach((part, index) => {
+    const key = part.type === 'tool-call' ? 'tools' : undefined;
+    const last = groups[groups.length - 1];
+    if (key && last?.groupKey === key) last.indices.push(index);
+    else groups.push({ groupKey: key, indices: [index] });
+  });
+  return groups;
+}
+
 export function mapAiMessage(message: AiMessage, showThinking = true): ThreadMessageLike {
   const content: AiPart[] = [];
   if (message.role === 'assistant' && showThinking && message.thinking) content.push({ type: 'reasoning', text: message.thinking });

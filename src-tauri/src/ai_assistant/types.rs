@@ -95,6 +95,9 @@ pub struct Message {
     pub error: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<String>,
+    // Legacy round-cap marker: caps were removed; kept so older saved data loads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forced_finish: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -202,6 +205,9 @@ pub struct AnswerVersion {
     pub usage: Option<Usage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<String>,
+    // Legacy round-cap marker: caps were removed; kept so older saved data loads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forced_finish: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_token_ms: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -370,8 +376,6 @@ pub struct StreamEvent {
     pub file_size: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub forced_finish: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -403,7 +407,6 @@ impl Request {
             file_path: None,
             file_size: None,
             duration_ms: None,
-            forced_finish: None,
         }
     }
 }

@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AiBackend, AiConversation, AiStreamEvent, AiToolCall, AiToolDecision } from './types';
 
+/** Terminal sweep for calls the backend never settled (discarded wrap-up calls,
+ *  cancelled or interrupted streams), so no card hangs in "running" forever. */
+export function settlePendingCalls(calls: AiToolCall[] | undefined, note: string): AiToolCall[] | undefined {
+  if (!calls?.some(call => call.status === 'pending' || call.status === 'running')) return calls;
+  return calls.map(call => call.status === 'pending' || call.status === 'running'
+    ? { ...call, status: 'failed' as const, error: call.error ?? note }
+    : call);
+}
+
 export interface ToolCallDeps {
   changeConversation(id: string, update: (chat: AiConversation) => AiConversation): void;
   saveQuietly(): void;

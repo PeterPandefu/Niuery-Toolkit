@@ -89,6 +89,7 @@ export interface AiMessage {
   modelId?: string;
   error?: string;
   finishReason?: string;
+  forcedFinish?: boolean;
   usage?: AiUsage;
   firstTokenMs?: number;
   durationMs?: number;
@@ -97,7 +98,7 @@ export interface AiMessage {
   toolCalls?: AiToolCall[];
 }
 
-export type AiAnswerVersion = Pick<AiMessage, 'content' | 'thinking' | 'createdAt' | 'status' | 'modelId' | 'providerId' | 'error' | 'usage' | 'finishReason' | 'firstTokenMs' | 'durationMs' | 'toolCalls'>;
+export type AiAnswerVersion = Pick<AiMessage, 'content' | 'thinking' | 'createdAt' | 'status' | 'modelId' | 'providerId' | 'error' | 'usage' | 'finishReason' | 'forcedFinish' | 'firstTokenMs' | 'durationMs' | 'toolCalls'>;
 
 export interface AiConversation {
   id: string;
@@ -190,7 +191,6 @@ export interface AiStreamEvent {
   filePath?: string;
   fileSize?: number;
   durationMs?: number;
-  forcedFinish?: boolean;
 }
 
 export interface AiUsage { inputTokens: number; outputTokens: number; totalTokens: number }

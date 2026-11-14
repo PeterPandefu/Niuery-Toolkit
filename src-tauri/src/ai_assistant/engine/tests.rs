@@ -850,3 +850,90 @@ async fn ai_assistant_permission_mode_decides_when_tools_ask() {
     }
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+#[tokio::test]
+async fn ai_assistant_wrapup_round_settles_discarded_tool_calls() {
+    let (base, server) = scripted_model(vec![
+        calculate_round(),
+        inspection_round(),
+        calculate_round(),
+    ])
+    .await;
+    let capture = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let shared = capture.clone();
+    let channel = Channel::new(move |body| {
+        if let tauri::ipc::InvokeResponseBody::Json(body) = body {
+            shared
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str::<serde_json::Value>(&body).unwrap());
+        }
+        Ok(())
+    });
+    let (_sender, mut cancel) = watch::channel(false);
+    let outcome = generate(
+        &super::super::tests::provider_at(&base, "openai"),
+        None,
+        &super::super::tests::request(),
+        &channel,
+        &mut cancel,
+        &ApprovalRegistry::default(),
+    )
+    .await;
+    assert!(matches!(outcome, Ok(Outcome::Done)), "{:?}", outcome.err());
+    server.await.unwrap();
+    let events = capture.lock().unwrap();
+    let results: Vec<&serde_json::Value> = events
+        .iter()
+        .filter(|event| event["type"] == "tool_result")
+        .collect();
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0]["status"], "complete");
+    assert_eq!(results[1]["status"], "failed");
+    assert!(results[1]["error"].as_str().unwrap().contains("未执行"));
+}
+
+#[tokio::test]
+async fn ai_assistant_long_tool_runs_have_no_round_cap() {
+    let mut responses: Vec<String> = (0..40).map(|_| calculate_round()).collect();
+    responses.push(text_round("wrapped"));
+    let (base, server) = scripted_model(responses).await;
+    let capture = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let shared = capture.clone();
+    let channel = Channel::new(move |body| {
+        if let tauri::ipc::InvokeResponseBody::Json(body) = body {
+            shared
+                .lock()
+                .unwrap()
+                .push(serde_json::from_str::<serde_json::Value>(&body).unwrap());
+        }
+        Ok(())
+    });
+    let (_sender, mut cancel) = watch::channel(false);
+    let outcome = generate(
+        &super::super::tests::provider_at(&base, "openai"),
+        None,
+        &super::super::tests::request(),
+        &channel,
+        &mut cancel,
+        &ApprovalRegistry::default(),
+    )
+    .await;
+    assert!(matches!(outcome, Ok(Outcome::Done)), "{:?}", outcome.err());
+    let bodies = server.await.unwrap();
+    assert_eq!(bodies.len(), 41);
+    let last: serde_json::Value =
+        serde_json::from_str(bodies[40].split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert!(last.get("tools").is_some(), "tools must stay available past 32 rounds");
+    let events = capture.lock().unwrap();
+    assert!(!events
+        .iter()
+        .any(|event| event["type"] == "metadata" && event["forcedFinish"] == true));
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event["type"] == "tool_result")
+            .count(),
+        40
+    );
+}

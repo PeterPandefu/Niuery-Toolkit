@@ -9,10 +9,6 @@ use std::{collections::HashSet, sync::Arc};
 use tauri::ipc::Channel;
 use tokio::sync::watch;
 
-/// Each round is one model request. Hitting the cap clears `tools` and asks once
-/// more, so the user gets an answer instead of a bare error.
-const MAX_ROUNDS: usize = 8;
-
 /// A content-inspection refusal invalidates only that round's output. The
 /// recovery turn must wrap up from the results already gathered, skipping
 /// whatever the provider refused, instead of failing the whole answer.
@@ -37,7 +33,6 @@ pub async fn run(
     // Only this request's user content counts as a trusted URL source.
     let corpus = tools::provenance::user_corpus(&input.messages);
     let mut search_urls: HashSet<String> = HashSet::new();
-    let mut used = 0usize;
     let mut inspection_retries = 0usize;
     let mut collected: Vec<(String, tools::ToolOutcome)> = Vec::new();
     loop {
@@ -73,16 +68,19 @@ pub async fn run(
         if consumed.calls.is_empty() {
             return Ok(Outcome::Done);
         }
-        // The wrap-up round already ran tools-free; still asking for tools ends it.
+        // The wrap-up round already ran tools-free; still asking for tools ends
+        // it, but every streamed call must settle so the UI never hangs.
         if request.tools.is_empty() {
+            for call in &consumed.calls {
+                emit_result(
+                    input,
+                    channel,
+                    call,
+                    &tools::ToolOutcome::error("收尾轮不再执行工具，此调用未执行。"),
+                )?;
+            }
             return Ok(Outcome::Done);
         }
-        if used >= MAX_ROUNDS {
-            request.tools.clear();
-            emit_forced_finish(input, channel)?;
-            continue;
-        }
-        used += 1;
         let Some((assistant, results, outcomes)) = execute(
             provider,
             key,
@@ -389,10 +387,3 @@ fn emit_result(
         .map_err(|_| "AI 页面连接已关闭".to_string())
 }
 
-fn emit_forced_finish(input: &Request, channel: &Channel<StreamEvent>) -> Result<(), String> {
-    let mut event = input.event("metadata", None, None);
-    event.forced_finish = Some(true);
-    channel
-        .send(event)
-        .map_err(|_| "AI 页面连接已关闭".to_string())
-}

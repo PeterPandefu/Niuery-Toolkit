@@ -71,6 +71,7 @@ pub async fn run(
             model_id: None,
             error: None,
             finish_reason: None,
+            forced_finish: None,
             usage: None,
             first_token_ms: None,
             duration_ms: None,

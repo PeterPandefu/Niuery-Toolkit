@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { nanoid } from 'nanoid';
 import { createWorkspace, providerTarget } from './model';
 import { requestMessages } from './request-messages';
-import { useToolCalls } from './use-tool-calls';
+import { useToolCalls, settlePendingCalls } from './use-tool-calls';
 import { buildBudgetedContext } from './context';
 import { retainAnswerVersion } from './branches';
 import { validateAttachments } from './attachments';
@@ -110,7 +110,7 @@ export function useAiWorkspace(backend: AiBackend) {
     clearProgressTimer();
     changeReply(request, message => {
       if (status !== 'complete' && request.previous) return request.previous;
-      const completed = { ...message, status, error: reason, durationMs: Math.max(0, Date.now() - request.startedAt) };
+      const completed = { ...message, toolCalls: settlePendingCalls(message.toolCalls, '生成已结束，此调用未执行。'), status, error: reason, durationMs: Math.max(0, Date.now() - request.startedAt) };
       return status === 'complete' && request.previous ? retainAnswerVersion(request.previous, completed) : completed;
     });
     active.current = null;
@@ -140,8 +140,8 @@ export function useAiWorkspace(backend: AiBackend) {
       if (!saved) await enqueue(() => backend.save(next));
       if (!mounted.current || generation !== loadGeneration.current) return;
       const recovered: AiWorkspace = { ...next, conversations: next.conversations.map(chat => ({ ...chat,
-        messages: chat.messages.map(message => message.status === 'waiting' || message.status === 'streaming' ? { ...message, status: 'interrupted' } : message),
-        tasks: chat.tasks?.map(task => ({ ...task, results: task.results.map(result => ({ ...result, message: result.message.status === 'waiting' || result.message.status === 'streaming' ? { ...result.message, status: 'interrupted' } : result.message })) })),
+        messages: chat.messages.map(message => message.status === 'waiting' || message.status === 'streaming' ? { ...message, status: 'interrupted', toolCalls: settlePendingCalls(message.toolCalls, '回复意外中断，此调用未执行。') } : message),
+        tasks: chat.tasks?.map(task => ({ ...task, results: task.results.map(result => ({ ...result, message: result.message.status === 'waiting' || result.message.status === 'streaming' ? { ...result.message, status: 'interrupted', toolCalls: settlePendingCalls(result.message.toolCalls, '回复意外中断，此调用未执行。') } : result.message })) })),
       })) };
       initialized.current = true;
       replace(recovered);

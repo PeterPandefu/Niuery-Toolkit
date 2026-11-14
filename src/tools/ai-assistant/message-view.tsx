@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { ActionBarPrimitive, MessagePrimitive } from '@assistant-ui/react';
 import { AiReadonlyMessage } from './runtime/thread-view';
 import { useHasAiRuntime } from './runtime/runtime-context';
-import { AiTextPart, AiReasoningPart } from './runtime/message-parts';
+import { AiTextPart, AiReasoningPart, AiToolCallGroup } from './runtime/message-parts';
+import { groupToolCalls } from './runtime/message-mapper';
 import { AiToolCallPart } from './runtime/tool-call-part';
 import { BotMessageSquare, Clock3, Copy, Hash, Pencil, RefreshCw, User, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,12 +33,13 @@ function RuntimeMessageView({ message, disabled, lastAssistant, onEdit, onRegene
     <div className="ai-message-avatar">{message.role === 'user' ? <User size={17} /> : <BotMessageSquare size={18} />}</div>
     <div className="ai-message-body">
       <div className="ai-message-meta"><strong>{message.role === 'user' ? t('你', 'You') : t('助手', 'Assistant')}</strong>{message.modelId && <span>{message.modelId}</span>}<time dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div>
-      <MessagePrimitive.Parts components={{ Text: AiTextPart, Reasoning: AiReasoningPart, tools: { Override: AiToolCallPart } }} />
+      <MessagePrimitive.Unstable_PartsGrouped groupingFunction={groupToolCalls} components={{ Text: AiTextPart, Reasoning: AiReasoningPart, tools: { Override: AiToolCallPart }, Group: AiToolCallGroup }} />
       {!!message.attachments.length && <div className="ai-attachments">{message.attachments.map(attachment => <AttachmentPreview key={attachment.id} attachment={attachment} />)}</div>}
       {status && <p className={`ai-message-status ${message.status === 'failed' ? 'ai-error-text' : ''}`} role="status">{status}</p>}
       {message.error && <p role="alert" className="ai-error-text">{message.error}</p>}
       {message.status === 'complete' && message.finishReason === 'length' && <p role="status" className="ai-error-text">{t('已达到输出上限，回答可能不完整。可提高输出上限后重新生成。', 'Output limit reached. The answer may be incomplete. Increase the limit and regenerate.')}</p>}
       {message.status === 'complete' && message.finishReason === 'content_filter' && <p role="status">{t('回复因服务内容过滤而结束。', 'The service ended this reply due to content filtering.')}</p>}
+      {message.forcedFinish && <p role="status">{t('已达单次回答的工具轮数上限，未执行的工具调用已标记为失败。', 'The tool-round limit for this answer was reached; unexecuted tool calls were marked failed.')}</p>}
       {(message.usage || message.durationMs !== undefined) && <div className="ai-message-metrics" aria-label={t('回复指标', 'Response metrics')}>
         {message.usage && <><span title={t('输入 token', 'Input tokens')}><Hash size={12} aria-hidden="true" />{message.usage.inputTokens}</span><span title={t('输出 token', 'Output tokens')}><Hash size={12} aria-hidden="true" />{message.usage.outputTokens}</span><span title={t('总 token', 'Total tokens')}><Hash size={12} aria-hidden="true" />{message.usage.totalTokens}</span></>}
         {message.firstTokenMs !== undefined && <span title={t('首字耗时', 'Time to first token')}><Zap size={12} aria-hidden="true" />{(message.firstTokenMs / 1000).toFixed(2)}s</span>}

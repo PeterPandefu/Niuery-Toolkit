@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { mapAiMessage } from '@/tools/ai-assistant/runtime/message-mapper';
-import { useToolCalls } from '@/tools/ai-assistant/use-tool-calls';
+import { useToolCalls, settlePendingCalls } from '@/tools/ai-assistant/use-tool-calls';
 import { retainAnswerVersion, selectAnswerVersion } from '@/tools/ai-assistant/branches';
 import { exportConversation } from '@/tools/ai-assistant/model';
 import type { AiConversation, AiMessage, AiStreamEvent, AiToolCall } from '@/tools/ai-assistant/types';
@@ -30,6 +30,19 @@ type LoosePart = { type: string; toolName?: string; argsText?: string; args?: Re
 function partsOf(mapped: ReturnType<typeof mapAiMessage>): readonly LoosePart[] {
   return mapped.content as unknown as readonly LoosePart[];
 }
+
+describe('settlePendingCalls', () => {
+  it('settles only pending/running calls and keeps settled records untouched', () => {
+    const settledRecord = call();
+    const calls = [settledRecord, call({ id: 'p', status: 'pending', result: undefined }), call({ id: 'r', status: 'running', result: undefined })];
+    const settled = settlePendingCalls(calls, '生成已结束，此调用未执行。')!;
+    expect(settled[0]).toEqual(settledRecord);
+    expect(settled[1]).toMatchObject({ status: 'failed', error: '生成已结束，此调用未执行。' });
+    expect(settled[2]).toMatchObject({ status: 'failed', error: '生成已结束，此调用未执行。' });
+    expect(settlePendingCalls(undefined, 'note')).toBeUndefined();
+    expect(settlePendingCalls([settledRecord], 'note')).toEqual([settledRecord]);
+  });
+});
 
 describe('tool call message mapping', () => {
   it('emits a tool-call part carrying the raw arguments and result', () => {
