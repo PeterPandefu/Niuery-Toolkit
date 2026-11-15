@@ -501,6 +501,26 @@ describe('AI workspace lifecycle', () => {
     expect(fake.saved).toHaveLength(0);
   });
 
+  it('replays the interrupted round when the user asks to continue after a reload', async () => {
+    const workspace = fixture();
+    workspace.conversations[0].messages = [
+      { id: 'u1', role: 'user', content: '针对数据生成图表', attachments: [], createdAt: 1, status: 'complete' },
+      { id: 'a1', role: 'assistant', content: '我先读取数据', attachments: [], createdAt: 2, status: 'streaming',
+        toolCalls: [{ id: 'c1', name: 'read_range', arguments: '{}', status: 'running' }] },
+    ];
+    const { result, fake, chatId } = await setup(workspace);
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ status: 'interrupted' });
+    act(() => { void result.current.send(chatId, { content: '继续' }); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    const sent = fake.request!.messages;
+    expect(sent.map(message => message.role)).toEqual(['user', 'assistant', 'user']);
+    expect(sent[0].content).toBe('针对数据生成图表');
+    expect(sent[1].content).toContain('我先读取数据');
+    expect(sent[1].toolCalls).toMatchObject([{ id: 'c1', status: 'failed' }]);
+    expect(sent[2].content).toBe('继续');
+    act(() => fake.event('done'));
+  });
+
   it('keeps the old answer on disk until a regenerated answer succeeds', async () => {
     const workspace = fixture();
     workspace.conversations[0].messages = [

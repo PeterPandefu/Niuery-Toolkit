@@ -395,6 +395,36 @@ fn ai_assistant_tools_unsettled_call_still_gets_a_paired_result() {
     assert!(text.contains("任务已中断"));
 }
 
+#[test]
+fn ai_assistant_tools_interrupted_history_replays_partial_answer_and_calls() {
+    let provider = super::super::tests::provider_at("http://localhost/custom", "openai");
+    let mut input = super::super::tests::request();
+    input.messages.push(
+        serde_json::from_value(serde_json::json!({
+            "id":"a1","role":"assistant","content":"我先读取数据","attachments":[],"createdAt":2,"status":"interrupted",
+            "toolCalls":[
+                {"id":"call-1","name":"calculate","arguments":"{\"expression\":\"6*7\"}","status":"complete","result":"42"},
+                {"id":"call-2","name":"calculate","arguments":"{}","status":"failed","error":"回复意外中断，此调用未执行。"}
+            ]
+        }))
+        .unwrap(),
+    );
+    input.messages.push(
+        serde_json::from_value(serde_json::json!({
+            "id":"m2","role":"user","content":"继续","attachments":[],"createdAt":3,"status":"complete"
+        }))
+        .unwrap(),
+    );
+    let body = wires::payload_for_test(&provider, &input).unwrap();
+    let text = body.to_string();
+    assert!(text.contains("我先读取数据"));
+    assert!(text.contains("42"));
+    assert!(text.contains("回复意外中断"));
+    assert!(text.contains("继续"));
+    let messages = body["messages"].as_array().unwrap();
+    assert!(messages.iter().any(|message| message["role"] == "tool"));
+}
+
 async fn scripted_model(
     responses: Vec<String>,
 ) -> (String, tokio::task::JoinHandle<Vec<String>>) {

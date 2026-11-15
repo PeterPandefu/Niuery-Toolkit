@@ -512,8 +512,10 @@ fn ai_assistant_payload_omits_unset_parameters_and_blocks_partial_answers() {
     let body = engine::payload_for_test(&provider, &value).unwrap();
     assert!(body.get("options").is_none());
     value.messages[0].role = "assistant".into();
-    value.messages[0].status = "stopped".into();
+    value.messages[0].status = "streaming".into();
     assert!(engine::payload_for_test(&provider, &value).is_err());
+    value.messages[0].status = "interrupted".into();
+    assert!(engine::payload_for_test(&provider, &value).is_ok());
 }
 
 #[test]
