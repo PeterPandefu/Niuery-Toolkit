@@ -1,6 +1,6 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 
-export type ResourceId = 'chromium' | 'ffmpeg' | 'java' | 'plantuml' | 'ocr-engine' | 'ocr-chi-sim' | 'ocr-eng';
+export type ResourceId = 'chromium' | 'ffmpeg' | 'java' | 'plantuml' | 'office' | 'ocr-engine' | 'ocr-chi-sim' | 'ocr-eng';
 export interface ResourceStatus {
   id: ResourceId; version: string; platform: string; archive: string; entry: string;
   sha256: string; downloadBytes: number; installedBytes: number;

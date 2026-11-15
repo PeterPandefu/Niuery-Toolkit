@@ -24,7 +24,7 @@ export function newConversation(assistant: AiAssistant): AiConversation {
   return {
     id: nanoid(), assistantId: assistant.id, title: '新会话', systemPrompt: assistant.systemPrompt,
     providerId: assistant.providerId, modelId: assistant.modelId, parameters: { ...assistant.parameters },
-    messages: [], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: Date.now(),
+    messages: [], draft: '', draftAttachments: [], approvedTargets: [], permissionMode: 'ask', updatedAt: Date.now(),
   };
 }
 
@@ -66,7 +66,8 @@ export function exportConversation(conversation: AiConversation, format: 'markdo
     id: message.id, role: message.role, content: message.content, attachments: message.attachments.map(attachment), createdAt: message.createdAt, status: message.status,
     providerId: message.providerId, modelId: message.modelId, error: message.error, thinking: message.thinking, finishReason: message.finishReason,
     usage: message.usage && { inputTokens: message.usage.inputTokens, outputTokens: message.usage.outputTokens, totalTokens: message.usage.totalTokens }, firstTokenMs: message.firstTokenMs, durationMs: message.durationMs,
-    versions: message.versions?.map(version => ({ content: version.content, thinking: version.thinking, createdAt: version.createdAt, status: version.status, modelId: version.modelId, providerId: version.providerId, error: version.error, usage: version.usage && { inputTokens: version.usage.inputTokens, outputTokens: version.usage.outputTokens, totalTokens: version.usage.totalTokens }, finishReason: version.finishReason, firstTokenMs: version.firstTokenMs, durationMs: version.durationMs })), selectedVersion: message.selectedVersion,
+    toolCalls: message.toolCalls?.map(call => ({ ...call })),
+    versions: message.versions?.map(version => ({ content: version.content, thinking: version.thinking, createdAt: version.createdAt, status: version.status, modelId: version.modelId, providerId: version.providerId, error: version.error, usage: version.usage && { inputTokens: version.usage.inputTokens, outputTokens: version.usage.outputTokens, totalTokens: version.usage.totalTokens }, finishReason: version.finishReason, firstTokenMs: version.firstTokenMs, durationMs: version.durationMs, toolCalls: version.toolCalls?.map(call => ({ ...call })) })), selectedVersion: message.selectedVersion,
   });
   const archive: AiConversation = {
     id: conversation.id, assistantId: conversation.assistantId, title: conversation.title,

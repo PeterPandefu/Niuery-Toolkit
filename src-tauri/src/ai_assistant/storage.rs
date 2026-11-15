@@ -191,6 +191,10 @@ fn read_attachments(root: &Path, items: &mut [Value]) -> Result<()> {
 
 fn parse_conversation(root: &Path, bytes: &[u8]) -> Result<Conversation> {
     let mut value: Value = serde_json::from_slice(bytes).map_err(|_| "会话文件损坏".to_string())?;
+    // Tools became always-on; deny_unknown_fields would reject older stores.
+    if let Some(object) = value.as_object_mut() {
+        object.remove("toolsEnabled");
+    }
     let draft: Vec<_> = attachment_values(&mut value).collect();
     for item in draft {
         read_attachments(root, std::slice::from_mut(item))?;
@@ -207,10 +211,31 @@ fn parse_conversation(root: &Path, bytes: &[u8]) -> Result<Conversation> {
     serde_json::from_value(value).map_err(|_| "会话数据格式无效或版本不兼容".into())
 }
 
+/// Tools became always-on; deny_unknown_fields would reject older stores that
+/// still carry the per-model capability flag.
+fn strip_legacy_model_flags(value: &mut Value) {
+    for model in value
+        .pointer_mut("/workspace/providers")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+        .filter_map(|provider| provider.get_mut("models"))
+        .filter_map(Value::as_array_mut)
+        .flatten()
+    {
+        if let Some(object) = model.as_object_mut() {
+            object.remove("supportsTools");
+        }
+    }
+}
+
 fn read_index(root: &Path, path: &Path) -> Result<Workspace> {
     check_file(path)?;
-    let index: Index = serde_json::from_slice(&fs::read(path).map_err(io)?)
+    let mut value: Value = serde_json::from_slice(&fs::read(path).map_err(io)?)
         .map_err(|_| "AI 数据索引损坏或版本不兼容".to_string())?;
+    strip_legacy_model_flags(&mut value);
+    let index: Index =
+        serde_json::from_value(value).map_err(|_| "AI 数据索引损坏或版本不兼容".to_string())?;
     if index.version != 1 || index.workspace.version != 1 {
         return Err("AI 数据版本不受支持，原文件已保留".into());
     }

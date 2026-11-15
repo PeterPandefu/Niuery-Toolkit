@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createWorkspace, newConversation, providerTarget } from '@/tools/ai-assistant/model';
 import { useAiWorkspace } from '@/tools/ai-assistant/use-ai-workspace';
 import { createComparisonTask } from '@/tools/ai-assistant/tasks';
-import type { AiBackend, AiFlushHandler, AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant/types';
+import type { AiBackend, AiFlushHandler, AiMediaService, AiMcpServer, AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant/types';
 
 function fixture() {
   const workspace = createWorkspace();
@@ -24,6 +24,14 @@ function createBackend(workspace = fixture()) {
     save: vi.fn(async value => { saved.push(structuredClone(value)); }),
     saveProvider: vi.fn(async provider => provider), removeProvider: vi.fn(async () => {}),
     listModels: vi.fn(async () => []), testConnection: vi.fn(async () => 'OK'),
+    listTools: vi.fn(async () => []),
+    decideTool: vi.fn(async () => {}),
+    answerTool: vi.fn(async () => {}),
+    saveMediaService: vi.fn(async (config: AiMediaService) => config),
+    saveMcpServers: vi.fn(async (servers: AiMcpServer[]) => servers),
+    saveOfficeEnabled: vi.fn(async (enabled: boolean) => enabled),
+    saveSearchService: vi.fn(async (config: { baseUrl: string; hasApiKey: boolean; enabled: boolean }) => config),
+    testSearchService: vi.fn(async () => '搜索服务连接成功'),
     generate: vi.fn((value, callback) => { request = value; emit = callback; return new Promise<void>(resolve => { resolveGenerate = resolve; }); }),
     cancel: vi.fn(async () => {}), openDataDirectory: vi.fn(async () => {}), reset: vi.fn(async () => {}),
   };
@@ -31,7 +39,7 @@ function createBackend(workspace = fixture()) {
     event(type: AiStreamEvent['type'], text?: string, overrides?: Partial<AiStreamEvent>) {
       if (!request || !emit) throw new Error('generation not started');
       emit({ requestId: request.requestId, conversationId: request.conversationId, messageId: request.messageId, type, text, ...overrides });
-      if (type !== 'delta' && type !== 'thinking' && type !== 'metadata') resolveGenerate?.();
+      if (type !== 'delta' && type !== 'thinking' && type !== 'metadata' && type !== 'round_reset') resolveGenerate?.();
     },
   };
 }
@@ -51,6 +59,23 @@ describe('AI workspace lifecycle', () => {
     await waitFor(() => expect(fake.request).toBeDefined());
     expect(fake.request?.messages[0]).toMatchObject({ content: 'Captured question', attachments: [{ id: 'captured' }] });
     expect(result.current.workspace.conversations[0].draft).toBe('Next draft');
+    act(() => fake.event('done'));
+  });
+  it('carries the session permission mode into the generate request', async () => {
+    const workspace = fixture();
+    workspace.conversations[0].permissionMode = 'full';
+    const { result, fake, chatId } = await setup(workspace);
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    expect(fake.request?.permissionMode).toBe('full');
+    act(() => fake.event('done'));
+  });
+  it('defaults a new session to ask-every-time and sends that mode', async () => {
+    const { result, fake, chatId } = await setup();
+    expect(result.current.workspace.conversations[0].permissionMode).toBe('ask');
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    expect(fake.request?.permissionMode).toBe('ask');
     act(() => fake.event('done'));
   });
   it('keeps reset workspace intact when a cancelled comparison returns late', async () => {
@@ -174,6 +199,20 @@ describe('AI workspace lifecycle', () => {
     act(() => { fake.event('thinking', 'New thought'); fake.event('delta', 'New answer'); fake.event('done'); });
     expect(result.current.workspace.conversations[0].messages[1].thinking).toBe('Old thinking');
     expect(result.current.workspace.conversations[0].messages[3]).toMatchObject({ thinking: 'New thought', content: 'New answer' });
+  });
+  it('discards blocked round output on round_reset and keeps the generation alive', async () => {
+    const { result, fake, chatId } = await setup();
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    act(() => { fake.event('thinking', 'blocked thought'); fake.event('delta', 'partial'); });
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ thinking: 'blocked thought', content: 'partial', status: 'streaming' });
+    act(() => { fake.event('round_reset'); });
+    expect(result.current.busy).not.toBeNull();
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: '', status: 'streaming' });
+    expect(result.current.workspace.conversations[0].messages[1].thinking).toBeUndefined();
+    act(() => { fake.event('delta', 'recovered'); fake.event('done'); });
+    await waitFor(() => expect(result.current.busy).toBeNull());
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'recovered', status: 'complete' });
   });
   it('keeps thinking-only generation active and persists the partial thinking on stop', async () => {
     const { result, fake, chatId } = await setup();

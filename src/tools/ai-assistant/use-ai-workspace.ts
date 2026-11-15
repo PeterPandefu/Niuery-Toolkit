@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { nanoid } from 'nanoid';
 import { createWorkspace, providerTarget } from './model';
 import { requestMessages } from './request-messages';
+import { useToolCalls, settlePendingCalls } from './use-tool-calls';
 import { buildBudgetedContext } from './context';
 import { retainAnswerVersion } from './branches';
 import { validateAttachments } from './attachments';
@@ -83,6 +84,8 @@ export function useAiWorkspace(backend: AiBackend) {
     replace({ ...valueRef.current, conversations: valueRef.current.conversations.map(chat => chat.id === id ? updater(chat) : chat) });
   }, [replace]);
 
+  const toolCalls = useToolCalls({ changeConversation, saveQuietly, backend });
+
   const changeReply = useCallback((request: ActiveRequest, updater: (message: AiMessage) => AiMessage) => {
     changeConversation(request.conversationId, chat => ({ ...chat, updatedAt: Date.now(),
       ...(request.taskId ? { tasks: chat.tasks?.map(task => task.id === request.taskId ? { ...task, results: task.results.map(result => result.message.id === request.messageId ? { ...result, message: updater(result.message) } : result) } : task) }
@@ -107,7 +110,7 @@ export function useAiWorkspace(backend: AiBackend) {
     clearProgressTimer();
     changeReply(request, message => {
       if (status !== 'complete' && request.previous) return request.previous;
-      const completed = { ...message, status, error: reason, durationMs: Math.max(0, Date.now() - request.startedAt) };
+      const completed = { ...message, toolCalls: settlePendingCalls(message.toolCalls, '生成已结束，此调用未执行。'), status, error: reason, durationMs: Math.max(0, Date.now() - request.startedAt) };
       return status === 'complete' && request.previous ? retainAnswerVersion(request.previous, completed) : completed;
     });
     active.current = null;
@@ -137,8 +140,8 @@ export function useAiWorkspace(backend: AiBackend) {
       if (!saved) await enqueue(() => backend.save(next));
       if (!mounted.current || generation !== loadGeneration.current) return;
       const recovered: AiWorkspace = { ...next, conversations: next.conversations.map(chat => ({ ...chat,
-        messages: chat.messages.map(message => message.status === 'waiting' || message.status === 'streaming' ? { ...message, status: 'interrupted' } : message),
-        tasks: chat.tasks?.map(task => ({ ...task, results: task.results.map(result => ({ ...result, message: result.message.status === 'waiting' || result.message.status === 'streaming' ? { ...result.message, status: 'interrupted' } : result.message })) })),
+        messages: chat.messages.map(message => message.status === 'waiting' || message.status === 'streaming' ? { ...message, status: 'interrupted', toolCalls: settlePendingCalls(message.toolCalls, '回复意外中断，此调用未执行。') } : message),
+        tasks: chat.tasks?.map(task => ({ ...task, results: task.results.map(result => ({ ...result, message: result.message.status === 'waiting' || result.message.status === 'streaming' ? { ...result.message, status: 'interrupted', toolCalls: settlePendingCalls(result.message.toolCalls, '回复意外中断，此调用未执行。') } : result.message })) })),
       })) };
       initialized.current = true;
       replace(recovered);
@@ -282,7 +285,12 @@ export function useAiWorkspace(backend: AiBackend) {
           }, 500);
         } else if (event.type === 'metadata') {
           changeConversation(conversationId, value => ({ ...value, messages: value.messages.map(message => message.id === running.messageId ? { ...message, finishReason: event.finishReason ?? message.finishReason, usage: event.usage ?? message.usage } : message) }));
+        } else if (event.type === 'round_reset') {
+          changeConversation(conversationId, value => ({ ...value, updatedAt: Date.now(), messages: value.messages.map(message => message.id === running.messageId ? { ...message, content: '', thinking: undefined, status: 'streaming' } : message) }));
+        } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required') {
+          toolCalls.handleEvent(event, conversationId, running.messageId);
         } else {
+          toolCalls.clear();
           const status = event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed';
           void finish(running, status, event.error || (event.type === 'error' ? '生成失败，请检查模型服务后重试。' : undefined)).catch(() => {});
         }
@@ -290,6 +298,7 @@ export function useAiWorkspace(backend: AiBackend) {
       networkStarted = true;
       await backend.generate({ requestId: running.requestId, conversationId, messageId: running.messageId,
         providerId: provider.id, modelId: model.id, systemPrompt: budget.systemPrompt, parameters: budget.parameters,
+        permissionMode: chat.permissionMode ?? 'ask',
         messages: requestMessages(context) }, onEvent);
       if (active.current === running && !running.terminated) await finish(running, 'interrupted', '回复流意外结束，请重试。');
     } catch (reason) {
@@ -339,6 +348,8 @@ export function useAiWorkspace(backend: AiBackend) {
               if (progressTimer.current === null) progressTimer.current = setTimeout(() => { progressTimer.current = null; saveQuietly(); }, 500);
             } else if (event.type === 'metadata') {
               changeReply(running, message => ({ ...message, finishReason: event.finishReason ?? message.finishReason, usage: event.usage ?? message.usage }));
+            } else if (event.type === 'round_reset') {
+              changeReply(running, message => ({ ...message, content: '', thinking: undefined, status: 'streaming' }));
             } else void finish(running, event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed', event.error).catch(() => {});
           });
           if (active.current === running && !running.terminated) await finish(running, 'interrupted', '任务回复流意外结束');
@@ -441,5 +452,5 @@ export function useAiWorkspace(backend: AiBackend) {
     } finally { mutationsPending.current--; }
   }, [backend, enqueue, replace, stop]);
 
-  return { workspace, loading: loading || updatePending, updating: updatePending, error, saveError, busy, update, reload, send, regenerate, runTask, stop, saveProvider, removeProvider, clearHistory, reset };
+  return { workspace, loading: loading || updatePending, updating: updatePending, error, saveError, busy, update, reload, send, regenerate, runTask, stop, saveProvider, removeProvider, clearHistory, reset, toolCalls };
 }

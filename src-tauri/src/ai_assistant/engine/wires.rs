@@ -373,7 +373,7 @@ pub(crate) fn payload_for_test(
     provider: &Provider,
     input: &super::super::types::Request,
 ) -> Result<Value, String> {
-    let request = super::request::convert(input, provider)?;
+    let request = super::request::convert(input, provider, &super::super::tools::ToolEnv::default())?;
     let encoded = if provider.kind == "ollama" {
         let native = OllamaConfig::new()
             .with_base_url(&provider.base_url)

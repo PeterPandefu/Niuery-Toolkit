@@ -1,6 +1,8 @@
 mod credentials;
 mod engine;
+mod office;
 mod storage;
+mod tools;
 mod types;
 mod validation;
 pub use types::*;
@@ -10,11 +12,17 @@ use std::{path::PathBuf, sync::Mutex, time::Duration};
 use tauri::{ipc::Channel, Emitter, Manager, State};
 use tokio::sync::watch;
 
+/// Credential id for the user-configured search service. `safe_id` accepts it,
+/// and `credentials::remove_all` already covers it on reset.
+const SEARCH_SERVICE_ID: &str = "search-service";
+const MEDIA_SERVICE_ID: &str = "media-service";
+
 #[derive(Default)]
 pub struct AiState {
     storage: tokio::sync::Mutex<()>,
     active: Mutex<Option<Active>>,
     exit: Mutex<ExitState>,
+    approvals: engine::ApprovalRegistry,
 }
 
 struct Active {
@@ -109,6 +117,8 @@ pub fn defer_exit(app: &tauri::AppHandle, code: Option<i32>) -> bool {
         ExitDecision::Allow => false,
         ExitDecision::Wait => true,
         ExitDecision::Prepare => {
+            // Frontend may be gone; unblock any suspended approval so exit proceeds.
+            state.approvals.drain(ToolDecision::Rejected);
             if app.emit_to("main", "ai-prepare-exit", ()).is_err() {
                 if let Ok(mut exit) = state.exit.lock() {
                     exit.complete(false);
@@ -252,6 +262,169 @@ pub async fn ai_save_provider(
             return Err(error);
         }
         Ok(provider)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn ai_save_search_service(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+    mut config: SearchService,
+    api_key: Option<String>,
+) -> Result<SearchService, String> {
+    config.base_url = config.base_url.trim().trim_end_matches('/').to_string();
+    validation::validate_search_service(&config.base_url)?;
+    let _guard = state.storage.lock().await;
+    let root = directory(&app)?;
+    let namespace = app.config().identifier.clone();
+    blocking(move || {
+        let mut workspace = storage::load(&root)?.unwrap_or_else(Workspace::empty);
+        let previous = workspace.search_service.clone();
+        let old_key = if api_key.is_some() || previous.as_ref().is_some_and(|c| c.has_api_key) {
+            credentials::read(&namespace, SEARCH_SERVICE_ID)?
+        } else {
+            None
+        };
+        if let Some(ref key) = api_key {
+            if key.is_empty() {
+                credentials::remove(&namespace, SEARCH_SERVICE_ID)?;
+            } else {
+                credentials::write(&namespace, SEARCH_SERVICE_ID, key)?;
+            }
+        }
+        config.has_api_key = match api_key.as_ref() {
+            Some(key) => !key.is_empty(),
+            None => old_key.is_some(),
+        };
+        workspace.search_service = Some(config.clone());
+        if let Err(error) = storage::save(&root, &workspace) {
+            if api_key.is_some() {
+                let rollback = match old_key {
+                    Some(ref key) => credentials::write(&namespace, SEARCH_SERVICE_ID, key),
+                    None => credentials::remove(&namespace, SEARCH_SERVICE_ID),
+                };
+                if rollback.is_err() {
+                    return Err(format!("{error}；系统凭据回滚失败，请重新保存该服务配置"));
+                }
+            }
+            return Err(error);
+        }
+        Ok(config)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn ai_test_search_service(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+) -> Result<String, String> {
+    let env = tool_env(&app, &state).await?;
+    let http = engine::transport::GuardedHttp::for_tools()?;
+    let outcome = tools::test_search(&env, &http).await;
+    if outcome.is_error {
+        return Err(outcome.content);
+    }
+    Ok("搜索服务连接成功".into())
+}
+
+#[tauri::command]
+pub async fn ai_save_media_service(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+    mut config: MediaService,
+    api_key: Option<String>,
+) -> Result<MediaService, String> {
+    config.base_url = config.base_url.trim().trim_end_matches('/').to_string();
+    validation::validate_search_service(&config.base_url)?;
+    let _guard = state.storage.lock().await;
+    let root = directory(&app)?;
+    let namespace = app.config().identifier.clone();
+    blocking(move || {
+        let mut workspace = storage::load(&root)?.unwrap_or_else(Workspace::empty);
+        let previous = workspace.media_service.clone();
+        let old_key = if api_key.is_some() || previous.as_ref().is_some_and(|c| c.has_api_key) {
+            credentials::read(&namespace, MEDIA_SERVICE_ID)?
+        } else {
+            None
+        };
+        if let Some(ref key) = api_key {
+            if key.is_empty() {
+                credentials::remove(&namespace, MEDIA_SERVICE_ID)?;
+            } else {
+                credentials::write(&namespace, MEDIA_SERVICE_ID, key)?;
+            }
+        }
+        config.has_api_key = match api_key.as_ref() {
+            Some(key) => !key.is_empty(),
+            None => old_key.is_some(),
+        };
+        workspace.media_service = Some(config.clone());
+        if let Err(error) = storage::save(&root, &workspace) {
+            if api_key.is_some() {
+                let rollback = match old_key {
+                    Some(ref key) => credentials::write(&namespace, MEDIA_SERVICE_ID, key),
+                    None => credentials::remove(&namespace, MEDIA_SERVICE_ID),
+                };
+                if rollback.is_err() {
+                    return Err(format!("{error}；系统凭据回滚失败，请重新保存该服务配置"));
+                }
+            }
+            return Err(error);
+        }
+        Ok(config)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn ai_save_mcp_servers(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+    servers: Vec<McpServer>,
+) -> Result<Vec<McpServer>, String> {
+    if servers.len() > 16 {
+        return Err("最多配置 16 个 MCP 服务".into());
+    }
+    for server in &servers {
+        storage::safe_id(&server.id)?;
+        if server.name.trim().is_empty() || server.command.trim().is_empty() {
+            return Err("MCP 服务的名称与命令不能为空".into());
+        }
+        if tools::mcp::sanitize(&server.name).is_empty() {
+            return Err("MCP 服务名称需包含字母或数字".into());
+        }
+    }
+    let _guard = state.storage.lock().await;
+    let root = directory(&app)?;
+    let servers_clone = servers.clone();
+    blocking(move || {
+        let mut workspace = storage::load(&root)?.unwrap_or_else(Workspace::empty);
+        workspace.mcp_servers = if servers_clone.is_empty() {
+            None
+        } else {
+            Some(servers_clone.clone())
+        };
+        storage::save(&root, &workspace)?;
+        Ok(servers_clone)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn ai_save_office_enabled(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+    enabled: bool,
+) -> Result<bool, String> {
+    let _guard = state.storage.lock().await;
+    let root = directory(&app)?;
+    blocking(move || {
+        let mut workspace = storage::load(&root)?.unwrap_or_else(Workspace::empty);
+        workspace.office_enabled = Some(enabled);
+        storage::save(&root, &workspace)?;
+        Ok(enabled)
     })
     .await
 }
@@ -431,6 +604,33 @@ async fn fetch_models(provider: &Provider, key: Option<&str>) -> Result<Vec<Mode
 }
 
 #[tauri::command]
+pub async fn ai_list_tools(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+) -> Result<Vec<ToolInfo>, String> {
+    let (search, media) = {
+        let _guard = state.storage.lock().await;
+        let root = directory(&app)?;
+        let workspace = blocking(move || storage::load(&root)).await?;
+        (
+            workspace
+                .as_ref()
+                .and_then(|value| value.search_service.clone()),
+            workspace
+                .as_ref()
+                .and_then(|value| value.media_service.clone()),
+        )
+    };
+    Ok(tools::info(&tools::ToolEnv {
+        search,
+        search_key: None,
+        media,
+        media_key: None,
+        ..Default::default()
+    }))
+}
+
+#[tauri::command]
 pub async fn ai_list_models(
     app: tauri::AppHandle,
     state: State<'_, AiState>,
@@ -484,7 +684,7 @@ async fn test_model(
     let started = std::time::Instant::now();
     tokio::time::timeout(
         Duration::from_secs(60),
-        stream_with_provider(provider, key, &request, &channel, &mut cancel),
+        engine::generate_diagnostic(provider, key, &request, &channel, &mut cancel),
     )
     .await
     .map_err(|_| "模型生成测试超时（60 秒）".to_string())??;
@@ -525,7 +725,86 @@ async fn stream_response(
         _ = cancel.changed() => return Ok(Outcome::Stopped),
         result = provider(app, state, &request.provider_id) => result?,
     };
-    stream_with_provider(&provider, key.as_deref(), request, channel, cancel).await
+    let env = tool_env(app, state).await?;
+    stream_with_provider(
+        &provider,
+        key.as_deref(),
+        request,
+        channel,
+        cancel,
+        &state.approvals,
+        &env,
+    )
+    .await
+}
+
+/// Service keys are read here and never leave Rust; the frontend only ever
+/// sees `hasApiKey`.
+async fn tool_env(app: &tauri::AppHandle, state: &AiState) -> Result<tools::ToolEnv, String> {
+    let (search, media, mcp_servers, office_enabled) = {
+        let _guard = state.storage.lock().await;
+        let root = directory(app)?;
+        let workspace = blocking(move || storage::load(&root)).await?;
+        (
+            workspace
+                .as_ref()
+                .and_then(|value| value.search_service.clone()),
+            workspace
+                .as_ref()
+                .and_then(|value| value.media_service.clone()),
+            workspace
+                .as_ref()
+                .and_then(|value| value.mcp_servers.clone())
+                .unwrap_or_default(),
+            workspace
+                .as_ref()
+                .and_then(|value| value.office_enabled)
+                .unwrap_or(true),
+        )
+    };
+    let search_key = match search
+        .as_ref()
+        .filter(|config| config.enabled && config.has_api_key)
+    {
+        Some(_) => credentials::read(&app.config().identifier, SEARCH_SERVICE_ID)?,
+        None => None,
+    };
+    let media_key = match media
+        .as_ref()
+        .filter(|config| config.enabled && config.has_api_key)
+    {
+        Some(_) => credentials::read(&app.config().identifier, MEDIA_SERVICE_ID)?,
+        None => None,
+    };
+    let chromium = crate::resources::resolve(app, "chromium")
+        .ok()
+        .map(|(path, _)| path);
+    let mut servers = mcp_servers;
+    let mut office_lease = None;
+    if office_enabled {
+        if let Some((builtin, lease)) = office::servers(app) {
+            let labels: Vec<String> = builtin
+                .iter()
+                .map(|server| tools::mcp::sanitize(&server.name))
+                .collect();
+            // Built-in entries win over user-configured servers with the same
+            // name so the pack never registers duplicate tool names.
+            servers.retain(|server| !labels.contains(&tools::mcp::sanitize(&server.name)));
+            servers.extend(builtin);
+            office_lease = Some(lease);
+        }
+    }
+    let mcp = tools::mcp::discover(&servers).await;
+    Ok(tools::ToolEnv {
+        search,
+        search_key,
+        media,
+        media_key,
+        chromium,
+        mcp,
+        office_lease,
+        ..Default::default()
+    })
 }
 
 async fn stream_with_provider(
@@ -534,8 +813,10 @@ async fn stream_with_provider(
     request: &Request,
     channel: &Channel<StreamEvent>,
     cancel: &mut watch::Receiver<bool>,
+    approvals: &engine::ApprovalRegistry,
+    env: &tools::ToolEnv,
 ) -> Result<Outcome, String> {
-    engine::generate(provider, key, request, channel, cancel).await
+    engine::generate_with_tools(provider, key, request, channel, cancel, approvals, env).await
 }
 
 #[tauri::command]
@@ -598,6 +879,9 @@ async fn cancel_active_request(state: &AiState, request_id: &str) -> Result<(), 
             .filter(|a| a.request_id == request_id)
             .map(|active| {
                 let _ = active.cancel.send(true);
+                // A suspended approval would otherwise hold the active slot and
+                // block cancel, reset and app exit.
+                state.approvals.drain(ToolDecision::Rejected);
                 active.completion.clone()
             })
     };
@@ -614,6 +898,38 @@ async fn cancel_active_request(state: &AiState, request_id: &str) -> Result<(), 
 #[tauri::command]
 pub async fn ai_cancel(state: State<'_, AiState>, request_id: String) -> Result<(), String> {
     cancel_active_request(&state, &request_id).await
+}
+
+#[tauri::command]
+pub async fn ai_tool_decision(
+    state: State<'_, AiState>,
+    call_id: String,
+    decision: ToolDecision,
+) -> Result<(), String> {
+    let request_id = {
+        let active = state.active.lock().map_err(|_| "AI 请求状态不可用")?;
+        active.as_ref().map(|value| value.request_id.clone())
+    };
+    let Some(request_id) = request_id else {
+        return Err("该调用已失效".into());
+    };
+    state.approvals.decide(&request_id, &call_id, decision)
+}
+
+#[tauri::command]
+pub async fn ai_tool_answer(
+    state: State<'_, AiState>,
+    call_id: String,
+    answer: String,
+) -> Result<(), String> {
+    let request_id = {
+        let active = state.active.lock().map_err(|_| "AI 请求状态不可用")?;
+        active.as_ref().map(|value| value.request_id.clone())
+    };
+    let Some(request_id) = request_id else {
+        return Err("该提问已失效".into());
+    };
+    state.approvals.answer(&request_id, &call_id, answer)
 }
 
 #[tauri::command]

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { isResourceDesktop } from '@/lib/resources';
 import { useResourceStore, useResourceEvents } from '@/store/resource-store';
 
-const TITLES = { chromium: 'Chromium', ffmpeg: 'FFmpeg', java: 'Java', plantuml: 'PlantUML', 'ocr-engine': 'OCR', 'ocr-chi-sim': 'OCR · 简体中文', 'ocr-eng': 'OCR · English' };
+const TITLES = { chromium: 'Chromium', ffmpeg: 'FFmpeg', java: 'Java', plantuml: 'PlantUML', office: 'Office', 'ocr-engine': 'OCR', 'ocr-chi-sim': 'OCR · 简体中文', 'ocr-eng': 'OCR · English' };
 const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 export function ResourceManager() {
   const { i18n } = useTranslation();
@@ -26,7 +26,7 @@ export function ResourceManager() {
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     {resources.map(resource => {
       const id = resource.id; const task = progress[id]; const pending = busy[id] || !!task; const ready = resource.status === 'ready';
-      const usage = id === 'chromium' ? (zh ? 'Markdown、HTML、报告、图表的 PDF/PNG 导出' : 'Markdown, HTML, report and diagram PDF/PNG exports') : id === 'ffmpeg' ? (zh ? '录屏、MP4 与 GIF 导出' : 'Recording, MP4 and GIF export') : id === 'java' || id === 'plantuml' ? (zh ? 'PlantUML 预览与导出' : 'PlantUML preview and export') : (zh ? '图片和截图文字识别' : 'Image and screenshot OCR');
+      const usage = id === 'chromium' ? (zh ? 'Markdown、HTML、报告、图表的 PDF/PNG 导出' : 'Markdown, HTML, report and diagram PDF/PNG exports') : id === 'ffmpeg' ? (zh ? '录屏、MP4 与 GIF 导出' : 'Recording, MP4 and GIF export') : id === 'java' || id === 'plantuml' ? (zh ? 'PlantUML 预览与导出' : 'PlantUML preview and export') : id === 'office' ? (zh ? 'AI 助手 Word/Excel/PPT 读写引擎' : 'AI assistant Word/Excel/PPT reading and writing engines') : (zh ? '图片和截图文字识别' : 'Image and screenshot OCR');
       return <article key={id} className="space-y-2 rounded-lg border border-border p-3">
         <header className="flex justify-between gap-2"><h3 className="text-sm font-semibold">{TITLES[id]} <span className="font-mono text-[10px] font-normal text-muted-foreground">{resource.version}</span></h3><span className={ready ? 'text-xs text-success' : 'text-xs text-warning'}>{ready ? (zh ? '可用' : 'Ready') : (zh ? '未准备' : 'Not ready')}</span></header>
         <p className="text-xs text-muted-foreground">{usage}</p>

@@ -1,18 +1,28 @@
 import { Select } from '@/components/ui/select';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { nanoid } from 'nanoid';
-import { Archive, Box, Check, Database, KeyRound, Loader2, Plus, RefreshCw, Server, Unplug } from 'lucide-react';
-import type { AiBackend, AiConversation, AiModel, AiProvider } from './types';
+import { Archive, Box, Cable, Check, Database, Image as ImageIcon, KeyRound, Loader2, Plus, RefreshCw, Search, Server, Trash2, Unplug } from 'lucide-react';
+import type { AiBackend, AiConversation, AiMediaService, AiMcpServer, AiModel, AiProvider, AiSearchService } from './types';
 import { AiDialog, AiError } from './ui';
 import { useAiText } from './ui-text';
 import { AiEnabledModel, AiModelPicker } from './model-settings';
 import { uniqueModels } from './model';
+import { useResourceStore } from '@/store/resource-store';
+import { openResourceManager } from '@/lib/resources';
 
 interface SettingsProps {
   providers: AiProvider[];
   conversations?: AiConversation[];
+  searchService?: AiSearchService;
+  mediaService?: AiMediaService;
+  mcpServers?: AiMcpServer[];
+  officeEnabled?: boolean;
   backend: AiBackend;
   onSave(provider: AiProvider, apiKey?: string): Promise<unknown>;
+  onSearchSaved?(config: AiSearchService): void;
+  onMediaSaved?(config: AiMediaService): void;
+  onMcpSaved?(servers: AiMcpServer[]): void;
+  onOfficeSaved?(enabled: boolean): void;
   onRemove(id: string): Promise<unknown>;
   onClearHistory(): Promise<unknown>;
   onReset(): Promise<unknown>;
@@ -21,7 +31,7 @@ interface SettingsProps {
   onClose(): void;
 }
 
-export function AiSettings({ providers, conversations = [], backend, onSave, onRemove, onClearHistory, onReset, onUnarchive = () => {}, onSelectConversation = () => {}, onClose }: SettingsProps) {
+export function AiSettings({ providers, conversations = [], searchService, mediaService, mcpServers, officeEnabled, backend, onSave, onSearchSaved = () => {}, onMediaSaved = () => {}, onMcpSaved = () => {}, onOfficeSaved = () => {}, onRemove, onClearHistory, onReset, onUnarchive = () => {}, onSelectConversation = () => {}, onClose }: SettingsProps) {
   const t = useAiText();
   const makeProvider = (): AiProvider => ({ id: nanoid(), name: '', kind: 'openai', baseUrl: 'https://api.openai.com/v1', hasApiKey: false, models: [], enabled: true });
   const [provider, setProvider] = useState<AiProvider>(providers[0] ?? makeProvider());
@@ -36,7 +46,33 @@ export function AiSettings({ providers, conversations = [], backend, onSave, onR
   const [catalog, setCatalog] = useState<AiModel[] | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [testModelId, setTestModelId] = useState('');
-  const [tab, setTab] = useState<'services' | 'archive'>('services');
+  const [tab, setTab] = useState<'services' | 'search' | 'media' | 'mcp' | 'archive'>('services');
+  const [search, setSearch] = useState<AiSearchService>(searchService ?? { baseUrl: '', hasApiKey: false, enabled: true });
+  const [searchKey, setSearchKey] = useState<string | undefined>();
+  const [searchDirty, setSearchDirty] = useState(false);
+  const [searchFeedback, setSearchFeedback] = useState('');
+  const [searchError, setSearchError] = useState<unknown>();
+  const [searchWorking, setSearchWorking] = useState(false);
+  function editSearch(next: AiSearchService) { setSearch(next); setSearchDirty(true); setSearchFeedback(''); }
+  async function runSearch(operation: () => Promise<void>) {
+    setSearchWorking(true); setSearchError(undefined); setSearchFeedback('');
+    try { await operation(); } catch (failure) { setSearchError(failure); } finally { setSearchWorking(false); }
+  }
+  function normalizedSearch() {
+    const baseUrl = search.baseUrl.trim().replace(/\/+$/, '');
+    if (!baseUrl) throw new Error(t('请输入搜索服务地址', 'Enter a search service URL.'));
+    const url = new URL(baseUrl);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error(t('请输入不含凭据、参数或片段的 HTTP(S) 地址', 'Enter an HTTP(S) URL without embedded credentials, query, or fragment.'));
+    return { ...search, baseUrl };
+  }
+  async function saveSearch() {
+    const next = normalizedSearch();
+    const saved = await backend.saveSearchService(next, searchKey) as AiSearchService;
+    setSearch(saved); setSearchKey(undefined); setSearchDirty(false);
+    setSearchFeedback(t('搜索服务已保存', 'Search service saved'));
+    onSearchSaved(saved);
+    return saved;
+  }
   function edit(next: AiProvider) {
     if (next.baseUrl !== provider.baseUrl || next.kind !== provider.kind) setCatalog(null);
     setProvider(next); setDirty(true); setFeedback('');
@@ -80,9 +116,22 @@ export function AiSettings({ providers, conversations = [], backend, onSave, onR
     <div className="ai-settings-shell">
       <nav className="ai-settings-nav" aria-label={t('设置分类', 'Settings sections')}>
         <button type="button" className={tab === 'services' ? 'is-active' : ''} aria-current={tab === 'services' ? 'page' : undefined} onClick={() => setTab('services')}><span className="ai-settings-nav-icon"><Server size={16} aria-hidden="true" /></span><strong>{t('模型服务', 'Model services')}</strong></button>
+        <button type="button" className={tab === 'search' ? 'is-active' : ''} aria-current={tab === 'search' ? 'page' : undefined} onClick={() => setTab('search')}><span className="ai-settings-nav-icon"><Search size={16} aria-hidden="true" /></span><strong>{t('搜索服务', 'Search service')}</strong></button>
+        <button type="button" className={tab === 'media' ? 'is-active' : ''} aria-current={tab === 'media' ? 'page' : undefined} onClick={() => setTab('media')}><span className="ai-settings-nav-icon"><ImageIcon size={16} aria-hidden="true" /></span><strong>{t('图像/视频服务', 'Media service')}</strong></button>
+        <button type="button" className={tab === 'mcp' ? 'is-active' : ''} aria-current={tab === 'mcp' ? 'page' : undefined} onClick={() => setTab('mcp')}><span className="ai-settings-nav-icon"><Cable size={16} aria-hidden="true" /></span><strong>{t('MCP 服务', 'MCP servers')}</strong></button>
         <button type="button" className={tab === 'archive' ? 'is-active' : ''} aria-current={tab === 'archive' ? 'page' : undefined} onClick={() => setTab('archive')}><span className="ai-settings-nav-icon"><Archive size={16} aria-hidden="true" /></span><strong>{t('归档', 'Archive')}</strong></button>
       </nav>
-      {tab === 'archive' ? <section className="ai-archive-panel" aria-labelledby="ai-archive-heading"><div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Archive size={18} aria-hidden="true" /></span><div><h3 id="ai-archive-heading">{t('已归档会话', 'Archived conversations')}</h3><p>{t('归档的会话会保留在本机，可随时恢复。', 'Archived conversations stay on this device and can be restored anytime.')}</p></div></div>{archived.length ? <div className="ai-archive-list">{archived.map(item => <article key={item.id} className="ai-archive-item"><button type="button" className="ai-archive-item-main" onClick={() => onSelectConversation(item)}><strong>{item.title || t('未命名会话', 'Untitled conversation')}</strong><span>{new Date(item.updatedAt).toLocaleString()} · {item.messages.length} {t('条消息', 'messages')}</span></button><button type="button" onClick={() => onUnarchive(item.id)}>{t('取消归档', 'Unarchive')}</button></article>)}</div> : <div className="ai-archive-empty"><Archive size={28} aria-hidden="true" /><strong>{t('暂无归档会话', 'No archived conversations')}</strong><span>{t('在会话操作中归档的内容会显示在这里。', 'Conversations archived from the conversation menu appear here.')}</span></div>}</section> : <div className="ai-settings-layout">
+      {tab === 'archive' ? <section className="ai-archive-panel" aria-labelledby="ai-archive-heading"><div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Archive size={18} aria-hidden="true" /></span><div><h3 id="ai-archive-heading">{t('已归档会话', 'Archived conversations')}</h3><p>{t('归档的会话会保留在本机，可随时恢复。', 'Archived conversations stay on this device and can be restored anytime.')}</p></div></div>{archived.length ? <div className="ai-archive-list">{archived.map(item => <article key={item.id} className="ai-archive-item"><button type="button" className="ai-archive-item-main" onClick={() => onSelectConversation(item)}><strong>{item.title || t('未命名会话', 'Untitled conversation')}</strong><span>{new Date(item.updatedAt).toLocaleString()} · {item.messages.length} {t('条消息', 'messages')}</span></button><button type="button" onClick={() => onUnarchive(item.id)}>{t('取消归档', 'Unarchive')}</button></article>)}</div> : <div className="ai-archive-empty"><Archive size={28} aria-hidden="true" /><strong>{t('暂无归档会话', 'No archived conversations')}</strong><span>{t('在会话操作中归档的内容会显示在这里。', 'Conversations archived from the conversation menu appear here.')}</span></div>}</section> : tab === 'search' ? <section className="ai-archive-panel" aria-labelledby="ai-search-heading">
+        <div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Search size={18} aria-hidden="true" /></span><div><h3 id="ai-search-heading">{t('搜索服务', 'Search service')}</h3><p>{t('为 web_search 工具配置检索端点；未配置或停用时该工具不会提供给模型。', 'Configure the endpoint for the web_search tool. It is not offered to the model until configured and enabled.')}</p></div><label className="ai-checkbox ai-service-toggle"><input type="checkbox" disabled={searchWorking} checked={search.enabled} onChange={event => editSearch({ ...search, enabled: event.target.checked })} />{t('启用服务', 'Enable service')}</label></div>
+        <form className="ai-form" onSubmit={event => { event.preventDefault(); void runSearch(async () => { await saveSearch(); }); }}>
+          <div><label>Base URL<input type="url" required disabled={searchWorking} value={search.baseUrl} placeholder={t('填写你自有搜索服务的真实地址', 'Enter the real URL of your own search service')} onChange={event => editSearch({ ...search, baseUrl: event.target.value })} spellCheck={false} aria-describedby="ai-search-url-help" /></label><p className="ai-field-hint" id="ai-search-url-help">{t('填写完整接口前缀，通常以 /v1 结尾，应用会在其后拼接固定的 search 路径。请使用与当前任务一致的真实地址，不要填写代理或镜像地址。', 'Use the full API prefix, usually ending in /v1; the app appends a fixed search path. Use a real address matching your task, never a proxy or mirror.')}</p></div>
+          <label>API Key<input type="password" autoComplete="new-password" disabled={searchWorking} value={searchKey ?? ''} placeholder={search.hasApiKey ? t('已安全保存，留空保持不变', 'Saved securely; leave blank to keep') : t('输入搜索服务密钥', 'Enter the search service key')} onChange={event => { setSearchKey(event.target.value || undefined); setSearchDirty(true); setSearchFeedback(''); }} /></label>
+          {search.hasApiKey && <label className="ai-checkbox ai-key-delete"><input type="checkbox" disabled={searchWorking} checked={searchKey === ''} onChange={event => { setSearchKey(event.target.checked ? '' : undefined); setSearchDirty(true); setSearchFeedback(''); }} />{t('删除已保存的密钥', 'Delete saved API key')}</label>}
+          <div className="ai-settings-network"><button type="button" disabled={searchWorking} onClick={() => void runSearch(async () => { await saveSearch(); setSearchFeedback(await backend.testSearchService()); })}>{searchWorking ? <Loader2 size={15} className="ai-spin" aria-hidden="true" /> : <Unplug size={15} aria-hidden="true" />}{t('测试连接', 'Test connection')}</button><p>{t('测试会先保存配置，再发送一条最小检索请求，不发送任何会话内容。', 'Testing saves the configuration first, then sends one minimal query. No conversation content is sent.')}</p></div>
+          <p className="ai-field-hint">{t('密钥安全存储于系统凭据中，不下发到界面。每次搜索调用仍需你在弹窗中逐次批准。', 'The key stays in system credentials and is never sent to the UI. Every search call still needs your per-call approval.')}</p>
+          <footer className="ai-settings-footer"><div className="ai-settings-feedback"><AiError error={searchError} />{!searchError && <span role="status" className={searchFeedback ? 'ai-feedback' : 'ai-muted'}>{searchFeedback ? <><Check size={14} aria-hidden="true" />{searchFeedback}</> : searchDirty ? t('有未保存的修改', 'Unsaved changes') : t('配置仅保存在本机', 'Configuration is stored locally')}</span>}</div><div className="ai-button-row"><button type="submit" className="ai-primary" disabled={searchWorking}>{searchWorking && <Loader2 size={15} className="ai-spin" aria-hidden="true" />}{searchWorking ? t('处理中…', 'Working…') : t('保存搜索服务', 'Save search service')}</button></div></footer>
+        </form>
+      </section> : tab === 'media' ? <MediaServicePanel backend={backend} initial={mediaService} onSaved={onMediaSaved} /> : tab === 'mcp' ? <McpServersPanel backend={backend} initial={mcpServers} onSaved={onMcpSaved} officeEnabled={officeEnabled} onOfficeSaved={onOfficeSaved} /> : <div className="ai-settings-layout">
       <nav className="ai-provider-list" aria-label={t('模型服务', 'Model services')}>
         <div className="ai-provider-caption">{t('模型服务', 'MODEL SERVICES')}<span>{providers.length}</span></div>
         <div className="ai-provider-items">{providers.map(item => <button type="button" key={item.id} disabled={working} aria-current={provider.id === item.id ? 'true' : undefined} className={provider.id === item.id ? 'is-active' : ''} onClick={() => select(item)}><span className="ai-provider-icon"><Server size={17} aria-hidden="true" /></span><span className="ai-provider-name"><strong>{item.name}</strong><small>{item.kind === 'ollama' ? 'Ollama' : 'OpenAI'} · {t(`${item.models.length} 个模型`, `${item.models.length} models`)}</small></span><span className={`ai-provider-dot ${item.enabled ? 'is-enabled' : ''}`} aria-label={item.enabled ? t('已启用', 'Enabled') : t('已停用', 'Disabled')} /></button>)}</div>
@@ -120,4 +169,92 @@ export function AiSettings({ providers, conversations = [], backend, onSave, onR
     {confirm && <AiDialog title={confirm === 'provider' ? t('删除服务？', 'Delete service?') : confirm === 'history' ? t('清空所有历史？', 'Clear all history?') : t('重置 AI 助手？', 'Reset AI assistant?')} onClose={() => setConfirm(null)}><div className="ai-form"><p>{confirm === 'provider' ? t('删除此服务及系统凭据，保留聊天历史。', 'Delete this service and its system credential. Chat history is retained.') : confirm === 'history' ? t('删除全部会话、草稿和附件，保留助手、服务配置及密钥。此操作无法撤销。', 'Delete all conversations, drafts and attachments. Assistants, services and keys are retained. This cannot be undone.') : t('删除全部 AI 会话、附件、助手、服务配置及系统凭据，不影响其他工具。此操作无法撤销。', 'Delete all AI conversations, attachments, assistants, services and system credentials. Other tools are unaffected. This cannot be undone.')}</p><footer><button type="button" onClick={() => setConfirm(null)}>{t('取消', 'Cancel')}</button><button type="button" className="ai-danger" onClick={() => { const action = confirm; setConfirm(null); void run(async () => { if (action === 'provider') { await onRemove(provider.id); switchTo(providers.find(item => item.id !== provider.id) ?? makeProvider()); } else if (action === 'history') { await onClearHistory(); setFeedback(t('历史已清空', 'History cleared')); } else { await onReset(); onClose(); } }); }}>{t('确认删除', 'Confirm deletion')}</button></footer></div></AiDialog>}
     {discardTarget && <AiDialog title={t('放弃未保存的修改？', 'Discard unsaved changes?')} onClose={() => setDiscardTarget(null)}><div className="ai-form"><p>{t('当前服务配置尚未保存。', 'The current service has unsaved changes.')}</p><footer><button type="button" onClick={() => setDiscardTarget(null)}>{t('取消', 'Cancel')}</button><button type="button" onClick={() => switchTo(discardTarget)}>{t('放弃修改', 'Discard changes')}</button></footer></div></AiDialog>}
   </AiDialog>;
+}
+
+function MediaServicePanel({ backend, initial, onSaved }: { backend: AiBackend; initial?: AiMediaService; onSaved(config: AiMediaService): void }) {
+  const t = useAiText();
+  const [media, setMedia] = useState<AiMediaService>(initial ?? { baseUrl: '', hasApiKey: false, enabled: true });
+  const [mediaKey, setMediaKey] = useState<string | undefined>();
+  const [dirty, setDirty] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState<unknown>();
+  const [working, setWorking] = useState(false);
+  function edit(next: AiMediaService) { setMedia(next); setDirty(true); setFeedback(''); }
+  async function save() {
+    const baseUrl = media.baseUrl.trim().replace(/\/+$/, '');
+    if (!baseUrl) throw new Error(t('请输入图像/视频服务地址', 'Enter a media service URL.'));
+    const url = new URL(baseUrl);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error(t('请输入不含凭据、参数或片段的 HTTP(S) 地址', 'Enter an HTTP(S) URL without embedded credentials, query, or fragment.'));
+    const saved = await backend.saveMediaService({ ...media, baseUrl }, mediaKey);
+    setMedia(saved); setMediaKey(undefined); setDirty(false);
+    setFeedback(t('图像/视频服务已保存', 'Media service saved'));
+    onSaved(saved);
+  }
+  return <section className="ai-archive-panel" aria-labelledby="ai-media-heading">
+    <div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><ImageIcon size={18} aria-hidden="true" /></span><div><h3 id="ai-media-heading">{t('图像/视频服务', 'Media service')}</h3><p>{t('为 generate_image 与 generate_video 工具配置 OpenAI 兼容端点；未配置或停用时这两个工具不会提供给模型。', 'Configure an OpenAI-compatible endpoint for generate_image and generate_video. They are not offered until configured and enabled.')}</p></div><label className="ai-checkbox ai-service-toggle"><input type="checkbox" disabled={working} checked={media.enabled} onChange={event => edit({ ...media, enabled: event.target.checked })} />{t('启用服务', 'Enable service')}</label></div>
+    <form className="ai-form" onSubmit={event => { event.preventDefault(); setWorking(true); setError(undefined); setFeedback(''); void save().catch(setError).finally(() => setWorking(false)); }}>
+      <div><label>Base URL<input type="url" required disabled={working} value={media.baseUrl} placeholder="https://api.openai.com/v1" onChange={event => edit({ ...media, baseUrl: event.target.value })} spellCheck={false} /></label><p className="ai-field-hint">{t('完整接口前缀，通常以 /v1 结尾；应用在其后拼接 images/generations 与 videos 路径。', 'Full API prefix, usually ending in /v1; the app appends images/generations and videos paths.')}</p></div>
+      <label>API Key<input type="password" autoComplete="new-password" disabled={working} value={mediaKey ?? ''} placeholder={media.hasApiKey ? t('已安全保存，留空保持不变', 'Saved securely; leave blank to keep') : t('输入服务密钥', 'Enter the service key')} onChange={event => { setMediaKey(event.target.value || undefined); setDirty(true); setFeedback(''); }} /></label>
+      {media.hasApiKey && <label className="ai-checkbox ai-key-delete"><input type="checkbox" disabled={working} checked={mediaKey === ''} onChange={event => { setMediaKey(event.target.checked ? '' : undefined); setDirty(true); setFeedback(''); }} />{t('删除已保存的密钥', 'Delete saved API key')}</label>}
+      <div className="ai-form-row"><label>{t('图像模型（可选）', 'Image model (optional)')}<input disabled={working} value={media.imageModel ?? ''} placeholder="gpt-image-1" onChange={event => edit({ ...media, imageModel: event.target.value || undefined })} /></label><label>{t('视频模型（可选）', 'Video model (optional)')}<input disabled={working} value={media.videoModel ?? ''} placeholder="sora-2" onChange={event => edit({ ...media, videoModel: event.target.value || undefined })} /></label></div>
+      <p className="ai-field-hint">{t('密钥安全存储于系统凭据中，不下发到界面。生成可能产生费用，每次调用仍需你在弹窗中逐次批准。', 'The key stays in system credentials. Generation may incur charges, and every call still needs your per-call approval.')}</p>
+      <footer className="ai-settings-footer"><div className="ai-settings-feedback"><AiError error={error} />{!error && <span role="status" className={feedback ? 'ai-feedback' : 'ai-muted'}>{feedback ? <><Check size={14} aria-hidden="true" />{feedback}</> : dirty ? t('有未保存的修改', 'Unsaved changes') : t('配置仅保存在本机', 'Configuration is stored locally')}</span>}</div><div className="ai-button-row"><button type="submit" className="ai-primary" disabled={working}>{working && <Loader2 size={15} className="ai-spin" aria-hidden="true" />}{working ? t('处理中…', 'Working…') : t('保存服务', 'Save service')}</button></div></footer>
+    </form>
+  </section>;
+}
+
+function McpServersPanel({ backend, initial, onSaved, officeEnabled = true, onOfficeSaved }: { backend: AiBackend; initial?: AiMcpServer[]; onSaved(servers: AiMcpServer[]): void; officeEnabled?: boolean; onOfficeSaved(enabled: boolean): void }) {
+  const t = useAiText();
+  const [servers, setServers] = useState<AiMcpServer[]>(initial ?? []);
+  const [dirty, setDirty] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState<unknown>();
+  const [working, setWorking] = useState(false);
+  const resources = useResourceStore(state => state.resources);
+  const refreshResources = useResourceStore(state => state.refresh);
+  const [officeBusy, setOfficeBusy] = useState(false);
+  const [officeError, setOfficeError] = useState<unknown>();
+  useEffect(() => { void refreshResources(); }, [refreshResources]);
+  const officeResource = resources.find(resource => resource.id === 'office');
+  const officeReady = officeResource?.status === 'ready';
+  async function toggleOffice(enabled: boolean) {
+    setOfficeBusy(true); setOfficeError(undefined);
+    try { onOfficeSaved(await backend.saveOfficeEnabled(enabled)); }
+    catch (caught) { setOfficeError(caught); }
+    finally { setOfficeBusy(false); }
+  }
+  function edit(next: AiMcpServer[]) { setServers(next); setDirty(true); setFeedback(''); }
+  function patch(id: string, next: Partial<AiMcpServer>) { edit(servers.map(item => item.id === id ? { ...item, ...next } : item)); }
+  async function save() {
+    for (const server of servers) {
+      if (!server.name.trim() || !server.command.trim()) throw new Error(t('每个 MCP 服务都需要名称与启动命令', 'Every MCP server needs a name and a command.'));
+    }
+    const saved = await backend.saveMcpServers(servers.map(item => ({ ...item, name: item.name.trim(), command: item.command.trim() })));
+    setServers(saved); setDirty(false);
+    setFeedback(t('MCP 服务已保存，下次生成时生效', 'MCP servers saved; effective on the next generation'));
+    onSaved(saved);
+  }
+  return <section className="ai-archive-panel" aria-labelledby="ai-mcp-heading">
+    <div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><Cable size={18} aria-hidden="true" /></span><div><h3 id="ai-mcp-heading">{t('MCP 服务', 'MCP servers')}</h3><p>{t('通过 stdio 连接本地 MCP 服务，其工具会以 mcp__服务名__工具名 注册给模型。MCP 调用视为潜在风险，除完全访问模式外都会逐次批准。', 'Connect local MCP servers over stdio; their tools are registered as mcp__server__tool. MCP calls count as risky and ask per call unless the session uses full access.')}</p></div></div>
+    <div className="ai-settings-section ai-mcp-server">
+      <div className="ai-form-row">
+        <label className="ai-checkbox ai-service-toggle"><input type="checkbox" disabled={officeBusy} checked={officeEnabled !== false} onChange={event => void toggleOffice(event.target.checked)} />{t('内置 Office 文档', 'Built-in Office documents')}</label>
+        <span className="ai-muted">{officeReady ? t('引擎已就绪', 'Engine ready') : t('引擎未下载', 'Engine not downloaded')}</span>
+        {!officeReady && <button type="button" disabled={officeBusy} onClick={() => openResourceManager()}>{t('下载资源', 'Download resource')}</button>}
+      </div>
+      <p className="ai-field-hint">{t('启用后注册 Word/Excel/PPT 读写工具，引擎由资源管理中的 Office 资源包提供，无需手动配置。自动权限模式下只读工具免审批，写入与保存逐次审批。', 'Registers Word/Excel/PPT tools backed by the Office resource pack; no manual setup. In Auto mode read-only tools skip approval; writes and saves ask per call.')}</p>
+      <AiError error={officeError} />
+    </div>
+    <form className="ai-form" onSubmit={event => { event.preventDefault(); setWorking(true); setError(undefined); setFeedback(''); void save().catch(setError).finally(() => setWorking(false)); }}>
+      {servers.map(server => <div key={server.id} className="ai-settings-section ai-mcp-server">
+        <div className="ai-form-row"><label>{t('名称', 'Name')}<input required disabled={working} value={server.name} placeholder="filesystem" onChange={event => patch(server.id, { name: event.target.value })} /></label><label className="ai-checkbox ai-service-toggle"><input type="checkbox" disabled={working} checked={server.enabled} onChange={event => patch(server.id, { enabled: event.target.checked })} />{t('启用', 'Enabled')}</label><button type="button" className="ai-danger" disabled={working} aria-label={t('删除该服务', 'Remove server')} onClick={() => edit(servers.filter(item => item.id !== server.id))}><Trash2 size={15} aria-hidden="true" /></button></div>
+        <label>{t('启动命令', 'Command')}<input required disabled={working} value={server.command} placeholder="npx" onChange={event => patch(server.id, { command: event.target.value })} spellCheck={false} /></label>
+        <label>{t('参数（空格分隔）', 'Arguments (space separated)')}<input disabled={working} value={server.args.join(' ')} placeholder="-y @modelcontextprotocol/server-filesystem C:/data" onChange={event => patch(server.id, { args: event.target.value.split(/\s+/).filter(Boolean) })} spellCheck={false} /></label>
+      </div>)}
+      {!servers.length && <p className="ai-muted">{t('还没有 MCP 服务。添加后，其工具会在下次生成时提供给模型。', 'No MCP servers yet. Once added, their tools are offered on the next generation.')}</p>}
+      <div className="ai-button-row"><button type="button" disabled={working || servers.length >= 16} onClick={() => edit([...servers, { id: nanoid(), name: '', command: '', args: [], enabled: true }])}><Plus size={15} aria-hidden="true" />{t('添加 MCP 服务', 'Add MCP server')}</button></div>
+      <p className="ai-field-hint">{t('MCP 服务以你的用户权限运行本地命令，请只添加你信任的服务。', 'MCP servers run local commands with your user permissions; only add servers you trust.')}</p>
+      <footer className="ai-settings-footer"><div className="ai-settings-feedback"><AiError error={error} />{!error && <span role="status" className={feedback ? 'ai-feedback' : 'ai-muted'}>{feedback ? <><Check size={14} aria-hidden="true" />{feedback}</> : dirty ? t('有未保存的修改', 'Unsaved changes') : t('配置仅保存在本机', 'Configuration is stored locally')}</span>}</div><div className="ai-button-row"><button type="submit" className="ai-primary" disabled={working}>{working && <Loader2 size={15} className="ai-spin" aria-hidden="true" />}{working ? t('处理中…', 'Working…') : t('保存 MCP 服务', 'Save MCP servers')}</button></div></footer>
+    </form>
+  </section>;
 }

@@ -1,0 +1,314 @@
+import { describe, expect, it, vi } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { mapAiMessage } from '@/tools/ai-assistant/runtime/message-mapper';
+import { useToolCalls, settlePendingCalls } from '@/tools/ai-assistant/use-tool-calls';
+import { retainAnswerVersion, selectAnswerVersion } from '@/tools/ai-assistant/branches';
+import { exportConversation } from '@/tools/ai-assistant/model';
+import type { AiConversation, AiMessage, AiStreamEvent, AiToolCall } from '@/tools/ai-assistant/types';
+
+function message(overrides: Partial<AiMessage> = {}): AiMessage {
+  return {
+    id: 'reply-1', role: 'assistant', content: 'answer', attachments: [],
+    createdAt: 1_700_000_000_000, status: 'complete', ...overrides,
+  };
+}
+
+function call(overrides: Partial<AiToolCall> = {}): AiToolCall {
+  return { id: 'call-1', name: 'calculate', arguments: '{"expression":"6*7"}', status: 'complete', result: '42', ...overrides };
+}
+
+function event(overrides: Partial<AiStreamEvent> = {}): AiStreamEvent {
+  return {
+    requestId: 'r1', conversationId: 'c1', messageId: 'reply-1',
+    type: 'tool_call', callId: 'call-1', name: 'calculate', arguments: '{"expression":"6*7"}', status: 'pending',
+    ...overrides,
+  };
+}
+
+type LoosePart = { type: string; toolName?: string; argsText?: string; args?: Record<string, unknown>; result?: unknown; isError?: boolean };
+
+function partsOf(mapped: ReturnType<typeof mapAiMessage>): readonly LoosePart[] {
+  return mapped.content as unknown as readonly LoosePart[];
+}
+
+describe('settlePendingCalls', () => {
+  it('settles only pending/running calls and keeps settled records untouched', () => {
+    const settledRecord = call();
+    const calls = [settledRecord, call({ id: 'p', status: 'pending', result: undefined }), call({ id: 'r', status: 'running', result: undefined })];
+    const settled = settlePendingCalls(calls, '生成已结束，此调用未执行。')!;
+    expect(settled[0]).toEqual(settledRecord);
+    expect(settled[1]).toMatchObject({ status: 'failed', error: '生成已结束，此调用未执行。' });
+    expect(settled[2]).toMatchObject({ status: 'failed', error: '生成已结束，此调用未执行。' });
+    expect(settlePendingCalls(undefined, 'note')).toBeUndefined();
+    expect(settlePendingCalls([settledRecord], 'note')).toEqual([settledRecord]);
+  });
+});
+
+describe('tool call message mapping', () => {
+  it('emits a tool-call part carrying the raw arguments and result', () => {
+    const tool = partsOf(mapAiMessage(message({ toolCalls: [call()] }))).find(part => part.type === 'tool-call');
+    expect(tool).toBeDefined();
+    expect(tool?.toolName).toBe('calculate');
+    expect(tool?.argsText).toBe('{"expression":"6*7"}');
+    expect(tool?.args).toEqual({ expression: '6*7' });
+    expect(tool?.result).toBe('42');
+    expect(tool?.isError).toBeUndefined();
+  });
+
+  it('orders reasoning, then tool calls, then the answer text', () => {
+    const mapped = mapAiMessage(message({ thinking: 'thought', toolCalls: [call()] }));
+    expect(partsOf(mapped).map(part => part.type)).toEqual(['reasoning', 'tool-call', 'text']);
+  });
+
+  it('marks failed and rejected calls as errors', () => {
+    for (const status of ['failed', 'rejected'] as const) {
+      const mapped = mapAiMessage(message({ toolCalls: [call({ status, result: undefined, error: 'denied' })] }));
+      const tool = partsOf(mapped).find(part => part.type === 'tool-call');
+      expect(tool?.isError).toBe(true);
+    }
+  });
+
+  it('still renders a call whose argument record is malformed', () => {
+    const mapped = mapAiMessage(message({ toolCalls: [call({ arguments: '{"expression":' })] }));
+    const tool = partsOf(mapped).find(part => part.type === 'tool-call');
+    expect(tool?.args).toEqual({});
+    expect(tool?.argsText).toBe('{"expression":');
+  });
+
+  it('adds no tool part when the message has none', () => {
+    expect(partsOf(mapAiMessage(message())).some(part => part.type === 'tool-call')).toBe(false);
+  });
+
+  it('never emits tool parts for a user message', () => {
+    const mapped = mapAiMessage(message({ role: 'user', toolCalls: [call()] }));
+    expect(partsOf(mapped).some(part => part.type === 'tool-call')).toBe(false);
+  });
+});
+
+describe('tool call event state machine', () => {
+  function setup() {
+    const changeConversation = vi.fn();
+    const saveQuietly = vi.fn();
+    const decideTool = vi.fn(async () => {});
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, saveQuietly, decideTool, answerTool, apply: result.current.handleEvent, result };
+  }
+
+  it('upserts by call id instead of appending duplicates', () => {
+    const { changeConversation, apply } = setup();
+    const chat: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [message({ status: 'streaming' })], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    changeConversation.mockImplementation((_id: string, updater: (value: AiConversation) => AiConversation) => {
+      Object.assign(chat, updater(chat));
+    });
+    apply(event(), 'c1', 'reply-1');
+    apply(event({ type: 'tool_result', status: 'complete', result: '42', durationMs: 12 }), 'c1', 'reply-1');
+    const calls = chat.messages[0].toolCalls ?? [];
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ id: 'call-1', name: 'calculate', status: 'complete', result: '42', durationMs: 12 });
+    expect(calls[0].arguments).toBe('{"expression":"6*7"}');
+  });
+
+  it('keeps separate calls distinct and records failures', () => {
+    const { changeConversation, apply } = setup();
+    const chat: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [message({ status: 'streaming' })], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    changeConversation.mockImplementation((_id: string, updater: (value: AiConversation) => AiConversation) => {
+      Object.assign(chat, updater(chat));
+    });
+    apply(event(), 'c1', 'reply-1');
+    apply(event({ callId: 'call-2', name: 'get_current_time', arguments: '{}' }), 'c1', 'reply-1');
+    apply(event({ type: 'tool_result', callId: 'call-2', status: 'failed', error: '未知工具' }), 'c1', 'reply-1');
+    const calls = chat.messages[0].toolCalls ?? [];
+    expect(calls.map(item => item.id)).toEqual(['call-1', 'call-2']);
+    expect(calls[1]).toMatchObject({ status: 'failed', error: '未知工具' });
+    expect(calls[0].status).toBe('pending');
+  });
+
+  it('ignores events without a call id and unrelated event types', () => {
+    const { changeConversation, apply } = setup();
+    apply(event({ callId: undefined }), 'c1', 'reply-1');
+    apply(event({ type: 'delta', text: 'hi' }), 'c1', 'reply-1');
+    apply(event({ type: 'metadata' }), 'c1', 'reply-1');
+    expect(changeConversation).not.toHaveBeenCalled();
+  });
+
+  it('leaves other messages untouched', () => {
+    const { changeConversation, apply } = setup();
+    const chat: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [message({ id: 'other', content: 'keep' }), message({ status: 'streaming' })],
+      draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    changeConversation.mockImplementation((_id: string, updater: (value: AiConversation) => AiConversation) => {
+      Object.assign(chat, updater(chat));
+    });
+    apply(event(), 'c1', 'reply-1');
+    expect(chat.messages[0].toolCalls).toBeUndefined();
+    expect(chat.messages[0].content).toBe('keep');
+    expect(chat.messages[1].toolCalls).toHaveLength(1);
+  });
+});
+
+describe('tool approval gate', () => {
+  function setup() {
+    const changeConversation = vi.fn();
+    const saveQuietly = vi.fn();
+    const decideTool = vi.fn(async () => {});
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, decideTool, answerTool, result };
+  }
+
+  const approval = event({
+    type: 'approval_required', callId: 'call-7', name: 'fetch_url',
+    arguments: '{"url":"https://example.com/a"}', url: 'https://example.com/a', provenance: 'modelProposed',
+  });
+
+  it('surfaces the verbatim URL and its provenance for verification', () => {
+    const { changeConversation, result } = setup();
+    act(() => result.current.handleEvent(approval, 'c1', 'reply-1'));
+    expect(result.current.pendingApproval?.callId).toBe('call-7');
+    expect(result.current.pendingApproval?.url).toBe('https://example.com/a');
+    expect(result.current.pendingApproval?.provenance).toBe('modelProposed');
+    const updater = changeConversation.mock.calls[0][1] as (chat: AiConversation) => AiConversation;
+    const chat: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [message({ status: 'streaming' })], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    const recorded = updater(chat).messages[0].toolCalls?.[0];
+    expect(recorded?.url).toBe('https://example.com/a');
+    expect(recorded?.provenance).toBe('modelProposed');
+  });
+
+  it('records URL and provenance from a tool_call when the permission mode skips the dialog', () => {
+    const { changeConversation, result } = setup();
+    act(() => result.current.handleEvent(event({
+      type: 'tool_call', callId: 'call-8', name: 'fetch_url',
+      arguments: '{"url":"https://example.com/b"}', url: 'https://example.com/b', provenance: 'userProvided',
+    }), 'c1', 'reply-1'));
+    expect(result.current.pendingApproval).toBeNull();
+    const updater = changeConversation.mock.calls[0][1] as (chat: AiConversation) => AiConversation;
+    const chat: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [message({ status: 'streaming' })], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    const recorded = updater(chat).messages[0].toolCalls?.[0];
+    expect(recorded?.url).toBe('https://example.com/b');
+    expect(recorded?.provenance).toBe('userProvided');
+  });
+
+  it('sends approve and reject decisions and closes the dialog', async () => {
+    for (const decision of ['approved', 'rejected'] as const) {
+      const { decideTool, result } = setup();
+      act(() => result.current.handleEvent(approval, 'c1', 'reply-1'));
+      await act(async () => { await result.current.decide(decision); });
+      expect(decideTool).toHaveBeenCalledWith('call-7', decision);
+      expect(result.current.pendingApproval).toBeNull();
+    }
+  });
+
+  it('offers no always-allow path: a second decide without a pending call is a no-op', async () => {
+    const { decideTool, result } = setup();
+    act(() => result.current.handleEvent(approval, 'c1', 'reply-1'));
+    await act(async () => { await result.current.decide('approved'); });
+    decideTool.mockClear();
+    await act(async () => { await result.current.decide('approved'); });
+    expect(decideTool).not.toHaveBeenCalled();
+  });
+
+  it('closing without deciding never approves the call', () => {
+    const { decideTool, result } = setup();
+    act(() => result.current.handleEvent(approval, 'c1', 'reply-1'));
+    act(() => result.current.clear());
+    expect(result.current.pendingApproval).toBeNull();
+    expect(decideTool).not.toHaveBeenCalled();
+  });
+
+  it('a stale answer failing in Rust does not throw into the UI', async () => {
+    const changeConversation = vi.fn();
+    const decideTool = vi.fn(async () => { throw new Error('该调用已失效'); });
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly: vi.fn(), backend: { decideTool, answerTool } }));
+    act(() => result.current.handleEvent(approval, 'c1', 'reply-1'));
+    await act(async () => { await result.current.decide('approved'); });
+    expect(result.current.pendingApproval).toBeNull();
+  });
+});
+
+describe('tool records across answer versions and export', () => {
+  const withTools = message({ content: 'used a tool', toolCalls: [call()] });
+  const withoutTools = message({ content: 'plain answer' });
+
+  it('snapshots tool records when retaining a version', () => {
+    const retained = retainAnswerVersion(withTools, withoutTools);
+    expect(retained.versions?.[0].toolCalls).toHaveLength(1);
+    expect(retained.versions?.[1].toolCalls).toBeUndefined();
+  });
+
+  it('clears tool records when switching to a version that had none', () => {
+    const retained = retainAnswerVersion(withTools, withoutTools);
+    const switched = selectAnswerVersion(retained, 1);
+    expect(switched.toolCalls).toBeUndefined();
+    expect(switched.content).toBe('plain answer');
+  });
+
+  it('restores tool records when switching back to the version that had them', () => {
+    const retained = retainAnswerVersion(withTools, withoutTools);
+    const back = selectAnswerVersion(selectAnswerVersion(retained, 1), 0);
+    expect(back.toolCalls).toHaveLength(1);
+    expect(back.toolCalls?.[0].id).toBe('call-1');
+  });
+
+  it('keeps tool records in both json and markdown exports', () => {
+    const conversation: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [withTools], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    const json = exportConversation(conversation, 'json');
+    expect(json).toContain('call-1');
+    expect(json).toContain('calculate');
+    expect(exportConversation(conversation, 'markdown')).toContain('used a tool');
+  });
+});
+describe('ask_user question flow', () => {
+  function setup() {
+    const changeConversation = vi.fn();
+    const saveQuietly = vi.fn();
+    const decideTool = vi.fn(async () => {});
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, decideTool, answerTool, result };
+  }
+
+  it('surfaces question_required as the pending dialog and records the call', () => {
+    const { changeConversation, result } = setup();
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q1', name: 'ask_user', arguments: '{"question":"选哪个？","options":["A","B"]}', text: '选哪个？' }), 'c1', 'reply-1'));
+    expect(result.current.pendingApproval?.type).toBe('question_required');
+    expect(result.current.pendingApproval?.callId).toBe('q1');
+    expect(changeConversation).toHaveBeenCalled();
+  });
+
+  it('answer sends the text through answerTool and clears the dialog', async () => {
+    const { answerTool, decideTool, result } = setup();
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q1', name: 'ask_user', arguments: '{"question":"选哪个？"}', text: '选哪个？' }), 'c1', 'reply-1'));
+    await act(async () => { await result.current.answer('选 A'); });
+    expect(answerTool).toHaveBeenCalledWith('q1', '选 A');
+    expect(decideTool).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it('a failed answer is harmless and still clears the dialog', async () => {
+    const changeConversation = vi.fn();
+    const answerTool = vi.fn(async () => { throw new Error('该提问已失效'); });
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly: vi.fn(), backend: { decideTool: vi.fn(async () => {}), answerTool } }));
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q2', name: 'ask_user', arguments: '{}', text: '问题' }), 'c1', 'reply-1'));
+    await act(async () => { await result.current.answer(''); });
+    expect(result.current.pendingApproval).toBeNull();
+  });
+});
