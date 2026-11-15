@@ -155,7 +155,6 @@
 .ai-error,.ai-save-error { border:1px solid hsl(var(--destructive)/.3); border-radius:7px; background:hsl(var(--destructive)/.05); color:hsl(var(--destructive)); font-size:12px; line-height:1.6; padding:9px 11px; overflow-wrap:anywhere; margin-bottom:8px; }
 .ai-save-error { margin:0 20px 5px; display:flex; gap:8px; align-items:center; }.ai-save-error .ai-error { padding:0; margin:0; border:0; background:none; flex:1; }
 .ai-error-text { color:hsl(var(--destructive)); font-size:11px; overflow-wrap:anywhere; }.ai-feedback { color:hsl(var(--success)); font-size:12px; }
-.ai-busy-notice { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; color:hsl(var(--muted-foreground)); padding:5px 0 10px; }
 .ai-preview-notice { margin:0; padding:5px 20px; font-size:10px; line-height:1.6; color:hsl(var(--muted-foreground)); background:hsl(var(--muted)/.55); }
 .ai-loading { display:flex; min-height:250px; height:100%; align-items:center; justify-content:center; flex-direction:column; gap:12px; font-size:13px; }
 .ai-dialog-backdrop { position:fixed; inset:0; z-index:12000; display:flex; justify-content:center; align-items:center; padding:20px; background:#0006; backdrop-filter:blur(3px); }

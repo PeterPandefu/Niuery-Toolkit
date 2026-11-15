@@ -22,15 +22,15 @@ export function useAiWorkspace(backend: AiBackend) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<Busy | null>(null);
+  const [busy, setBusy] = useState<Busy[]>([]);
   const valueRef = useRef(workspace);
   const mounted = useRef(false);
   const initialized = useRef(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
-  const active = useRef<ActiveRequest | null>(null);
-  const batch = useRef<{ cancelled: boolean } | null>(null);
-  const cancelling = useRef<Busy | null>(null);
-  const cancelPending = useRef<Promise<void> | null>(null);
+  const active = useRef<Map<string, ActiveRequest>>(new Map());
+  const batch = useRef<Map<string, { cancelled: boolean }>>(new Map());
+  const cancelling = useRef<Map<string, Busy>>(new Map());
+  const cancelPending = useRef<Map<string, Promise<void>>>(new Map());
   const mutationsPending = useRef(0);
   const exiting = useRef(0);
   const progressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,6 +39,27 @@ export function useAiWorkspace(backend: AiBackend) {
   const replace = useCallback((next: AiWorkspace) => {
     valueRef.current = next;
     if (mounted.current) setWorkspace(next);
+  }, []);
+
+  const activeIn = useCallback((conversationId: string) => {
+    for (const request of active.current.values()) if (request.conversationId === conversationId) return request;
+    return undefined;
+  }, []);
+
+  const busyIn = useCallback((conversationId: string) => {
+    if (activeIn(conversationId) || batch.current.has(conversationId)) return true;
+    for (const request of cancelling.current.values()) if (request.conversationId === conversationId) return true;
+    return false;
+  }, [activeIn]);
+
+  const generating = useCallback(() => active.current.size > 0 || cancelling.current.size > 0 || batch.current.size > 0, []);
+
+  const addBusy = useCallback((entry: Busy) => {
+    setBusy(list => [...list.filter(item => item.requestId !== entry.requestId), entry]);
+  }, []);
+
+  const removeBusy = useCallback((requestId: string) => {
+    setBusy(list => list.filter(item => item.requestId !== requestId));
   }, []);
 
   /** All disk/credential mutations share this queue, preserving write order. */
@@ -50,14 +71,16 @@ export function useAiWorkspace(backend: AiBackend) {
 
   const persist = useCallback((snapshot = valueRef.current): Promise<void> => {
     if (!initialized.current) return Promise.reject(new Error('AI 数据尚未成功加载，不能保存。'));
-    const pending = active.current;
     // A regeneration only replaces its durable answer after success. If the
     // process crashes mid-stream, reopening still restores the previous reply.
-    const durable = pending?.previous && !pending.terminated ? { ...snapshot,
-      conversations: snapshot.conversations.map(chat => chat.id === pending.conversationId ? { ...chat,
-        messages: chat.messages.map(message => message.id === pending.messageId ? pending.previous! : message),
-      } : chat),
-    } : snapshot;
+    let durable = snapshot;
+    for (const pending of active.current.values()) {
+      if (!pending.previous || pending.terminated) continue;
+      const previous = pending.previous;
+      durable = { ...durable, conversations: durable.conversations.map(chat => chat.id === pending.conversationId ? { ...chat,
+        messages: chat.messages.map(message => message.id === pending.messageId ? previous : message),
+      } : chat) };
+    }
     return enqueue(async () => {
       try {
         // Provider operations can complete while a draft snapshot is queued.
@@ -94,8 +117,8 @@ export function useAiWorkspace(backend: AiBackend) {
   }, [changeConversation]);
 
   const interruptTasks = useCallback(() => {
-    if (!batch.current) return;
-    batch.current.cancelled = true;
+    if (!batch.current.size) return;
+    for (const running of batch.current.values()) running.cancelled = true;
     replace({ ...valueRef.current, conversations: valueRef.current.conversations.map(chat => ({ ...chat, tasks: chat.tasks?.map(task => ({ ...task,
       results: task.results.map(result => result.message.status === 'waiting' || result.message.status === 'streaming' ? { ...result, message: { ...result.message, status: 'interrupted' } } : result) })) })) });
   }, [replace]);
@@ -106,7 +129,7 @@ export function useAiWorkspace(backend: AiBackend) {
   }, []);
 
   const finish = useCallback(async (request: ActiveRequest, status: AiMessage['status'], reason?: string) => {
-    if (request.terminated || active.current !== request) return;
+    if (request.terminated || active.current.get(request.requestId) !== request) return;
     request.terminated = true;
     clearProgressTimer();
     changeReply(request, message => {
@@ -114,16 +137,16 @@ export function useAiWorkspace(backend: AiBackend) {
       const completed = { ...message, toolCalls: settlePendingCalls(message.toolCalls, '生成已结束，此调用未执行。'), status, error: reason, durationMs: Math.max(0, Date.now() - request.startedAt) };
       return status === 'complete' && request.previous ? retainAnswerVersion(request.previous, completed) : completed;
     });
-    active.current = null;
+    active.current.delete(request.requestId);
     if (mounted.current) {
-      if (!cancelling.current && !batch.current) setBusy(null);
+      if (!cancelling.current.has(request.requestId)) removeBusy(request.requestId);
       if (reason) setError(reason);
     }
     await persist();
-  }, [changeReply, clearProgressTimer, persist]);
+  }, [changeReply, clearProgressTimer, persist, removeBusy]);
 
   const reload = useCallback(async () => {
-    if (active.current || cancelling.current || batch.current) { setError('请先停止当前生成，再重新加载数据。'); return; }
+    if (generating()) { setError('请先停止当前生成，再重新加载数据。'); return; }
     const generation = ++loadGeneration.current;
     initialized.current = false;
     if (mounted.current) { setLoading(true); setError(null); }
@@ -152,17 +175,17 @@ export function useAiWorkspace(backend: AiBackend) {
     } finally {
       if (mounted.current && generation === loadGeneration.current) setLoading(false);
     }
-  }, [backend, enqueue, replace]);
+  }, [backend, enqueue, replace, generating]);
 
   useEffect(() => {
     mounted.current = true;
+    const activeRequests = active.current;
     void reload();
     return () => {
       mounted.current = false;
       interruptTasks();
       clearProgressTimer();
-      const request = active.current;
-      if (request) {
+      for (const request of [...activeRequests.values()]) {
         // finish mutates the ref even after unmount, then queues its final snapshot.
         void finish(request, 'interrupted').catch(() => {});
         void backend.cancel(request.requestId).catch(() => {});
@@ -179,11 +202,11 @@ export function useAiWorkspace(backend: AiBackend) {
       interruptTasks();
       let retained = false;
       try {
-        const request = active.current;
-        if (request) {
-          const results = await Promise.allSettled([
+        const requests = [...active.current.values()];
+        if (requests.length) {
+          const results = await Promise.allSettled(requests.flatMap(request => [
             finish(request, 'interrupted'), backend.cancel(request.requestId),
-          ]);
+          ]));
           for (const result of results) if (result.status === 'rejected') throw result.reason;
         }
         await queue.current;
@@ -205,7 +228,7 @@ export function useAiWorkspace(backend: AiBackend) {
   const run = useCallback(async (conversationId: string, options: AiSendOptions = {}, regenerate = false): Promise<AiSendOutcome> => {
     if (exiting.current || aiUpdatePending()) return { type: 'not-sent', reason: '应用正在保存退出或更新' };
     if (!initialized.current) { setError('AI 数据尚未加载，请先恢复数据。'); return { type: 'not-sent', reason: 'AI 数据尚未加载' }; }
-    if (active.current || cancelling.current || batch.current) { setError('请先停止当前生成，再发送其他消息。'); return { type: 'not-sent', reason: '已有生成任务' }; }
+    if (busyIn(conversationId)) { setError('该会话正在生成，请先停止后再发送。'); return { type: 'not-sent', reason: '已有生成任务' }; }
     if (mutationsPending.current) { setError('正在保存或修改 AI 配置，请完成后再发送消息。'); return { type: 'not-sent', reason: '配置正在保存' }; }
     setError(null);
     let request: ActiveRequest | undefined;
@@ -265,14 +288,14 @@ export function useAiWorkspace(backend: AiBackend) {
         approvedTargets: chat.approvedTargets.includes(target) ? chat.approvedTargets : [...chat.approvedTargets, target], updatedAt: Date.now() };
       if (clearDraft) unsavedDraft = { draft: chat.draft, draftAttachments: chat.draftAttachments };
       changeConversation(conversationId, () => nextChat);
-      active.current = request;
-      setBusy({ requestId: request.requestId, conversationId, messageId: request.messageId });
+      active.current.set(request.requestId, request);
+      addBusy({ requestId: request.requestId, conversationId, messageId: request.messageId });
       // Never start the network until input and attachment copies have reached disk.
       await persist();
-      if (active.current !== request || request.terminated || !mounted.current) return { type: 'settled', requestId: request.requestId };
+      if (active.current.get(request.requestId) !== request || request.terminated || !mounted.current) return { type: 'settled', requestId: request.requestId };
       const running = request;
       const onEvent = (event: AiStreamEvent) => {
-        if (active.current !== running || running.terminated || event.requestId !== running.requestId
+        if (active.current.get(running.requestId) !== running || running.terminated || event.requestId !== running.requestId
           || event.conversationId !== running.conversationId || event.messageId !== running.messageId) return;
         if (event.type === 'thinking') {
           changeConversation(conversationId, value => ({ ...value, updatedAt: Date.now(), messages: value.messages.map(message => message.id === running.messageId ? { ...message, thinking: `${message.thinking ?? ''}${event.text ?? ''}`, status: 'streaming' } : message) }));
@@ -291,7 +314,7 @@ export function useAiWorkspace(backend: AiBackend) {
         } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required' || event.type === 'question_required') {
           handleToolEvent(event, conversationId, running.messageId);
         } else {
-          clearToolApproval();
+          clearToolApproval(conversationId);
           const status = event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed';
           void finish(running, status, event.error || (event.type === 'error' ? '生成失败，请检查模型服务后重试。' : undefined)).catch(() => {});
         }
@@ -301,10 +324,10 @@ export function useAiWorkspace(backend: AiBackend) {
         providerId: provider.id, modelId: model.id, systemPrompt: budget.systemPrompt, parameters: budget.parameters,
         permissionMode: chat.permissionMode ?? 'ask',
         messages: requestMessages(context) }, onEvent);
-      if (active.current === running && !running.terminated) await finish(running, 'interrupted', '回复流意外结束，请重试。');
+      if (active.current.get(running.requestId) === running && !running.terminated) await finish(running, 'interrupted', '回复流意外结束，请重试。');
     } catch (reason) {
       const text = describeError(reason);
-      if (request && active.current === request && !request.terminated) {
+      if (request && active.current.get(request.requestId) === request && !request.terminated) {
         if (!networkStarted && unsavedDraft) {
           const originalDraft = unsavedDraft;
           changeConversation(conversationId, value => !value.draft && !value.draftAttachments.length ? { ...value, ...originalDraft } : value);
@@ -315,21 +338,21 @@ export function useAiWorkspace(backend: AiBackend) {
       }
     }
     return request ? { type: 'settled', requestId: request.requestId } : { type: 'not-sent', reason: '请求未发送' };
-  }, [backend, changeConversation, finish, persist, saveQuietly, handleToolEvent, clearToolApproval]);
+  }, [backend, changeConversation, finish, persist, saveQuietly, handleToolEvent, clearToolApproval, busyIn, addBusy]);
 
   const send = useCallback((id: string, options?: AiSendOptions) => run(id, options), [run]);
   const regenerate = useCallback((id: string, options: AiSendOptions = {}) => run(id, options, true), [run]);
 
   const runTask = useCallback(async (conversationId: string, plan: AiTaskPlan) => {
-    if (!initialized.current || exiting.current || aiUpdatePending() || active.current || cancelling.current || batch.current || mutationsPending.current) throw new Error('请先完成当前操作，再运行任务。');
+    if (!initialized.current || exiting.current || aiUpdatePending() || busyIn(conversationId) || mutationsPending.current) throw new Error('请先完成当前操作，再运行任务。');
     const chat = valueRef.current.conversations.find(chat => chat.id === conversationId);
     if (!chat || !plan.requests.length || plan.requests.some(request => request.conversationId !== conversationId)) throw new Error('任务会话无效');
     for (const request of plan.requests) {
       const provider = valueRef.current.providers.find(provider => provider.id === request.providerId && provider.enabled);
       if (!provider || !provider.models.some(model => model.id === request.modelId) || !plan.targets.includes(providerTarget(provider))) throw new Error('任务目标已更改，请重新创建任务');
     }
-    const runningBatch = { cancelled: false }; batch.current = runningBatch;
-    setBusy({ requestId: plan.requests[0].requestId, conversationId, messageId: plan.requests[0].messageId });
+    const runningBatch = { cancelled: false }; batch.current.set(conversationId, runningBatch);
+    addBusy({ requestId: plan.requests[0].requestId, conversationId, messageId: plan.requests[0].messageId });
     setError(null);
     changeConversation(conversationId, chat => ({ ...chat, tasks: [...(chat.tasks ?? []), { id: plan.id, kind: plan.kind, createdAt: plan.createdAt, prompt: plan.prompt, results: plan.results }], approvedTargets: [...new Set([...chat.approvedTargets, ...plan.targets])] }));
     try {
@@ -337,10 +360,10 @@ export function useAiWorkspace(backend: AiBackend) {
       for (const request of plan.requests) {
         if (runningBatch.cancelled || !mounted.current || exiting.current || aiUpdatePending()) break;
         const running: ActiveRequest = { requestId: request.requestId, conversationId, messageId: request.messageId, startedAt: Date.now(), terminated: false, taskId: plan.id };
-        active.current = running; setBusy({ requestId: running.requestId, conversationId, messageId: running.messageId });
+        active.current.set(running.requestId, running); addBusy({ requestId: running.requestId, conversationId, messageId: running.messageId });
         try {
           await backend.generate({ ...request, messages: requestMessages(request.messages) }, event => {
-            if (active.current !== running || running.terminated || event.requestId !== running.requestId || event.conversationId !== conversationId || event.messageId !== running.messageId) return;
+            if (active.current.get(running.requestId) !== running || running.terminated || event.requestId !== running.requestId || event.conversationId !== conversationId || event.messageId !== running.messageId) return;
             if (event.type === 'thinking') {
               changeReply(running, message => ({ ...message, thinking: `${message.thinking ?? ''}${event.text ?? ''}`, status: 'streaming' }));
               if (progressTimer.current === null) progressTimer.current = setTimeout(() => { progressTimer.current = null; saveQuietly(); }, 500);
@@ -354,51 +377,58 @@ export function useAiWorkspace(backend: AiBackend) {
             } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required' || event.type === 'question_required') {
               handleToolEvent(event, conversationId, running.messageId);
             } else {
-              clearToolApproval();
+              clearToolApproval(conversationId);
               void finish(running, event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed', event.error).catch(() => {});
             }
           });
-          if (active.current === running && !running.terminated) await finish(running, 'interrupted', '任务回复流意外结束');
-        } catch (reason) { if (active.current === running && !running.terminated) await finish(running, 'failed', describeError(reason)); }
+          if (active.current.get(running.requestId) === running && !running.terminated) await finish(running, 'interrupted', '任务回复流意外结束');
+        } catch (reason) { if (active.current.get(running.requestId) === running && !running.terminated) await finish(running, 'failed', describeError(reason)); }
         await persist();
       }
     } catch (reason) { runningBatch.cancelled = true; if (mounted.current) setError(describeError(reason)); }
     finally {
       changeConversation(conversationId, chat => ({ ...chat, tasks: chat.tasks?.map(task => task.id === plan.id ? { ...task, results: task.results.map(result => result.message.status === 'waiting' ? { ...result, message: { ...result.message, status: 'stopped' } } : result) } : task) }));
-      if (batch.current === runningBatch) batch.current = null;
-      if (mounted.current && !cancelling.current) setBusy(null);
+      if (batch.current.get(conversationId) === runningBatch) batch.current.delete(conversationId);
+      if (mounted.current) setBusy(list => list.filter(item => item.conversationId !== conversationId || cancelling.current.has(item.requestId)));
       await persist().catch(() => {});
     }
-  }, [backend, changeConversation, changeReply, finish, persist, saveQuietly, handleToolEvent, clearToolApproval]);
+  }, [backend, changeConversation, changeReply, finish, persist, saveQuietly, handleToolEvent, clearToolApproval, busyIn, addBusy]);
 
-  const stop = useCallback((): Promise<void> => {
-    if (batch.current) {
-      batch.current.cancelled = true;
-      replace({ ...valueRef.current, conversations: valueRef.current.conversations.map(chat => ({ ...chat, tasks: chat.tasks?.map(task => ({ ...task, results: task.results.map(result => result.message.status === 'waiting' ? { ...result, message: { ...result.message, status: 'stopped' } } : result) })) })) });
+  const stop = useCallback((conversationId?: string): Promise<void> => {
+    const batchIds = conversationId ? (batch.current.has(conversationId) ? [conversationId] : []) : [...batch.current.keys()];
+    if (batchIds.length) {
+      for (const id of batchIds) batch.current.get(id)!.cancelled = true;
+      replace({ ...valueRef.current, conversations: valueRef.current.conversations.map(chat => batchIds.includes(chat.id) ? { ...chat, tasks: chat.tasks?.map(task => ({ ...task, results: task.results.map(result => result.message.status === 'waiting' ? { ...result, message: { ...result.message, status: 'stopped' } } : result) })) } : chat) });
     }
-    if (cancelPending.current) return cancelPending.current;
-    const request = active.current;
-    if (!request) return persist().catch(() => {});
-    cancelling.current = request;
-    const saved = finish(request, 'stopped').catch(() => {});
-    const pending = (async () => {
-      try { await backend.cancel(request.requestId); }
-      catch (reason) { if (mounted.current) setError(describeError(reason)); }
-      finally {
-        cancelling.current = null;
-        cancelPending.current = null;
-        if (mounted.current) setBusy(null);
-      }
-      await saved;
-    })();
-    cancelPending.current = pending;
-    return pending;
-  }, [backend, finish, replace, persist]);
+    const targets = [...active.current.values()].filter(request => !conversationId || request.conversationId === conversationId);
+    if (!targets.length) return persist().catch(() => {});
+    const pendings: Promise<void>[] = [];
+    for (const request of targets) {
+      const existing = cancelPending.current.get(request.conversationId);
+      if (existing) { pendings.push(existing); continue; }
+      cancelling.current.set(request.requestId, request);
+      clearToolApproval(request.conversationId);
+      const saved = finish(request, 'stopped').catch(() => {});
+      const pending = (async () => {
+        try { await backend.cancel(request.requestId); }
+        catch (reason) { if (mounted.current) setError(describeError(reason)); }
+        finally {
+          cancelling.current.delete(request.requestId);
+          cancelPending.current.delete(request.conversationId);
+          if (mounted.current) removeBusy(request.requestId);
+        }
+        await saved;
+      })();
+      cancelPending.current.set(request.conversationId, pending);
+      pendings.push(pending);
+    }
+    return Promise.all(pendings).then(() => {});
+  }, [backend, finish, replace, persist, removeBusy, clearToolApproval]);
 
   const saveProvider = useCallback(async (provider: AiProvider, apiKey?: string) => {
     if (exiting.current || aiUpdatePending()) throw new Error('应用正在保存并准备退出，请稍后修改 AI 数据。');
     if (!initialized.current) throw new Error('AI 数据尚未加载，不能修改服务。');
-    if (active.current || cancelling.current || batch.current) throw new Error('请先停止生成，再修改模型服务。');
+    if (generating()) throw new Error('请先停止生成，再修改模型服务。');
     mutationsPending.current++;
     try {
       await enqueue(async () => {
@@ -409,12 +439,12 @@ export function useAiWorkspace(backend: AiBackend) {
       await persist();
     } catch (reason) { if (mounted.current) setError(describeError(reason)); throw reason; }
     finally { mutationsPending.current--; }
-  }, [backend, enqueue, persist, replace]);
+  }, [backend, enqueue, persist, replace, generating]);
 
   const removeProvider = useCallback(async (id: string) => {
     if (exiting.current || aiUpdatePending()) throw new Error('应用正在保存并准备退出，请稍后修改 AI 数据。');
     if (!initialized.current) throw new Error('AI 数据尚未加载，不能删除服务。');
-    if (active.current || cancelling.current || batch.current) throw new Error('请先停止生成，再删除模型服务。');
+    if (generating()) throw new Error('请先停止生成，再删除模型服务。');
     mutationsPending.current++;
     try {
       await enqueue(async () => {
@@ -424,24 +454,24 @@ export function useAiWorkspace(backend: AiBackend) {
       await persist();
     } catch (reason) { if (mounted.current) setError(describeError(reason)); throw reason; }
     finally { mutationsPending.current--; }
-  }, [backend, enqueue, persist, replace]);
+  }, [backend, enqueue, persist, replace, generating]);
 
   const clearHistory = useCallback(async () => {
     if (exiting.current || aiUpdatePending()) throw new Error('应用正在保存并准备退出，请稍后修改 AI 数据。');
     if (!initialized.current) throw new Error('AI 数据尚未加载，不能清空历史。');
     mutationsPending.current++;
     try {
-      if (active.current || cancelling.current || batch.current) await stop();
+      if (generating()) await stop();
       replace({ ...valueRef.current, conversations: [], activeConversationId: undefined });
       await persist();
     } finally { mutationsPending.current--; }
-  }, [persist, replace, stop]);
+  }, [persist, replace, stop, generating]);
 
   const reset = useCallback(async () => {
     if (exiting.current || aiUpdatePending()) throw new Error('应用正在保存并准备退出，请稍后修改 AI 数据。');
     mutationsPending.current++;
     try {
-      if (active.current || cancelling.current || batch.current) await stop();
+      if (generating()) await stop();
       if (mounted.current) setLoading(true);
       initialized.current = false;
       await enqueue(async () => {
@@ -456,7 +486,7 @@ export function useAiWorkspace(backend: AiBackend) {
       if (mounted.current) { setLoading(false); setError(describeError(reason)); setSaveError(describeError(reason)); }
       throw reason;
     } finally { mutationsPending.current--; }
-  }, [backend, enqueue, replace, stop]);
+  }, [backend, enqueue, replace, stop, generating]);
 
   return { workspace, loading: loading || updatePending, updating: updatePending, error, saveError, busy, update, reload, send, regenerate, runTask, stop, saveProvider, removeProvider, clearHistory, reset, toolCalls };
 }

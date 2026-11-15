@@ -113,7 +113,7 @@ describe('AI workspace lifecycle', () => {
     vi.mocked(fake.backend.save).mockRejectedValue(new Error('disk full'));
     const plan = createComparisonTask(workspace.conversations[0], workspace.providers, [{ providerId: 'p1', modelId: 'm1' }, { providerId: 'p1', modelId: 'm2' }]);
     await act(async () => { await result.current.runTask(chatId, plan); });
-    expect(fake.request).toBeUndefined(); expect(result.current.busy).toBeNull();
+    expect(fake.request).toBeUndefined(); expect(result.current.busy).toHaveLength(0);
     expect(result.current.workspace.conversations[0].draft).toBe('Hello');
     expect(result.current.saveError).toContain('disk full');
   });
@@ -126,7 +126,7 @@ describe('AI workspace lifecycle', () => {
     act(() => { fake.event('delta', 'Partial'); fake.event('error', undefined, { error: 'first failed' }); });
     await waitFor(() => expect(fake.request?.modelId).toBe('m2'));
     act(() => { fake.event('delta', 'Second answer'); fake.event('done'); });
-    await waitFor(() => expect(result.current.busy).toBeNull());
+    await waitFor(() => expect(result.current.busy).toHaveLength(0));
     const chat = result.current.workspace.conversations[0];
     expect(chat.messages).toHaveLength(0);
     expect(chat.draft).toBe('Hello');
@@ -180,7 +180,7 @@ describe('AI workspace lifecycle', () => {
       fake.event('delta', 'Answer');
       fake.event('metadata', undefined, { finishReason: 'length', usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 } });
     });
-    expect(result.current.busy).not.toBeNull();
+    expect(result.current.busy).not.toHaveLength(0);
     act(() => fake.event('done'));
     expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({
       content: 'Answer', status: 'complete', finishReason: 'length', usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
@@ -207,11 +207,11 @@ describe('AI workspace lifecycle', () => {
     act(() => { fake.event('thinking', 'blocked thought'); fake.event('delta', 'partial'); });
     expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ thinking: 'blocked thought', content: 'partial', status: 'streaming' });
     act(() => { fake.event('round_reset'); });
-    expect(result.current.busy).not.toBeNull();
+    expect(result.current.busy).not.toHaveLength(0);
     expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: '', status: 'streaming' });
     expect(result.current.workspace.conversations[0].messages[1].thinking).toBeUndefined();
     act(() => { fake.event('delta', 'recovered'); fake.event('done'); });
-    await waitFor(() => expect(result.current.busy).toBeNull());
+    await waitFor(() => expect(result.current.busy).toHaveLength(0));
     expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'recovered', status: 'complete' });
   });
   it('keeps the generation alive and opens the question dialog on question_required', async () => {
@@ -219,14 +219,14 @@ describe('AI workspace lifecycle', () => {
     act(() => { void result.current.send(chatId); });
     await waitFor(() => expect(fake.request).toBeDefined());
     act(() => { fake.event('question_required', '选哪个？', { callId: 'q1', name: 'ask_user', arguments: '{"question":"选哪个？","options":["A","B"]}' }); });
-    expect(result.current.busy).not.toBeNull();
+    expect(result.current.busy).not.toHaveLength(0);
     expect(result.current.toolCalls.pendingApproval?.type).toBe('question_required');
     expect(result.current.workspace.conversations[0].messages[1].status).toBe('streaming');
     await act(async () => { await result.current.toolCalls.answer('选 A'); });
     expect(fake.backend.answerTool).toHaveBeenCalledWith('q1', '选 A');
     expect(result.current.toolCalls.pendingApproval).toBeNull();
     act(() => { fake.event('delta', 'Final'); fake.event('done'); });
-    await waitFor(() => expect(result.current.busy).toBeNull());
+    await waitFor(() => expect(result.current.busy).toHaveLength(0));
     expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'Final', status: 'complete' });
   });
   it('keeps thinking-only generation active and persists the partial thinking on stop', async () => {
@@ -234,7 +234,7 @@ describe('AI workspace lifecycle', () => {
     act(() => { void result.current.send(chatId); });
     await waitFor(() => expect(fake.request).toBeDefined());
     await act(async () => { fake.event('thinking', 'Checking'); });
-    expect(result.current.busy).not.toBeNull();
+    expect(result.current.busy).not.toHaveLength(0);
     expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ thinking: 'Checking', content: '', status: 'streaming' });
     await act(async () => { await result.current.stop(); });
     expect(fake.saved[fake.saved.length - 1].conversations[0].messages[1]).toMatchObject({ thinking: 'Checking', status: 'stopped' });
@@ -250,9 +250,9 @@ describe('AI workspace lifecycle', () => {
     act(() => { fake.event('thinking', 'Partial thought'); fake.event('error', undefined, { error: 'network failed' }); });
     await waitFor(() => expect(fake.request?.modelId).toBe('m2'));
     await act(async () => { fake.event('thinking', 'Second thought'); });
-    expect(result.current.busy).not.toBeNull();
+    expect(result.current.busy).not.toHaveLength(0);
     await act(async () => { fake.event('delta', 'Second answer'); fake.event('done'); });
-    await waitFor(() => expect(result.current.busy).toBeNull());
+    await waitFor(() => expect(result.current.busy).toHaveLength(0));
     expect(fake.saved[fake.saved.length - 1].conversations[0].tasks?.[0].results.map(result => [result.message.thinking, result.message.content, result.message.status])).toEqual([['Partial thought', '', 'failed'], ['Second thought', 'Second answer', 'complete']]);
   });
   it('recovers interrupted thinking and versioned thoughts after reload', async () => {
@@ -311,7 +311,7 @@ describe('AI workspace lifecycle', () => {
       fake.event('delta', 'Answer'); fake.event('done');
     });
     expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'Answer', status: 'complete' });
-    expect(result.current.busy).toBeNull();
+    expect(result.current.busy).toHaveLength(0);
   });
 
   it('restores the previous answer when regeneration fails and excludes it from request context', async () => {
@@ -374,7 +374,7 @@ describe('AI workspace lifecycle', () => {
     await act(async () => { await result.current.send(chatId); });
     expect(fake.request).toBeUndefined();
     expect(result.current.saveError).toContain('disk full');
-    expect(result.current.busy).toBeNull();
+    expect(result.current.busy).toHaveLength(0);
     expect(result.current.workspace.conversations[0].messages[0].content).toBe('Hello');
     expect(result.current.workspace.conversations[0].draft).toBe('Hello');
   });
@@ -501,8 +501,8 @@ describe('AI workspace lifecycle', () => {
     act(() => { stopped = result.current.stop(); });
     const lockDuringCancellation = result.current.busy;
     await act(async () => { cancelComplete?.(); await stopped!; });
-    expect(lockDuringCancellation).not.toBeNull();
-    expect(result.current.busy).toBeNull();
+    expect(lockDuringCancellation).not.toHaveLength(0);
+    expect(result.current.busy).toHaveLength(0);
   });
 
   it('does not resurrect removed providers when drafts are changed during credential removal', async () => {
@@ -565,5 +565,120 @@ describe('AI workspace lifecycle', () => {
     });
     expect(fake.backend.saveProvider).not.toHaveBeenCalled();
     expect(result.current.error).toContain('reset save denied');
+  });
+});
+
+describe('AI multi-conversation concurrency', () => {
+  function twoChats() {
+    const workspace = fixture();
+    const second = newConversation(workspace.assistants[0]);
+    second.providerId = 'p1'; second.modelId = 'm1'; second.draft = 'Second question';
+    workspace.conversations = [...workspace.conversations, second];
+    return workspace;
+  }
+  function concurrentBackend(workspace: AiWorkspace) {
+    const runs = new Map<string, { request: AiRequest; emit: (event: AiStreamEvent) => void; settle: () => void }>();
+    const saved: AiWorkspace[] = [];
+    const backend: AiBackend = {
+      load: vi.fn(async () => workspace),
+      save: vi.fn(async value => { saved.push(structuredClone(value)); }),
+      saveProvider: vi.fn(async provider => provider), removeProvider: vi.fn(async () => {}),
+      listModels: vi.fn(async () => []), testConnection: vi.fn(async () => 'OK'), listTools: vi.fn(async () => []),
+      decideTool: vi.fn(async () => {}), answerTool: vi.fn(async () => {}),
+      saveMediaService: vi.fn(async (config: AiMediaService) => config),
+      saveMcpServers: vi.fn(async (servers: AiMcpServer[]) => servers),
+      saveOfficeEnabled: vi.fn(async (enabled: boolean) => enabled),
+      saveSearchService: vi.fn(async (config: { baseUrl: string; hasApiKey: boolean; enabled: boolean }) => config),
+      testSearchService: vi.fn(async () => '搜索服务连接成功'),
+      generate: vi.fn((request: AiRequest, onEvent: (event: AiStreamEvent) => void) => new Promise<void>(resolve => {
+        runs.set(request.requestId, { request, emit: onEvent, settle: resolve });
+      })),
+      cancel: vi.fn(async (requestId: string) => {
+        const run = runs.get(requestId);
+        if (!run) return;
+        run.emit({ requestId, conversationId: run.request.conversationId, messageId: run.request.messageId, type: 'stopped' });
+        run.settle(); runs.delete(requestId);
+      }),
+      openDataDirectory: vi.fn(async () => {}), reset: vi.fn(async () => {}),
+    };
+    const event = (requestId: string, type: AiStreamEvent['type'], text?: string) => {
+      const run = runs.get(requestId);
+      if (!run) throw new Error('generation not started');
+      run.emit({ requestId, conversationId: run.request.conversationId, messageId: run.request.messageId, type, text });
+      if (type === 'done' || type === 'error' || type === 'stopped') { run.settle(); runs.delete(requestId); }
+    };
+    return { backend, saved, event };
+  }
+  async function setupTwo() {
+    const workspace = twoChats();
+    const fake = concurrentBackend(workspace);
+    const hook = renderHook(() => useAiWorkspace(fake.backend));
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
+    return { ...hook, fake, firstId: workspace.conversations[0].id, secondId: workspace.conversations[1].id };
+  }
+  const runId = (result: { current: ReturnType<typeof useAiWorkspace> }, conversationId: string) =>
+    result.current.busy.find(item => item.conversationId === conversationId)?.requestId;
+
+  it('generates in two conversations at once and keeps their streams isolated', async () => {
+    const { result, fake, firstId, secondId } = await setupTwo();
+    act(() => { void result.current.send(firstId); void result.current.send(secondId); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(2));
+    const first = runId(result, firstId)!; const second = runId(result, secondId)!;
+    act(() => { fake.event(first, 'delta', 'First answer'); fake.event(second, 'delta', 'Second answer'); });
+    expect(result.current.workspace.conversations[0].messages[1].content).toBe('First answer');
+    expect(result.current.workspace.conversations[1].messages[1].content).toBe('Second answer');
+    act(() => { fake.event(first, 'done'); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(1));
+    expect(result.current.workspace.conversations[0].messages[1].status).toBe('complete');
+    expect(result.current.workspace.conversations[1].messages[1].status).toBe('streaming');
+    act(() => { fake.event(second, 'done'); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(0));
+    expect(result.current.workspace.conversations[1].messages[1].status).toBe('complete');
+  });
+
+  it('stops only the targeted conversation while the other keeps generating', async () => {
+    const { result, fake, firstId, secondId } = await setupTwo();
+    act(() => { void result.current.send(firstId); void result.current.send(secondId); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(2));
+    const first = runId(result, firstId)!; const second = runId(result, secondId)!;
+    act(() => { fake.event(first, 'delta', 'Partial first'); fake.event(second, 'delta', 'Partial second'); });
+    await act(async () => { await result.current.stop(firstId); });
+    expect(result.current.busy).toHaveLength(1);
+    expect(result.current.busy[0].conversationId).toBe(secondId);
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'Partial first', status: 'stopped' });
+    expect(result.current.workspace.conversations[1].messages[1]).toMatchObject({ content: 'Partial second', status: 'streaming' });
+    act(() => { fake.event(second, 'done'); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(0));
+  });
+
+  it('still refuses a second send inside the same generating conversation', async () => {
+    const { result, fake, firstId } = await setupTwo();
+    act(() => { void result.current.send(firstId); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(1));
+    let outcome: Awaited<ReturnType<typeof result.current.send>> | undefined;
+    await act(async () => { outcome = await result.current.send(firstId); });
+    expect(outcome?.type).toBe('not-sent');
+    expect(fake.backend.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a newly created conversation send while another is generating', async () => {
+    const { result, fake, firstId } = await setupTwo();
+    act(() => { void result.current.send(firstId); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(1));
+    let createdId = '';
+    act(() => {
+      result.current.update(value => {
+        const chat = newConversation(value.assistants[0]);
+        chat.providerId = 'p1'; chat.modelId = 'm1'; chat.draft = 'Brand new'; createdId = chat.id;
+        return { ...value, conversations: [...value.conversations, chat], activeConversationId: chat.id };
+      });
+    });
+    act(() => { void result.current.send(createdId); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(2));
+    expect(fake.backend.generate).toHaveBeenCalledTimes(2);
+    const created = runId(result, createdId)!;
+    act(() => { fake.event(created, 'delta', 'New answer'); fake.event(created, 'done'); });
+    await waitFor(() => expect(result.current.busy).toHaveLength(1));
+    expect(result.current.workspace.conversations.find(chat => chat.id === createdId)?.messages[1]).toMatchObject({ content: 'New answer', status: 'complete' });
   });
 });

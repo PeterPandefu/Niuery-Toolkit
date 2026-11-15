@@ -54,7 +54,7 @@ function mergeCall(existing: AiToolCall | undefined, event: AiStreamEvent): AiTo
 /** Keeps tool records on the assistant message, so round pairing in buildContext
  *  and the excludedMessageIds semantics stay untouched. */
 export function useToolCalls({ changeConversation, saveQuietly, backend }: ToolCallDeps) {
-  const [pendingApproval, setPendingApproval] = useState<AiStreamEvent | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<AiStreamEvent[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -65,7 +65,9 @@ export function useToolCalls({ changeConversation, saveQuietly, backend }: ToolC
     if (event.type !== 'tool_call' && event.type !== 'tool_result' && event.type !== 'approval_required' && event.type !== 'question_required') return;
     const callId = event.callId;
     if (!callId) return;
-    if (event.type === 'approval_required' || event.type === 'question_required') setPendingApproval(event);
+    if (event.type === 'approval_required' || event.type === 'question_required') {
+      setPendingApprovals(list => [...list.filter(item => item.callId !== callId), event]);
+    }
     changeConversation(conversationId, chat => ({
       ...chat,
       updatedAt: Date.now(),
@@ -89,28 +91,30 @@ export function useToolCalls({ changeConversation, saveQuietly, backend }: ToolC
   /** Only approve or reject. There is deliberately no "always allow" path, so
    *  every call re-checks its target and URL source. */
   const decide = useCallback(async (decision: AiToolDecision) => {
-    const callId = pendingApproval?.callId;
-    setPendingApproval(null);
+    const callId = pendingApprovals[0]?.callId;
+    setPendingApprovals(list => list.slice(1));
     if (!callId) return;
     try {
       await backend.decideTool(callId, decision);
     } catch {
       // A timed-out, cancelled or already-answered call is harmless here.
     }
-  }, [pendingApproval, backend]);
+  }, [pendingApprovals, backend]);
 
   const answer = useCallback(async (text: string) => {
-    const callId = pendingApproval?.callId;
-    setPendingApproval(null);
+    const callId = pendingApprovals[0]?.callId;
+    setPendingApprovals(list => list.slice(1));
     if (!callId) return;
     try {
       await backend.answerTool(callId, text);
     } catch {
       // A timed-out, cancelled or already-answered question is harmless here.
     }
-  }, [pendingApproval, backend]);
+  }, [pendingApprovals, backend]);
 
-  const clear = useCallback(() => setPendingApproval(null), []);
+  const clear = useCallback((conversationId?: string) => {
+    setPendingApprovals(list => conversationId ? list.filter(item => item.conversationId !== conversationId) : []);
+  }, []);
 
-  return { handleEvent, pendingApproval, decide, answer, clear };
+  return { handleEvent, pendingApproval: pendingApprovals[0] ?? null, decide, answer, clear };
 }

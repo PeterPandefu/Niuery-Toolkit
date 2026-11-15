@@ -367,6 +367,24 @@ describe('AI assistant page', () => {
     await waitFor(() => expect(backend.cancel).toHaveBeenCalledTimes(1));
   });
 
+  it('lets a new conversation send while another conversation is still generating', async () => {
+    backend.generate.mockImplementation(() => new Promise(() => {}));
+    render(<AiAssistantPage />);
+    const input = await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.change(input, { target: { value: 'First question' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(backend.generate).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'New conversation' }));
+    const nextInput = await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.change(nextInput, { target: { value: 'Second question' } });
+    expect(screen.queryByText('Another conversation is generating. Stop it before sending here.')).not.toBeInTheDocument();
+    const send = screen.getByRole('button', { name: 'Send' });
+    expect(send).toBeEnabled();
+    fireEvent.click(send);
+    await waitFor(() => expect(backend.generate).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('button', { name: 'Stop generating' })).toBeInTheDocument();
+  });
+
   it('confirms editing a sent message before replacing the following reply', async () => {
     render(<AiAssistantPage />);
     const input = await screen.findByRole('textbox', { name: 'Message' });

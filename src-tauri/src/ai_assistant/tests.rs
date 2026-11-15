@@ -580,20 +580,54 @@ async fn ai_assistant_cancel_waits_until_request_releases_active_slot() {
     let state = std::sync::Arc::new(AiState::default());
     let (sender, mut receiver) = watch::channel(false);
     let (completed, completion) = watch::channel(false);
-    *state.active.lock().unwrap() = Some(Active {
-        request_id: "r1".into(),
-        cancel: sender,
-        completion,
-    });
+    state.active.lock().unwrap().insert(
+        "r1".into(),
+        Active {
+            conversation_id: "c1".into(),
+            cancel: sender,
+            completion,
+        },
+    );
     let worker_state = state.clone();
     let worker = tokio::spawn(async move {
         receiver.changed().await.unwrap();
         tokio::time::sleep(Duration::from_millis(30)).await;
-        *worker_state.active.lock().unwrap() = None;
+        worker_state.active.lock().unwrap().remove("r1");
         completed.send(true).unwrap();
     });
     cancel_active_request(&state, "r1").await.unwrap();
-    assert!(state.active.lock().unwrap().is_none());
+    assert!(state.active.lock().unwrap().is_empty());
+    worker.await.unwrap();
+}
+
+#[tokio::test]
+async fn ai_assistant_cancel_only_releases_the_targeted_request() {
+    let state = std::sync::Arc::new(AiState::default());
+    let (sender_one, mut receiver_one) = watch::channel(false);
+    let (completed_one, completion_one) = watch::channel(false);
+    let (sender_two, receiver_two) = watch::channel(false);
+    let (_completed_two, completion_two) = watch::channel(false);
+    {
+        let mut active = state.active.lock().unwrap();
+        active.insert(
+            "r1".into(),
+            Active { conversation_id: "c1".into(), cancel: sender_one, completion: completion_one },
+        );
+        active.insert(
+            "r2".into(),
+            Active { conversation_id: "c2".into(), cancel: sender_two, completion: completion_two },
+        );
+    }
+    let worker_state = state.clone();
+    let worker = tokio::spawn(async move {
+        receiver_one.changed().await.unwrap();
+        worker_state.active.lock().unwrap().remove("r1");
+        completed_one.send(true).unwrap();
+    });
+    cancel_active_request(&state, "r1").await.unwrap();
+    assert!(!state.active.lock().unwrap().contains_key("r1"));
+    assert!(state.active.lock().unwrap().contains_key("r2"));
+    assert!(!*receiver_two.borrow());
     worker.await.unwrap();
 }
 
