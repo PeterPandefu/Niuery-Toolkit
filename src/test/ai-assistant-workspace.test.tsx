@@ -39,7 +39,7 @@ function createBackend(workspace = fixture()) {
     event(type: AiStreamEvent['type'], text?: string, overrides?: Partial<AiStreamEvent>) {
       if (!request || !emit) throw new Error('generation not started');
       emit({ requestId: request.requestId, conversationId: request.conversationId, messageId: request.messageId, type, text, ...overrides });
-      if (type !== 'delta' && type !== 'thinking' && type !== 'metadata' && type !== 'round_reset') resolveGenerate?.();
+      if (type !== 'delta' && type !== 'thinking' && type !== 'metadata' && type !== 'round_reset' && type !== 'tool_call' && type !== 'tool_result' && type !== 'approval_required' && type !== 'question_required') resolveGenerate?.();
     },
   };
 }
@@ -213,6 +213,21 @@ describe('AI workspace lifecycle', () => {
     act(() => { fake.event('delta', 'recovered'); fake.event('done'); });
     await waitFor(() => expect(result.current.busy).toBeNull());
     expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'recovered', status: 'complete' });
+  });
+  it('keeps the generation alive and opens the question dialog on question_required', async () => {
+    const { result, fake, chatId } = await setup();
+    act(() => { void result.current.send(chatId); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    act(() => { fake.event('question_required', '选哪个？', { callId: 'q1', name: 'ask_user', arguments: '{"question":"选哪个？","options":["A","B"]}' }); });
+    expect(result.current.busy).not.toBeNull();
+    expect(result.current.toolCalls.pendingApproval?.type).toBe('question_required');
+    expect(result.current.workspace.conversations[0].messages[1].status).toBe('streaming');
+    await act(async () => { await result.current.toolCalls.answer('选 A'); });
+    expect(fake.backend.answerTool).toHaveBeenCalledWith('q1', '选 A');
+    expect(result.current.toolCalls.pendingApproval).toBeNull();
+    act(() => { fake.event('delta', 'Final'); fake.event('done'); });
+    await waitFor(() => expect(result.current.busy).toBeNull());
+    expect(result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'Final', status: 'complete' });
   });
   it('keeps thinking-only generation active and persists the partial thinking on stop', async () => {
     const { result, fake, chatId } = await setup();

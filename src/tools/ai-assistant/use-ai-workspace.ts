@@ -85,6 +85,7 @@ export function useAiWorkspace(backend: AiBackend) {
   }, [replace]);
 
   const toolCalls = useToolCalls({ changeConversation, saveQuietly, backend });
+  const { handleEvent: handleToolEvent, clear: clearToolApproval } = toolCalls;
 
   const changeReply = useCallback((request: ActiveRequest, updater: (message: AiMessage) => AiMessage) => {
     changeConversation(request.conversationId, chat => ({ ...chat, updatedAt: Date.now(),
@@ -287,10 +288,10 @@ export function useAiWorkspace(backend: AiBackend) {
           changeConversation(conversationId, value => ({ ...value, messages: value.messages.map(message => message.id === running.messageId ? { ...message, finishReason: event.finishReason ?? message.finishReason, usage: event.usage ?? message.usage } : message) }));
         } else if (event.type === 'round_reset') {
           changeConversation(conversationId, value => ({ ...value, updatedAt: Date.now(), messages: value.messages.map(message => message.id === running.messageId ? { ...message, content: '', thinking: undefined, status: 'streaming' } : message) }));
-        } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required') {
-          toolCalls.handleEvent(event, conversationId, running.messageId);
+        } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required' || event.type === 'question_required') {
+          handleToolEvent(event, conversationId, running.messageId);
         } else {
-          toolCalls.clear();
+          clearToolApproval();
           const status = event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed';
           void finish(running, status, event.error || (event.type === 'error' ? '生成失败，请检查模型服务后重试。' : undefined)).catch(() => {});
         }
@@ -314,7 +315,7 @@ export function useAiWorkspace(backend: AiBackend) {
       }
     }
     return request ? { type: 'settled', requestId: request.requestId } : { type: 'not-sent', reason: '请求未发送' };
-  }, [backend, changeConversation, finish, persist, saveQuietly]);
+  }, [backend, changeConversation, finish, persist, saveQuietly, handleToolEvent, clearToolApproval]);
 
   const send = useCallback((id: string, options?: AiSendOptions) => run(id, options), [run]);
   const regenerate = useCallback((id: string, options: AiSendOptions = {}) => run(id, options, true), [run]);
@@ -350,7 +351,12 @@ export function useAiWorkspace(backend: AiBackend) {
               changeReply(running, message => ({ ...message, finishReason: event.finishReason ?? message.finishReason, usage: event.usage ?? message.usage }));
             } else if (event.type === 'round_reset') {
               changeReply(running, message => ({ ...message, content: '', thinking: undefined, status: 'streaming' }));
-            } else void finish(running, event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed', event.error).catch(() => {});
+            } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required' || event.type === 'question_required') {
+              handleToolEvent(event, conversationId, running.messageId);
+            } else {
+              clearToolApproval();
+              void finish(running, event.type === 'done' ? 'complete' : event.type === 'stopped' ? 'stopped' : 'failed', event.error).catch(() => {});
+            }
           });
           if (active.current === running && !running.terminated) await finish(running, 'interrupted', '任务回复流意外结束');
         } catch (reason) { if (active.current === running && !running.terminated) await finish(running, 'failed', describeError(reason)); }
@@ -363,7 +369,7 @@ export function useAiWorkspace(backend: AiBackend) {
       if (mounted.current && !cancelling.current) setBusy(null);
       await persist().catch(() => {});
     }
-  }, [backend, changeConversation, changeReply, finish, persist, saveQuietly]);
+  }, [backend, changeConversation, changeReply, finish, persist, saveQuietly, handleToolEvent, clearToolApproval]);
 
   const stop = useCallback((): Promise<void> => {
     if (batch.current) {

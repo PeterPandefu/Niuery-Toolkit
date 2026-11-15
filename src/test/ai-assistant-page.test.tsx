@@ -10,6 +10,7 @@ import { newConversation } from '@/tools/ai-assistant/model';
 const backend = vi.hoisted(() => ({
   load: vi.fn(), save: vi.fn(), saveProvider: vi.fn(), removeProvider: vi.fn(), listModels: vi.fn(),
   testConnection: vi.fn(), generate: vi.fn(), cancel: vi.fn(), openDataDirectory: vi.fn(), reset: vi.fn(),
+  decideTool: vi.fn(), answerTool: vi.fn(),
 }));
 vi.mock('@/tools/ai-assistant/backend', () => ({ desktopAiBackend: backend }));
 vi.mock('@/lib/file-save', () => ({ saveBytesWithFeedback: vi.fn() }));
@@ -470,6 +471,28 @@ describe('AI assistant page', () => {
     expect(screen.queryByRole('option', { name: 'unused-model' })).not.toBeInTheDocument();
   });
 
+  it('shows the assistant question dialog and continues after answering', async () => {
+    let emit: ((event: AiStreamEvent) => void) | undefined;
+    let ids: { requestId: string; conversationId: string; messageId: string } | undefined;
+    backend.generate.mockImplementation((request: AiRequest, event: (event: AiStreamEvent) => void) => {
+      ids = { requestId: request.requestId, conversationId: request.conversationId, messageId: request.messageId };
+      emit = event;
+      return new Promise<void>(() => {});
+    });
+    backend.answerTool.mockResolvedValue(undefined);
+    render(<AiAssistantPage />);
+    const input = await screen.findByRole('textbox', { name: 'Message' });
+    fireEvent.change(input, { target: { value: 'Organize this document' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(emit).toBeDefined());
+    act(() => { emit!({ ...ids!, type: 'question_required', callId: 'q1', name: 'ask_user', text: 'Which format?', arguments: '{"question":"Which format?","options":["Markdown","DOCX"]}' }); });
+    const dialog = await screen.findByRole('dialog', { name: 'Assistant question' });
+    expect(screen.queryByText('Failed')).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Markdown' }));
+    await waitFor(() => expect(backend.answerTool).toHaveBeenCalledWith('q1', 'Markdown'));
+    act(() => { emit!({ ...ids!, type: 'delta', text: 'Done organizing' }); emit!({ ...ids!, type: 'done' }); });
+    expect(await screen.findByText('Done organizing')).toBeInTheDocument();
+  });
   it('keeps the conversation usable after generation fails', async () => {
     backend.generate.mockRejectedValue(new Error('Rate limited: try again later'));
     render(<AiAssistantPage />);
