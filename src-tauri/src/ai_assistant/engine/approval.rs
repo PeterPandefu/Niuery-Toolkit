@@ -21,9 +21,9 @@ struct QuestionPending {
     tx: oneshot::Sender<String>,
 }
 
-/// Sequential approval plus the single active-request slot mean this map holds
-/// at most one entry. Every exit path removes it, so a stale answer can never
-/// unblock a later call.
+/// Entries are keyed by call id and carry their owning request id, so several
+/// conversations can suspend approvals concurrently. Every exit path removes
+/// its own entries, so a stale answer can never unblock a later call.
 #[derive(Default)]
 pub struct ApprovalRegistry {
     pending: Mutex<HashMap<String, Pending>>,
@@ -148,6 +148,51 @@ impl ApprovalRegistry {
         }
         let _ = entry.tx.send(text);
         Ok(())
+    }
+
+    /// Resolves which request owns a suspended call so a decision can be routed
+    /// without relying on a single global active slot.
+    pub fn owner(&self, call_id: &str) -> Option<String> {
+        if let Ok(pending) = self.pending.lock() {
+            if let Some(entry) = pending.get(call_id) {
+                return Some(entry.request_id.clone());
+            }
+        }
+        if let Ok(questions) = self.questions.lock() {
+            if let Some(entry) = questions.get(call_id) {
+                return Some(entry.request_id.clone());
+            }
+        }
+        None
+    }
+
+    /// Unblocks only the suspended approvals belonging to one request, leaving
+    /// other conversations' pending calls untouched.
+    pub fn drain_request(&self, request_id: &str, decision: ToolDecision) {
+        if let Ok(mut pending) = self.pending.lock() {
+            let ids: Vec<String> = pending
+                .iter()
+                .filter(|(_, entry)| entry.request_id == request_id)
+                .map(|(id, _)| id.clone())
+                .collect();
+            for id in ids {
+                if let Some(entry) = pending.remove(&id) {
+                    let _ = entry.tx.send(decision);
+                }
+            }
+        }
+        if let Ok(mut questions) = self.questions.lock() {
+            let ids: Vec<String> = questions
+                .iter()
+                .filter(|(_, entry)| entry.request_id == request_id)
+                .map(|(id, _)| id.clone())
+                .collect();
+            for id in ids {
+                if let Some(entry) = questions.remove(&id) {
+                    let _ = entry.tx.send(String::new());
+                }
+            }
+        }
     }
 
     /// Unblocks a suspended approval so cancel, reset and app exit never hang.
@@ -281,6 +326,41 @@ mod tests {
             .is_err());
         registry.drain(ToolDecision::Rejected);
         assert_eq!(waiter.await.unwrap().unwrap(), ToolDecision::Rejected);
+        assert_eq!(registry.pending_len(), 0);
+    }
+
+    #[tokio::test]
+    async fn ai_assistant_drain_request_only_unblocks_the_owning_request() {
+        let registry = std::sync::Arc::new(ApprovalRegistry::default());
+        let (_sender_one, mut cancel_one) = watch::channel(false);
+        let (_sender_two, mut cancel_two) = watch::channel(false);
+        let waiter_one = {
+            let registry = registry.clone();
+            let channel = channel();
+            tokio::spawn(async move {
+                registry.request("r1", "call-1", event(), &channel, &mut cancel_one, Duration::from_secs(30)).await
+            })
+        };
+        let waiter_two = {
+            let registry = registry.clone();
+            let channel = channel();
+            tokio::spawn(async move {
+                registry.request("r2", "call-2", event(), &channel, &mut cancel_two, Duration::from_secs(30)).await
+            })
+        };
+        for _ in 0..200 {
+            if registry.pending_len() == 2 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        assert_eq!(registry.owner("call-1").as_deref(), Some("r1"));
+        assert_eq!(registry.owner("call-2").as_deref(), Some("r2"));
+        registry.drain_request("r1", ToolDecision::Rejected);
+        assert_eq!(waiter_one.await.unwrap().unwrap(), ToolDecision::Rejected);
+        assert_eq!(registry.pending_len(), 1);
+        registry.decide("r2", "call-2", ToolDecision::Approved).unwrap();
+        assert_eq!(waiter_two.await.unwrap().unwrap(), ToolDecision::Approved);
         assert_eq!(registry.pending_len(), 0);
     }
 

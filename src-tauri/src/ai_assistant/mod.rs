@@ -8,7 +8,7 @@ mod validation;
 pub use types::*;
 
 use futures_util::StreamExt;
-use std::{path::PathBuf, sync::Mutex, time::Duration};
+use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
 use tauri::{ipc::Channel, Emitter, Manager, State};
 use tokio::sync::watch;
 
@@ -20,13 +20,13 @@ const MEDIA_SERVICE_ID: &str = "media-service";
 #[derive(Default)]
 pub struct AiState {
     storage: tokio::sync::Mutex<()>,
-    active: Mutex<Option<Active>>,
+    active: Mutex<HashMap<String, Active>>,
     exit: Mutex<ExitState>,
     approvals: engine::ApprovalRegistry,
 }
 
 struct Active {
-    request_id: String,
+    conversation_id: String,
     cancel: watch::Sender<bool>,
     completion: watch::Receiver<bool>,
 }
@@ -182,6 +182,14 @@ fn directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map(|path| path.join("ai-assistant"))
         .map_err(|_| "无法定位 AI 助手私有数据目录".into())
+}
+
+/// Clears leftover office engine lock directories from the desktop; newer
+/// runs redirect locks into the temp dir via the preload shim instead.
+pub fn sweep_office_lock_dirs(app: &tauri::AppHandle) {
+    if let Ok(desktop) = app.path().desktop_dir() {
+        office::sweep_lock_dirs(&desktop);
+    }
 }
 
 async fn blocking<T: Send + 'static>(
@@ -830,30 +838,35 @@ pub async fn ai_generate(
     let (completed, completion) = watch::channel(false);
     {
         let mut active = state.active.lock().map_err(|_| "AI 请求状态不可用")?;
-        if active.is_some() {
+        if active
+            .values()
+            .any(|a| a.conversation_id == request.conversation_id)
+        {
             return on_event
                 .send(request.event(
                     "error",
                     None,
-                    Some("已有回复正在生成，请先停止当前生成".into()),
+                    Some("该会话已有回复正在生成，请先停止当前生成".into()),
                 ))
                 .map_err(|_| "AI 页面连接已关闭".into());
         }
-        *active = Some(Active {
-            request_id: request.request_id.clone(),
-            cancel: sender,
-            completion,
-        });
+        active.insert(
+            request.request_id.clone(),
+            Active {
+                conversation_id: request.conversation_id.clone(),
+                cancel: sender,
+                completion,
+            },
+        );
     }
     let outcome = stream_response(&app, &state, &request, &on_event, &mut cancel).await;
     let stopped = *cancel.borrow();
     if let Ok(mut active) = state.active.lock() {
-        if active
-            .as_ref()
-            .is_some_and(|a| a.request_id == request.request_id)
-        {
-            *active = None;
-        }
+        active.remove(&request.request_id);
+    }
+    {
+        let app = app.clone();
+        let _ = tauri::async_runtime::spawn_blocking(move || sweep_office_lock_dirs(&app));
     }
     let event = if stopped {
         request.event("stopped", None, None)
@@ -874,16 +887,13 @@ pub async fn ai_generate(
 async fn cancel_active_request(state: &AiState, request_id: &str) -> Result<(), String> {
     let completion = {
         let active = state.active.lock().map_err(|_| "AI 请求状态不可用")?;
-        active
-            .as_ref()
-            .filter(|a| a.request_id == request_id)
-            .map(|active| {
-                let _ = active.cancel.send(true);
-                // A suspended approval would otherwise hold the active slot and
-                // block cancel, reset and app exit.
-                state.approvals.drain(ToolDecision::Rejected);
-                active.completion.clone()
-            })
+        active.get(request_id).map(|active| {
+            let _ = active.cancel.send(true);
+            // A suspended approval would otherwise hold this request's slot and
+            // block cancel, reset and app exit.
+            state.approvals.drain_request(request_id, ToolDecision::Rejected);
+            active.completion.clone()
+        })
     };
     if let Some(mut completion) = completion {
         while !*completion.borrow() {
@@ -906,13 +916,10 @@ pub async fn ai_tool_decision(
     call_id: String,
     decision: ToolDecision,
 ) -> Result<(), String> {
-    let request_id = {
-        let active = state.active.lock().map_err(|_| "AI 请求状态不可用")?;
-        active.as_ref().map(|value| value.request_id.clone())
-    };
-    let Some(request_id) = request_id else {
-        return Err("该调用已失效".into());
-    };
+    let request_id = state
+        .approvals
+        .owner(&call_id)
+        .ok_or_else(|| "该调用已失效".to_string())?;
     state.approvals.decide(&request_id, &call_id, decision)
 }
 
@@ -922,13 +929,10 @@ pub async fn ai_tool_answer(
     call_id: String,
     answer: String,
 ) -> Result<(), String> {
-    let request_id = {
-        let active = state.active.lock().map_err(|_| "AI 请求状态不可用")?;
-        active.as_ref().map(|value| value.request_id.clone())
-    };
-    let Some(request_id) = request_id else {
-        return Err("该提问已失效".into());
-    };
+    let request_id = state
+        .approvals
+        .owner(&call_id)
+        .ok_or_else(|| "该提问已失效".to_string())?;
     state.approvals.answer(&request_id, &call_id, answer)
 }
 
@@ -945,14 +949,15 @@ pub async fn ai_open_data_directory(app: tauri::AppHandle) -> Result<(), String>
 
 #[tauri::command]
 pub async fn ai_reset(app: tauri::AppHandle, state: State<'_, AiState>) -> Result<(), String> {
-    if let Some(active) = state
-        .active
-        .lock()
-        .map_err(|_| "AI 请求状态不可用")?
-        .as_ref()
     {
-        let _ = active.cancel.send(true);
-        return Err("请先停止当前生成，再重置 AI 数据".into());
+        let active = state.active.lock().map_err(|_| "AI 请求状态不可用")?;
+        if !active.is_empty() {
+            for entry in active.values() {
+                let _ = entry.cancel.send(true);
+            }
+            state.approvals.drain(ToolDecision::Rejected);
+            return Err("请先停止当前生成，再重置 AI 数据".into());
+        }
     }
     let _guard = state.storage.lock().await;
     let root = directory(&app)?;

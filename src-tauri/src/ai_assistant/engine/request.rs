@@ -64,7 +64,10 @@ pub fn convert(
     }
     for message in &input.messages {
         validation::validate_attachments(&message.attachments)?;
-        if message.role == "assistant" && message.status != "complete" {
+        // Only in-flight streams are unsafe to replay. Interrupted, stopped or
+        // failed answers are terminal: keeping them (with their partial output and
+        // tool results) is what lets a later continuation remember the task.
+        if message.role == "assistant" && matches!(message.status.as_str(), "waiting" | "streaming") {
             return Err("未完成的助手消息不能自动发送到模型".into());
         }
         let mut text = message.content.clone();

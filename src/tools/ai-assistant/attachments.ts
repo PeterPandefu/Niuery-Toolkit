@@ -4,6 +4,7 @@ import type { AiAttachment } from './types';
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const TEXT_EXTENSIONS = new Set('txt text md markdown json jsonl log csv tsv xml yaml yml toml ini conf config env html htm css scss sass less js jsx ts tsx mjs cjs vue svelte astro py pyi rb php java kt kts c h cc cpp cxx hpp cs fs fsx go rs swift sh bash zsh ps1 psm1 bat cmd sql graphql gql r lua pl dart dockerfile makefile gitignore'.split(' '));
 const IMAGE_EXTENSIONS: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
+const OFFICE_EXTENSIONS = new Set(['docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt']);
 
 export function validateAttachments(attachments: AiAttachment[]): void {
   const images = attachments.filter(file => file.kind === 'image');
@@ -31,9 +32,10 @@ function readBytes(file: File): Promise<ArrayBuffer> {
 export async function readAttachment(file: File): Promise<AiAttachment> {
   const extension = file.name.toLowerCase().split('.').pop() ?? '';
   if (extension === 'pdf') { const attachment = await (await import('./documents')).readPdfAttachment(file); validateAttachments([attachment]); return attachment; }
+  if (OFFICE_EXTENSIONS.has(extension)) { const attachment = await (await import('./documents')).readOfficeAttachment(file); validateAttachments([attachment]); return attachment; }
   const imageType = IMAGE_EXTENSIONS[extension] ?? (IMAGE_TYPES.has(file.type) ? file.type : undefined);
   const isText = !imageType && TEXT_EXTENSIONS.has(extension);
-  if (!imageType && !isText) throw new Error('不支持此附件格式，请选择 PNG、JPEG、WebP 图片或纯文本／代码文件。');
+  if (!imageType && !isText) throw new Error('不支持此附件格式，请选择 PNG、JPEG、WebP 图片、纯文本／代码文件，或 PDF、Word、Excel、PPT 文档。');
   if (file.size > (imageType ? 10 : 1) * 1024 * 1024) throw new Error(imageType ? '每张图片不能超过 10 MiB。' : '每个文本文件不能超过 1 MiB。');
   const bytes = new Uint8Array(await readBytes(file));
   let data: string;

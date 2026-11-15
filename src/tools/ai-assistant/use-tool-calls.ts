@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { AiBackend, AiConversation, AiStreamEvent, AiToolCall, AiToolDecision } from './types';
 
 /** Terminal sweep for calls the backend never settled (discarded wrap-up calls,
@@ -38,6 +38,7 @@ function mergeCall(existing: AiToolCall | undefined, event: AiStreamEvent): AiTo
       ...base,
       name: event.name ?? base.name,
       arguments: event.arguments ?? base.arguments,
+      status: event.status ?? base.status,
       ...(event.url === undefined ? {} : { url: event.url }),
       ...(event.provenance === undefined ? {} : { provenance: event.provenance }),
     };
@@ -51,24 +52,34 @@ function mergeCall(existing: AiToolCall | undefined, event: AiStreamEvent): AiTo
   };
 }
 
-/** Keeps tool records on the assistant message, so round pairing in buildContext
- *  and the excludedMessageIds semantics stay untouched. */
-export function useToolCalls({ changeConversation, saveQuietly, backend }: ToolCallDeps) {
-  const [pendingApproval, setPendingApproval] = useState<AiStreamEvent | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+export interface ToolCallTracker {
+  handleEvent(event: AiStreamEvent, conversationId: string, messageId: string): void;
+  decide(decision: AiToolDecision): Promise<void>;
+  answer(text: string): Promise<void>;
+  clear(conversationId?: string): void;
+  getPendingApproval(): AiStreamEvent | null;
+  subscribe(listener: () => void): () => void;
+  dispose(): void;
+}
 
-  useEffect(() => () => {
-    if (timer.current !== null) clearTimeout(timer.current);
-  }, []);
+/** React-free core so the workspace controller can own tool approvals across
+ *  page unmounts; useToolCalls is a thin subscription wrapper. */
+export function createToolCallTracker({ changeConversation, saveQuietly, backend }: ToolCallDeps): ToolCallTracker {
+  let pending: AiStreamEvent[] = [];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const listeners = new Set<() => void>();
+  const notify = () => { for (const listener of listeners) listener(); };
 
-  const handleEvent = useCallback((event: AiStreamEvent, conversationId: string, messageId: string) => {
+  const handleEvent = (event: AiStreamEvent, conversationId: string, messageId: string) => {
     if (event.type !== 'tool_call' && event.type !== 'tool_result' && event.type !== 'approval_required' && event.type !== 'question_required') return;
     const callId = event.callId;
     if (!callId) return;
-    if (event.type === 'approval_required' || event.type === 'question_required') setPendingApproval(event);
+    if (event.type === 'approval_required' || event.type === 'question_required') {
+      pending = [...pending.filter(item => item.callId !== callId), event];
+      notify();
+    }
     changeConversation(conversationId, chat => ({
       ...chat,
-      updatedAt: Date.now(),
       messages: chat.messages.map(message => {
         if (message.id !== messageId) return message;
         const calls = message.toolCalls ?? [];
@@ -78,39 +89,61 @@ export function useToolCalls({ changeConversation, saveQuietly, backend }: ToolC
         return { ...message, toolCalls: next, status: 'streaming' };
       }),
     }));
-    if (timer.current === null) {
-      timer.current = setTimeout(() => {
-        timer.current = null;
+    if (timer === null) {
+      timer = setTimeout(() => {
+        timer = null;
         saveQuietly();
       }, 500);
     }
-  }, [changeConversation, saveQuietly]);
+  };
 
   /** Only approve or reject. There is deliberately no "always allow" path, so
    *  every call re-checks its target and URL source. */
-  const decide = useCallback(async (decision: AiToolDecision) => {
-    const callId = pendingApproval?.callId;
-    setPendingApproval(null);
+  const decide = async (decision: AiToolDecision) => {
+    const callId = pending[0]?.callId;
+    pending = pending.slice(1);
+    notify();
     if (!callId) return;
     try {
       await backend.decideTool(callId, decision);
     } catch {
       // A timed-out, cancelled or already-answered call is harmless here.
     }
-  }, [pendingApproval, backend]);
+  };
 
-  const answer = useCallback(async (text: string) => {
-    const callId = pendingApproval?.callId;
-    setPendingApproval(null);
+  const answer = async (text: string) => {
+    const callId = pending[0]?.callId;
+    pending = pending.slice(1);
+    notify();
     if (!callId) return;
     try {
       await backend.answerTool(callId, text);
     } catch {
       // A timed-out, cancelled or already-answered question is harmless here.
     }
-  }, [pendingApproval, backend]);
+  };
 
-  const clear = useCallback(() => setPendingApproval(null), []);
+  const clear = (conversationId?: string) => {
+    pending = conversationId ? pending.filter(item => item.conversationId !== conversationId) : [];
+    notify();
+  };
 
-  return { handleEvent, pendingApproval, decide, answer, clear };
+  return {
+    handleEvent,
+    decide,
+    answer,
+    clear,
+    getPendingApproval: () => pending[0] ?? null,
+    subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    dispose: () => { if (timer !== null) clearTimeout(timer); timer = null; },
+  };
+}
+
+/** Keeps tool records on the assistant message, so round pairing in buildContext
+ *  and the excludedMessageIds semantics stay untouched. */
+export function useToolCalls(deps: ToolCallDeps) {
+  const [tracker] = useState(() => createToolCallTracker(deps));
+  const pendingApproval = useSyncExternalStore(tracker.subscribe, tracker.getPendingApproval);
+  useEffect(() => () => tracker.dispose(), [tracker]);
+  return { handleEvent: tracker.handleEvent, pendingApproval, decide: tracker.decide, answer: tracker.answer, clear: tracker.clear };
 }

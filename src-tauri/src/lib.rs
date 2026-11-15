@@ -586,6 +586,11 @@ pub fn run() {
             // 初始化剪贴板历史
             let app_handle = app.handle().clone();
             recorder::cleanup_stale_recordings(&app_handle);
+            // 清理旧版 office 引擎遗留在桌面的锁目录
+            {
+                let sweep_app = app.handle().clone();
+                std::thread::spawn(move || ai_assistant::sweep_office_lock_dirs(&sweep_app));
+            }
             // 后台预热 FFmpeg 编码器探测，缩短首次点击“开始录制”到实际录制的等待。
             recorder::warm_up_recording_encoder(&app_handle);
             // 后台预热录制边框/光标高亮 WebView，避免首次录制时创建窗口造成等待。
