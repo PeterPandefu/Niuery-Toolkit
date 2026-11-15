@@ -2,10 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
 import AiAssistantPage from '@/tools/ai-assistant';
+import { resetAiWorkspaceCache } from '@/tools/ai-assistant/use-ai-workspace';
 import type { AiWorkspace } from '@/tools/ai-assistant/types';
 const backend = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), generate: vi.fn(), cancel: vi.fn(async () => {}) }));
 vi.mock('@/tools/ai-assistant/backend', () => ({ desktopAiBackend: backend }));
-beforeEach(async () => { await i18n.changeLanguage('en'); vi.clearAllMocks(); backend.save.mockResolvedValue(undefined); }); afterEach(cleanup);
+beforeEach(async () => { resetAiWorkspaceCache(); await i18n.changeLanguage('en'); vi.clearAllMocks(); backend.save.mockResolvedValue(undefined); }); afterEach(cleanup);
 
 it('continues with the user edited generated summary and excludes previous task results', async () => {
   const state: AiWorkspace = { version: 1, providers: [], assistants: [{ id: 'a', name: 'Assistant', description: '', systemPrompt: '', parameters: { historyRounds: 20 } }], activeAssistantId: 'a', activeConversationId: 'chat', conversations: [{ id: 'chat', title: 'Original', assistantId: 'a', systemPrompt: '', parameters: { historyRounds: 20 }, messages: [], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 1, tasks: [{ id: 'task', kind: 'summary', createdAt: 1, prompt: 'Source', results: [{ label: 'A', target: 'p:http://localhost', message: { id: 'result', role: 'assistant', content: 'Generated summary', status: 'complete', attachments: [], createdAt: 1 } }] }] }] };

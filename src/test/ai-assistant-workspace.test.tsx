@@ -390,15 +390,38 @@ describe('AI workspace lifecycle', () => {
     expect(fake.saved[fake.saved.length - 1]?.conversations[0].messages[1].status).toBe('stopped');
   });
 
-  it('cancels and persists interrupted partial output on unmount', async () => {
+  it('keeps generating after the page unmounts and restores the live stream on remount', async () => {
     const { result, fake, chatId, unmount } = await setup();
     act(() => { void result.current.send(chatId); });
     await waitFor(() => expect(fake.request).toBeDefined());
     act(() => fake.event('delta', 'Partial'));
     unmount();
-    await waitFor(() => expect(fake.saved[fake.saved.length - 1]?.conversations[0].messages[1].status).toBe('interrupted'));
-    expect(fake.saved[fake.saved.length - 1]?.conversations[0].messages[1].content).toBe('Partial');
-    expect(fake.backend.cancel).toHaveBeenCalledWith(fake.request?.requestId);
+    expect(fake.backend.cancel).not.toHaveBeenCalled();
+    act(() => fake.event('delta', ' more'));
+    const remounted = renderHook(() => useAiWorkspace(fake.backend));
+    await waitFor(() => expect(remounted.result.current.loading).toBe(false));
+    expect(remounted.result.current.busy).toHaveLength(1);
+    expect(remounted.result.current.workspace.conversations[0].messages[1]).toMatchObject({ content: 'Partial more', status: 'streaming' });
+    act(() => fake.event('done'));
+    await waitFor(() => expect(remounted.result.current.busy).toHaveLength(0));
+    expect(remounted.result.current.workspace.conversations[0].messages[1].status).toBe('complete');
+    expect(fake.saved[fake.saved.length - 1]?.conversations[0].messages[1].status).toBe('complete');
+  });
+
+  it('still flushes background generations on native exit after the page unmounts', async () => {
+    const workspace = fixture();
+    const fake = createBackend(workspace);
+    let exit: AiFlushHandler | undefined;
+    fake.backend.onExitRequested = async handler => { exit = handler; return () => {}; };
+    const { result, unmount } = renderHook(() => useAiWorkspace(fake.backend));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => { void result.current.send(workspace.conversations[0].id); });
+    await waitFor(() => expect(fake.request).toBeDefined());
+    act(() => fake.event('delta', 'Background partial'));
+    unmount();
+    await act(async () => { await exit!(); });
+    expect(fake.backend.cancel).toHaveBeenCalledWith(fake.request!.requestId);
+    expect(fake.saved[fake.saved.length - 1].conversations[0].messages[1]).toMatchObject({ content: 'Background partial', status: 'interrupted' });
   });
 
   it('does not overwrite existing data when initialization fails', async () => {

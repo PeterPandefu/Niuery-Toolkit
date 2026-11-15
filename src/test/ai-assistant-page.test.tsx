@@ -4,6 +4,7 @@ import i18n from '@/i18n';
 import type { AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant/types';
 import AiAssistantPage from '@/tools/ai-assistant';
 import { holdAiUpdate } from '@/tools/ai-assistant/update-lock';
+import { resetAiWorkspaceCache } from '@/tools/ai-assistant/use-ai-workspace';
 import { saveBytesWithFeedback } from '@/lib/file-save';
 import { newConversation } from '@/tools/ai-assistant/model';
 
@@ -24,6 +25,7 @@ function workspace(configured = true): AiWorkspace {
 }
 
 beforeEach(async () => {
+  resetAiWorkspaceCache();
   vi.resetAllMocks();
   await i18n.changeLanguage('en');
   backend.load.mockResolvedValue(workspace()); backend.save.mockResolvedValue(undefined);
