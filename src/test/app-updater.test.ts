@@ -34,6 +34,29 @@ describe('installAvailableUpdate', () => {
     await expect(installAppUpdate({ version: '1.2.2', downloadAndInstall })).rejects.toThrow('download failed');
     expect(persistence.release).toHaveBeenCalledOnce();
   });
+  it('forwards download progress events to the callback', async () => {
+    let emit: ((event: unknown) => void) | undefined;
+    let finish!: () => void;
+    const downloadAndInstall = vi.fn((onEvent?: (event: unknown) => void) => {
+      emit = onEvent;
+      return new Promise<void>(resolve => { finish = resolve; });
+    });
+    const progress: unknown[] = [];
+    const pending = installAppUpdate({ version: '1.8.1', downloadAndInstall }, p => progress.push(p));
+    await vi.waitFor(() => expect(emit).toBeDefined());
+    emit!({ event: 'Started', data: { contentLength: 100 } });
+    emit!({ event: 'Progress', data: { chunkLength: 40 } });
+    emit!({ event: 'Progress', data: { chunkLength: 60 } });
+    expect(progress).toEqual([
+      { downloaded: 0, total: 100, done: false },
+      { downloaded: 40, total: 100, done: false },
+      { downloaded: 100, total: 100, done: false },
+    ]);
+    emit!({ event: 'Finished' });
+    finish();
+    await pending;
+    expect(progress[progress.length - 1]).toEqual({ downloaded: 100, total: 100, done: true });
+  });
   it('downloads, installs, and relaunches when an update is available', async () => {
     const downloadAndInstall = vi.fn().mockResolvedValue(undefined);
     const check = vi.fn().mockResolvedValue({

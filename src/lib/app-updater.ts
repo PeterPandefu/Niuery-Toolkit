@@ -4,6 +4,12 @@ export interface AvailableUpdate {
   downloadAndInstall: (onEvent?: (event: unknown) => void) => Promise<void>;
 }
 
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
+  done: boolean;
+}
+
 export interface UpdateRuntime {
   check: () => Promise<AvailableUpdate | null>;
   relaunch: () => Promise<void>;
@@ -39,12 +45,26 @@ export async function checkForAppUpdate(): Promise<AvailableUpdate | null> {
   return check();
 }
 
-export async function installAppUpdate(update: AvailableUpdate): Promise<void> {
+export async function installAppUpdate(update: AvailableUpdate, onProgress?: (progress: UpdateProgress) => void): Promise<void> {
   ensureNetworkAccessAllowed();
   const { prepareAiForUpdate } = await import('@/tools/ai-assistant/backend');
   const release = await prepareAiForUpdate();
+  let downloaded = 0;
+  let total: number | null = null;
   try {
-    await update.downloadAndInstall();
+    await update.downloadAndInstall(event => {
+      const { event: kind, data } = event as { event: string; data?: { contentLength?: number; chunkLength?: number } };
+      if (kind === 'Started') {
+        downloaded = 0;
+        total = data?.contentLength ?? null;
+        onProgress?.({ downloaded, total, done: false });
+      } else if (kind === 'Progress') {
+        downloaded += data?.chunkLength ?? 0;
+        onProgress?.({ downloaded, total, done: false });
+      } else if (kind === 'Finished') {
+        onProgress?.({ downloaded: total ?? downloaded, total, done: true });
+      }
+    });
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('ai_restart_application');
   } finally { release(); }

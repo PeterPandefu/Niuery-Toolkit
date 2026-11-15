@@ -11,7 +11,10 @@
     "check": "检查更新",
     "checking": "检查中…",
     "install": "下载并安装",
-    "installing": "安装中…"
+    "installing": "安装中…",
+    "downloading": "下载中 {{done}} / {{total}}",
+    "downloadingUnknown": "下载中 {{done}}",
+    "stalled": "下载超过 30 秒没有进度，可能受网络或系统代理限制。请检查网络，或调整代理后重启应用重试。"
   },
   "network": {
     "title": "网络权限",
