@@ -110,8 +110,9 @@ export function useAiWorkspace(backend: AiBackend) {
   const toolCalls = useToolCalls({ changeConversation, saveQuietly, backend });
   const { handleEvent: handleToolEvent, clear: clearToolApproval } = toolCalls;
 
-  const changeReply = useCallback((request: ActiveRequest, updater: (message: AiMessage) => AiMessage) => {
-    changeConversation(request.conversationId, chat => ({ ...chat, updatedAt: Date.now(),
+  // touch 仅在请求结束时刷新 updatedAt；逐 token 刷新会让并发会话在侧边栏排序中交替跳顶。
+  const changeReply = useCallback((request: ActiveRequest, updater: (message: AiMessage) => AiMessage, touch = false) => {
+    changeConversation(request.conversationId, chat => ({ ...chat, ...(touch ? { updatedAt: Date.now() } : {}),
       ...(request.taskId ? { tasks: chat.tasks?.map(task => task.id === request.taskId ? { ...task, results: task.results.map(result => result.message.id === request.messageId ? { ...result, message: updater(result.message) } : result) } : task) }
         : { messages: chat.messages.map(message => message.id === request.messageId ? updater(message) : message) }) }));
   }, [changeConversation]);
@@ -136,7 +137,7 @@ export function useAiWorkspace(backend: AiBackend) {
       if (status !== 'complete' && request.previous) return request.previous;
       const completed = { ...message, toolCalls: settlePendingCalls(message.toolCalls, '生成已结束，此调用未执行。'), status, error: reason, durationMs: Math.max(0, Date.now() - request.startedAt) };
       return status === 'complete' && request.previous ? retainAnswerVersion(request.previous, completed) : completed;
-    });
+    }, true);
     active.current.delete(request.requestId);
     if (mounted.current) {
       if (!cancelling.current.has(request.requestId)) removeBusy(request.requestId);
@@ -298,10 +299,10 @@ export function useAiWorkspace(backend: AiBackend) {
         if (active.current.get(running.requestId) !== running || running.terminated || event.requestId !== running.requestId
           || event.conversationId !== running.conversationId || event.messageId !== running.messageId) return;
         if (event.type === 'thinking') {
-          changeConversation(conversationId, value => ({ ...value, updatedAt: Date.now(), messages: value.messages.map(message => message.id === running.messageId ? { ...message, thinking: `${message.thinking ?? ''}${event.text ?? ''}`, status: 'streaming' } : message) }));
+          changeConversation(conversationId, value => ({ ...value, messages: value.messages.map(message => message.id === running.messageId ? { ...message, thinking: `${message.thinking ?? ''}${event.text ?? ''}`, status: 'streaming' } : message) }));
           if (progressTimer.current === null) progressTimer.current = setTimeout(() => { progressTimer.current = null; saveQuietly(); }, 500);
         } else if (event.type === 'delta') {
-          changeConversation(conversationId, value => ({ ...value, updatedAt: Date.now(), messages: value.messages.map(message => message.id === running.messageId
+          changeConversation(conversationId, value => ({ ...value, messages: value.messages.map(message => message.id === running.messageId
             ? { ...message, content: message.content + (event.text ?? ''), status: 'streaming', firstTokenMs: message.firstTokenMs ?? Math.max(0, Date.now() - running.startedAt) } : message) }));
           if (progressTimer.current === null) progressTimer.current = setTimeout(() => {
             progressTimer.current = null;
@@ -310,7 +311,7 @@ export function useAiWorkspace(backend: AiBackend) {
         } else if (event.type === 'metadata') {
           changeConversation(conversationId, value => ({ ...value, messages: value.messages.map(message => message.id === running.messageId ? { ...message, finishReason: event.finishReason ?? message.finishReason, usage: event.usage ?? message.usage } : message) }));
         } else if (event.type === 'round_reset') {
-          changeConversation(conversationId, value => ({ ...value, updatedAt: Date.now(), messages: value.messages.map(message => message.id === running.messageId ? { ...message, content: '', thinking: undefined, status: 'streaming' } : message) }));
+          changeConversation(conversationId, value => ({ ...value, messages: value.messages.map(message => message.id === running.messageId ? { ...message, content: '', thinking: undefined, status: 'streaming' } : message) }));
         } else if (event.type === 'tool_call' || event.type === 'tool_result' || event.type === 'approval_required' || event.type === 'question_required') {
           handleToolEvent(event, conversationId, running.messageId);
         } else {

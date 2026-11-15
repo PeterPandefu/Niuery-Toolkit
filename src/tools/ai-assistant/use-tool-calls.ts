@@ -70,7 +70,6 @@ export function useToolCalls({ changeConversation, saveQuietly, backend }: ToolC
     }
     changeConversation(conversationId, chat => ({
       ...chat,
-      updatedAt: Date.now(),
       messages: chat.messages.map(message => {
         if (message.id !== messageId) return message;
         const calls = message.toolCalls ?? [];

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createWorkspace, newConversation, providerTarget } from '@/tools/ai-assistant/model';
 import { useAiWorkspace } from '@/tools/ai-assistant/use-ai-workspace';
 import { createComparisonTask } from '@/tools/ai-assistant/tasks';
+import { searchConversations } from '@/tools/ai-assistant/organization';
 import type { AiBackend, AiFlushHandler, AiMediaService, AiMcpServer, AiRequest, AiStreamEvent, AiWorkspace } from '@/tools/ai-assistant/types';
 
 function fixture() {
@@ -601,10 +602,10 @@ describe('AI multi-conversation concurrency', () => {
       }),
       openDataDirectory: vi.fn(async () => {}), reset: vi.fn(async () => {}),
     };
-    const event = (requestId: string, type: AiStreamEvent['type'], text?: string) => {
+    const event = (requestId: string, type: AiStreamEvent['type'], text?: string, overrides?: Partial<AiStreamEvent>) => {
       const run = runs.get(requestId);
       if (!run) throw new Error('generation not started');
-      run.emit({ requestId, conversationId: run.request.conversationId, messageId: run.request.messageId, type, text });
+      run.emit({ requestId, conversationId: run.request.conversationId, messageId: run.request.messageId, type, text, ...overrides });
       if (type === 'done' || type === 'error' || type === 'stopped') { run.settle(); runs.delete(requestId); }
     };
     return { backend, saved, event };
@@ -634,6 +635,47 @@ describe('AI multi-conversation concurrency', () => {
     act(() => { fake.event(second, 'done'); });
     await waitFor(() => expect(result.current.busy).toHaveLength(0));
     expect(result.current.workspace.conversations[1].messages[1].status).toBe('complete');
+  });
+
+  it('keeps the sidebar order stable while two streams interleave', async () => {
+    const { result, fake, firstId, secondId } = await setupTwo();
+    let clock = Date.now() + 10_000;
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const order = () => searchConversations(result.current.workspace.conversations, '', result.current.workspace.assistants[0].id, false).map(entry => entry.conversation.id);
+    try {
+      act(() => { void result.current.send(firstId); });
+      await waitFor(() => expect(result.current.busy).toHaveLength(1));
+      clock += 1000;
+      act(() => { void result.current.send(secondId); });
+      await waitFor(() => expect(result.current.busy).toHaveLength(2));
+      expect(order()).toEqual([secondId, firstId]);
+      const stamped = result.current.workspace.conversations.map(chat => chat.updatedAt);
+      const first = runId(result, firstId)!; const second = runId(result, secondId)!;
+      const steps: { id: string; type: AiStreamEvent['type']; text?: string; overrides?: Partial<AiStreamEvent> }[] = [
+        { id: first, type: 'thinking', text: 'thought' },
+        { id: second, type: 'delta', text: 'Second' },
+        { id: first, type: 'delta', text: 'First' },
+        { id: second, type: 'tool_call', overrides: { callId: 'c1', name: 'demo', arguments: '{}' } },
+        { id: first, type: 'round_reset' },
+        { id: second, type: 'delta', text: ' more' },
+      ];
+      for (const step of steps) {
+        clock += 1000;
+        act(() => { fake.event(step.id, step.type, step.text, step.overrides); });
+        expect(order()).toEqual([secondId, firstId]);
+      }
+      expect(result.current.workspace.conversations.map(chat => chat.updatedAt)).toEqual(stamped);
+      clock += 1000;
+      act(() => { fake.event(first, 'done'); });
+      await waitFor(() => expect(result.current.busy).toHaveLength(1));
+      expect(order()).toEqual([firstId, secondId]);
+      clock += 1000;
+      act(() => { fake.event(second, 'done'); });
+      await waitFor(() => expect(result.current.busy).toHaveLength(0));
+      expect(order()).toEqual([secondId, firstId]);
+    } finally {
+      now.mockRestore();
+    }
   });
 
   it('stops only the targeted conversation while the other keeps generating', async () => {
