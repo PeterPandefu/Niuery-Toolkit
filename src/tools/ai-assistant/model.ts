@@ -24,7 +24,7 @@ export function newConversation(assistant: AiAssistant): AiConversation {
   return {
     id: nanoid(), assistantId: assistant.id, title: '新会话', systemPrompt: assistant.systemPrompt,
     providerId: assistant.providerId, modelId: assistant.modelId, parameters: { ...assistant.parameters },
-    messages: [], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: Date.now(),
+    messages: [], draft: '', draftAttachments: [], approvedTargets: [], permissionMode: 'ask', updatedAt: Date.now(),
   };
 }
 
@@ -37,7 +37,27 @@ export function shouldShowThinking(message: AiMessage, providers: AiProvider[]):
   return providers.find(provider => provider.id === message.providerId)?.models.find(model => model.id === message.modelId)?.showThinking !== false;
 }
 
-/** Only complete historical user/answer pairs are eligible for transmission. */
+const settled = (status: AiMessage['status']) => status !== 'waiting' && status !== 'streaming';
+
+const CONTINUATION_NOTES: Partial<Record<AiMessage['status'], string>> = {
+  interrupted: '上一轮回复意外中断',
+  stopped: '上一轮回复被用户停止',
+  failed: '上一轮回复生成失败',
+};
+
+/** A terminal-but-incomplete answer must tell the model the turn never finished,
+ *  otherwise the partial output reads as a finished reply and "continue" stalls. */
+function withContinuationNote(answer: AiMessage): AiMessage {
+  const note = CONTINUATION_NOTES[answer.status];
+  if (!note) return answer;
+  const reason = answer.status === 'failed' && answer.error ? `：${answer.error}` : '';
+  const suffix = `[系统注：${note}${reason}，以上为已生成的部分内容，请结合用户最新消息接续完成。]`;
+  return { ...answer, content: answer.content ? `${answer.content}\n\n${suffix}` : suffix };
+}
+
+/** Settled historical user/answer pairs are eligible for transmission, including
+ *  interrupted, stopped or failed answers: their question, partial output and tool
+ *  results are the only memory a continuation has after an unexpected break. */
 export function buildContext(conversation: AiConversation): AiMessage[] {
   const { messages } = conversation;
   let currentIndex = messages.length - 1;
@@ -47,8 +67,8 @@ export function buildContext(conversation: AiConversation): AiMessage[] {
   for (let index = 0; index < currentIndex - 1; index++) {
     const question = messages[index];
     const answer = messages[index + 1];
-    if (question.role === 'user' && question.status === 'complete' && answer.role === 'assistant' && answer.status === 'complete') {
-      rounds.push([question, answer]);
+    if (question.role === 'user' && question.status === 'complete' && answer.role === 'assistant' && settled(answer.status)) {
+      rounds.push([question, withContinuationNote(answer)]);
       index++;
     }
   }

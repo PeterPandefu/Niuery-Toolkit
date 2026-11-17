@@ -23,6 +23,7 @@
 .ui-select-option[aria-selected=true][data-active=true] { background:hsl(var(--primary)/.12); }
 .ui-select-option[aria-disabled=true] { opacity:.45; cursor:not-allowed; }
 .ui-select-option-text { display:flex; flex:1; flex-direction:column; gap:3px; min-width:0; font-size:13px; line-height:1.5; }
+.ui-select-option-icon { display:grid; place-items:center; flex:none; width:18px; color:hsl(var(--muted-foreground)); }
 .ui-select-option-text > span { font-weight:500; overflow-wrap:anywhere; }
 .ui-select-option-text small { font-size:11px; color:hsl(var(--muted-foreground)); overflow-wrap:anywhere; }
 .ui-select-option > svg { flex-shrink:0; color:hsl(var(--primary)); }

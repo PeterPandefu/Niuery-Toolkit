@@ -11,6 +11,7 @@ export interface SelectOption {
   group?: string;
   disabled?: boolean;
   hidden?: boolean;
+  icon?: React.ReactNode;
 }
 
 export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'multiple' | 'size' | 'onFocus' | 'onBlur' | 'onKeyDown' | 'onClick'>,
@@ -224,6 +225,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(function Select(
         {visibleOptions.length ? visibleOptions.map((option, index) => <React.Fragment key={option.value}>
           {option.group && option.group !== visibleOptions[index - 1]?.group && <div className="ui-select-group" role="presentation">{option.group}</div>}
           <div id={`${id}-option-${index}`} role="option" aria-label={option.label} aria-selected={option.value === selected?.value} aria-disabled={option.disabled || undefined} data-active={option.value === activeValue && !option.disabled} className="ui-select-option" onPointerMove={() => { if (!option.disabled) setActiveValue(option.value); }} onClick={event => { event.preventDefault(); event.stopPropagation(); choose(option); }} title={option.description ? `${option.label} · ${option.description}` : option.label}>
+            {option.icon && <span className="ui-select-option-icon" aria-hidden="true">{option.icon}</span>}
             <span className="ui-select-option-text"><span>{option.label}</span>{option.description && <small>{option.description}</small>}</span>
             {option.value === selected?.value && <Check size={15} aria-hidden="true" />}
           </div>

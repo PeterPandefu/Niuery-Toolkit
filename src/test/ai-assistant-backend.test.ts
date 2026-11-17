@@ -18,7 +18,7 @@ import { desktopAiBackend, prepareAiForUpdate } from '@/tools/ai-assistant/backe
 const provider: AiProvider = { id: 'service', name: 'Local', kind: 'ollama', baseUrl: 'http://127.0.0.1:11434', models: [], enabled: true, hasApiKey: false };
 const request: AiRequest = {
   requestId: 'request1', conversationId: 'conversation1', messageId: 'message1', providerId: 'service', modelId: 'example',
-  systemPrompt: 'Helpful', parameters: { historyRounds: 20 }, messages: [],
+  systemPrompt: 'Helpful', parameters: { historyRounds: 20 }, messages: [], permissionMode: 'ask',
 };
 
 describe('AI desktop bridge', () => {

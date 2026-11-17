@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { mapAiMessage } from '@/tools/ai-assistant/runtime/message-mapper';
-import { useToolCalls } from '@/tools/ai-assistant/use-tool-calls';
+import { useToolCalls, settlePendingCalls } from '@/tools/ai-assistant/use-tool-calls';
 import { retainAnswerVersion, selectAnswerVersion } from '@/tools/ai-assistant/branches';
 import { exportConversation } from '@/tools/ai-assistant/model';
 import type { AiConversation, AiMessage, AiStreamEvent, AiToolCall } from '@/tools/ai-assistant/types';
@@ -30,6 +30,19 @@ type LoosePart = { type: string; toolName?: string; argsText?: string; args?: Re
 function partsOf(mapped: ReturnType<typeof mapAiMessage>): readonly LoosePart[] {
   return mapped.content as unknown as readonly LoosePart[];
 }
+
+describe('settlePendingCalls', () => {
+  it('settles only pending/running calls and keeps settled records untouched', () => {
+    const settledRecord = call();
+    const calls = [settledRecord, call({ id: 'p', status: 'pending', result: undefined }), call({ id: 'r', status: 'running', result: undefined })];
+    const settled = settlePendingCalls(calls, '生成已结束，此调用未执行。')!;
+    expect(settled[0]).toEqual(settledRecord);
+    expect(settled[1]).toMatchObject({ status: 'failed', error: '生成已结束，此调用未执行。' });
+    expect(settled[2]).toMatchObject({ status: 'failed', error: '生成已结束，此调用未执行。' });
+    expect(settlePendingCalls(undefined, 'note')).toBeUndefined();
+    expect(settlePendingCalls([settledRecord], 'note')).toEqual([settledRecord]);
+  });
+});
 
 describe('tool call message mapping', () => {
   it('emits a tool-call part carrying the raw arguments and result', () => {
@@ -77,8 +90,9 @@ describe('tool call event state machine', () => {
     const changeConversation = vi.fn();
     const saveQuietly = vi.fn();
     const decideTool = vi.fn(async () => {});
-    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool } }));
-    return { changeConversation, saveQuietly, decideTool, apply: result.current.handleEvent, result };
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, saveQuietly, decideTool, answerTool, apply: result.current.handleEvent, result };
   }
 
   it('upserts by call id instead of appending duplicates', () => {
@@ -146,8 +160,9 @@ describe('tool approval gate', () => {
     const changeConversation = vi.fn();
     const saveQuietly = vi.fn();
     const decideTool = vi.fn(async () => {});
-    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool } }));
-    return { changeConversation, decideTool, result };
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, decideTool, answerTool, result };
   }
 
   const approval = event({
@@ -169,6 +184,23 @@ describe('tool approval gate', () => {
     const recorded = updater(chat).messages[0].toolCalls?.[0];
     expect(recorded?.url).toBe('https://example.com/a');
     expect(recorded?.provenance).toBe('modelProposed');
+  });
+
+  it('records URL and provenance from a tool_call when the permission mode skips the dialog', () => {
+    const { changeConversation, result } = setup();
+    act(() => result.current.handleEvent(event({
+      type: 'tool_call', callId: 'call-8', name: 'fetch_url',
+      arguments: '{"url":"https://example.com/b"}', url: 'https://example.com/b', provenance: 'userProvided',
+    }), 'c1', 'reply-1'));
+    expect(result.current.pendingApproval).toBeNull();
+    const updater = changeConversation.mock.calls[0][1] as (chat: AiConversation) => AiConversation;
+    const chat: AiConversation = {
+      id: 'c1', assistantId: 'a1', title: 't', systemPrompt: '', parameters: { historyRounds: 20 },
+      messages: [message({ status: 'streaming' })], draft: '', draftAttachments: [], approvedTargets: [], updatedAt: 0,
+    };
+    const recorded = updater(chat).messages[0].toolCalls?.[0];
+    expect(recorded?.url).toBe('https://example.com/b');
+    expect(recorded?.provenance).toBe('userProvided');
   });
 
   it('sends approve and reject decisions and closes the dialog', async () => {
@@ -201,7 +233,8 @@ describe('tool approval gate', () => {
   it('a stale answer failing in Rust does not throw into the UI', async () => {
     const changeConversation = vi.fn();
     const decideTool = vi.fn(async () => { throw new Error('该调用已失效'); });
-    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly: vi.fn(), backend: { decideTool } }));
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly: vi.fn(), backend: { decideTool, answerTool } }));
     act(() => result.current.handleEvent(approval, 'c1', 'reply-1'));
     await act(async () => { await result.current.decide('approved'); });
     expect(result.current.pendingApproval).toBeNull();
@@ -241,5 +274,41 @@ describe('tool records across answer versions and export', () => {
     expect(json).toContain('call-1');
     expect(json).toContain('calculate');
     expect(exportConversation(conversation, 'markdown')).toContain('used a tool');
+  });
+});
+describe('ask_user question flow', () => {
+  function setup() {
+    const changeConversation = vi.fn();
+    const saveQuietly = vi.fn();
+    const decideTool = vi.fn(async () => {});
+    const answerTool = vi.fn(async () => {});
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly, backend: { decideTool, answerTool } }));
+    return { changeConversation, decideTool, answerTool, result };
+  }
+
+  it('surfaces question_required as the pending dialog and records the call', () => {
+    const { changeConversation, result } = setup();
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q1', name: 'ask_user', arguments: '{"question":"选哪个？","options":["A","B"]}', text: '选哪个？' }), 'c1', 'reply-1'));
+    expect(result.current.pendingApproval?.type).toBe('question_required');
+    expect(result.current.pendingApproval?.callId).toBe('q1');
+    expect(changeConversation).toHaveBeenCalled();
+  });
+
+  it('answer sends the text through answerTool and clears the dialog', async () => {
+    const { answerTool, decideTool, result } = setup();
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q1', name: 'ask_user', arguments: '{"question":"选哪个？"}', text: '选哪个？' }), 'c1', 'reply-1'));
+    await act(async () => { await result.current.answer('选 A'); });
+    expect(answerTool).toHaveBeenCalledWith('q1', '选 A');
+    expect(decideTool).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it('a failed answer is harmless and still clears the dialog', async () => {
+    const changeConversation = vi.fn();
+    const answerTool = vi.fn(async () => { throw new Error('该提问已失效'); });
+    const { result } = renderHook(() => useToolCalls({ changeConversation, saveQuietly: vi.fn(), backend: { decideTool: vi.fn(async () => {}), answerTool } }));
+    act(() => result.current.handleEvent(event({ type: 'question_required', callId: 'q2', name: 'ask_user', arguments: '{}', text: '问题' }), 'c1', 'reply-1'));
+    await act(async () => { await result.current.answer(''); });
+    expect(result.current.pendingApproval).toBeNull();
   });
 });

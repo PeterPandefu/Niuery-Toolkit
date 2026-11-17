@@ -18,8 +18,6 @@ pub struct Model {
     pub stream_usage: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub show_thinking: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub supports_tools: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -97,6 +95,9 @@ pub struct Message {
     pub error: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<String>,
+    // Legacy round-cap marker: caps were removed; kept so older saved data loads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forced_finish: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -160,6 +161,34 @@ pub struct SearchService {
     pub enabled: bool,
 }
 
+/// OpenAI-compatible media endpoint: /images/generations for images and
+/// /videos (create + poll) for video. One config serves both tools.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MediaService {
+    pub base_url: String,
+    pub has_api_key: bool,
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video_model: Option<String>,
+}
+
+/// A stdio MCP server whose tools are exposed to the model as mcp__<name>__<tool>.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct McpServer {
+    pub id: String,
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub env: std::collections::BTreeMap<String, String>,
+    pub enabled: bool,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AnswerVersion {
@@ -178,12 +207,27 @@ pub struct AnswerVersion {
     pub usage: Option<Usage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub finish_reason: Option<String>,
+    // Legacy round-cap marker: caps were removed; kept so older saved data loads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forced_finish: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_token_ms: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallRecord>>,
+}
+
+/// Session-wide tool permission level, chosen by the user in the composer.
+/// `Ask` interrupts before every gated call, `Auto` only on detected risk,
+/// `Full` never interrupts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PermissionMode {
+    #[default]
+    Ask,
+    Auto,
+    Full,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -202,6 +246,8 @@ pub struct Conversation {
     pub draft: String,
     pub draft_attachments: Vec<Attachment>,
     pub approved_targets: Vec<String>,
+    #[serde(default)]
+    pub permission_mode: PermissionMode,
     pub updated_at: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub excluded_message_ids: Option<Vec<String>>,
@@ -215,8 +261,6 @@ pub struct Conversation {
     pub summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tasks: Option<Vec<Task>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tools_enabled: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -251,6 +295,13 @@ pub struct Workspace {
     pub templates: Option<Vec<PromptTemplate>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub search_service: Option<SearchService>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media_service: Option<MediaService>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<Vec<McpServer>>,
+    /// Built-in Office MCP servers; None means enabled (default on).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub office_enabled: Option<bool>,
 }
 
 impl Workspace {
@@ -264,6 +315,9 @@ impl Workspace {
             active_conversation_id: None,
             templates: None,
             search_service: None,
+            media_service: None,
+            mcp_servers: None,
+            office_enabled: None,
         }
     }
 }
@@ -290,10 +344,10 @@ pub struct Request {
     pub parameters: Parameters,
     pub messages: Vec<Message>,
     #[serde(default)]
-    pub tools_enabled: bool,
+    pub permission_mode: PermissionMode,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamEvent {
     pub request_id: String,
@@ -328,8 +382,6 @@ pub struct StreamEvent {
     pub file_size: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub forced_finish: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -361,7 +413,6 @@ impl Request {
             file_path: None,
             file_size: None,
             duration_ms: None,
-            forced_finish: None,
         }
     }
 }

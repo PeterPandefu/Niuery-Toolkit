@@ -61,3 +61,58 @@ it('pages long histories through the runtime and reveals search targets without 
   expect(source[0].content).toBe('History row 0');
   expect(actions.append).not.toHaveBeenCalled();
 });
+
+it('collapses tool calls into one fold, surfaces forced finish and caps answer height', async () => {
+  const { MessageView } = await import('@/tools/ai-assistant/message-view');
+  const source = message({
+    content: 'Long answer',
+    forcedFinish: true,
+    toolCalls: [
+      { id: 't1', name: 'calculate', arguments: '{}', status: 'complete', result: '42' },
+      { id: 't2', name: 'run_command', arguments: '{}', status: 'failed', error: 'boom' },
+      { id: 't3', name: 'list_directory', arguments: '{}', status: 'pending' },
+    ],
+  });
+  const { container } = render(<MessageView message={source} disabled={false} lastAssistant={false} onEdit={() => {}} onRegenerate={() => {}} />);
+  const toggle = screen.getByRole('button', { name: /工具调用 · 3|Tool calls · 3/ });
+  const fold = container.querySelector('.ai-tool-group-content') as HTMLElement;
+  expect(fold).not.toBeNull();
+  expect(fold.hidden).toBe(true);
+  expect(screen.getByText(/已达单次回答的工具轮数上限|tool-round limit/i)).toBeInTheDocument();
+  expect(container.querySelector('.ai-markdown.ai-answer')).not.toBeNull();
+  fireEvent.click(toggle);
+  expect(fold.hidden).toBe(false);
+  expect(screen.getByText('run_command')).toBeInTheDocument();
+  expect(screen.getByText('list_directory')).toBeInTheDocument();
+});
+
+it('pins the streaming thinking fold to the newest line unless the reader scrolls up', async () => {
+  const { MessageView } = await import('@/tools/ai-assistant/message-view');
+  const view = (thinking: string) => <MessageView message={message({ status: 'streaming', content: '', thinking })} disabled={false} lastAssistant={false} onEdit={() => {}} onRegenerate={() => {}} />;
+  const { container, rerender } = render(view('plan line one'));
+  const fold = container.querySelector('.ai-thinking-content') as HTMLElement;
+  expect(fold.hidden).toBe(false);
+  Object.defineProperty(fold, 'scrollHeight', { configurable: true, value: 1000 });
+  Object.defineProperty(fold, 'clientHeight', { configurable: true, value: 240 });
+  fold.scrollTop = 760;
+  rerender(view('plan line one two'));
+  expect(fold.scrollTop).toBe(1000);
+  fold.scrollTop = 0;
+  rerender(view('plan line one two three'));
+  expect(fold.scrollTop).toBe(0);
+});
+
+it('keeps following the thinking fold when one streamed chunk grows past the follow threshold', async () => {
+  const { MessageView } = await import('@/tools/ai-assistant/message-view');
+  const view = (thinking: string) => <MessageView message={message({ status: 'streaming', content: '', thinking })} disabled={false} lastAssistant={false} onEdit={() => {}} onRegenerate={() => {}} />;
+  const { container, rerender } = render(view('plan'));
+  const fold = container.querySelector('.ai-thinking-content') as HTMLElement;
+  Object.defineProperty(fold, 'scrollHeight', { configurable: true, value: 1000 });
+  Object.defineProperty(fold, 'clientHeight', { configurable: true, value: 240 });
+  fold.scrollTop = 760;
+  rerender(view('plan baseline'));
+  expect(fold.scrollTop).toBe(1000);
+  Object.defineProperty(fold, 'scrollHeight', { configurable: true, value: 1400 });
+  rerender(view('plan baseline more'));
+  expect(fold.scrollTop).toBe(1400);
+});

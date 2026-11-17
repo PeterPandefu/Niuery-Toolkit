@@ -57,14 +57,18 @@ pub fn classify(url: &str, corpus: &[String], search_urls: &HashSet<String>) -> 
 
 fn urls_in(text: &str) -> Vec<String> {
     let mut found = Vec::new();
-    for (start, _) in text
+    // ASCII-only lowering keeps byte offsets intact while matching schemes
+    // case-insensitively (users paste HTTPS:// just as often as https://).
+    let lowered = text.to_ascii_lowercase();
+    for (start, _) in lowered
         .match_indices("http://")
-        .chain(text.match_indices("https://"))
+        .chain(lowered.match_indices("https://"))
     {
         let rest = &text[start..];
         let end = rest
             .find(|c: char| {
-                c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | ')' | ']' | '，' | '。' | '；')
+                c.is_whitespace()
+                    || matches!(c, '"' | '\'' | '<' | '>' | ')' | ']' | '，' | '。' | '；')
             })
             .unwrap_or(rest.len());
         found.push(rest[..end].to_string());
@@ -79,8 +83,16 @@ fn normalize(url: &str) -> String {
         return url.trim().to_string();
     };
     let mut host = parsed.host_str().unwrap_or("").to_lowercase();
-    if let Some(port) = parsed.port() {
-        host.push_str(&format!(":{port}"));
+    // Default ports are implicit, so :443/:80 must not defeat matching.
+    if let Some(port) = parsed.port_or_known_default() {
+        let default = match parsed.scheme() {
+            "https" => 443,
+            "http" => 80,
+            _ => 0,
+        };
+        if port != default {
+            host.push_str(&format!(":{port}"));
+        }
     }
     let path = parsed.path().trim_end_matches('/');
     let query = parsed

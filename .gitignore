@@ -73,3 +73,4 @@ docs/*
 !docs/wiki/
 src-tauri/resources/chromium/*/
 !src-tauri/resources/chromium/README.md
+src-tauri/resources/office/

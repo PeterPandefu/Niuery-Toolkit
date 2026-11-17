@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
 import { AiSettings } from '@/tools/ai-assistant/settings';
-import type { AiBackend, AiSearchService } from '@/tools/ai-assistant/types';
+import type { AiBackend, AiMediaService, AiMcpServer, AiSearchService } from '@/tools/ai-assistant/types';
 
 function setup(searchService?: AiSearchService) {
   const saveSearchService = vi.fn(async (config: AiSearchService, apiKey?: string) => ({
@@ -10,18 +10,25 @@ function setup(searchService?: AiSearchService) {
     hasApiKey: apiKey === undefined ? config.hasApiKey : apiKey.length > 0,
   }));
   const testSearchService = vi.fn(async () => '搜索服务连接成功');
+  const saveMediaService = vi.fn(async (config: AiMediaService, apiKey?: string) => ({
+    ...config,
+    hasApiKey: apiKey === undefined ? config.hasApiKey : apiKey.length > 0,
+  }));
+  const saveMcpServers = vi.fn(async (servers: AiMcpServer[]) => servers);
   const onSearchSaved = vi.fn();
+  const onMediaSaved = vi.fn();
+  const onMcpSaved = vi.fn();
   const backend = {
     load: vi.fn(), save: vi.fn(), saveProvider: vi.fn(), removeProvider: vi.fn(),
     listModels: vi.fn(), listTools: vi.fn(), decideTool: vi.fn(),
-    saveSearchService, testSearchService,
+    saveSearchService, testSearchService, saveMediaService, saveMcpServers,
     testConnection: vi.fn(), generate: vi.fn(), cancel: vi.fn(),
     openDataDirectory: vi.fn(), reset: vi.fn(),
   } as unknown as AiBackend;
   render(<AiSettings providers={[]} searchService={searchService} backend={backend}
-    onSave={vi.fn()} onSearchSaved={onSearchSaved} onRemove={vi.fn()}
+    onSave={vi.fn()} onSearchSaved={onSearchSaved} onMediaSaved={onMediaSaved} onMcpSaved={onMcpSaved} onRemove={vi.fn()}
     onClearHistory={vi.fn()} onReset={vi.fn()} onClose={vi.fn()} />);
-  return { saveSearchService, testSearchService, onSearchSaved };
+  return { saveSearchService, testSearchService, onSearchSaved, saveMediaService, saveMcpServers, onMediaSaved, onMcpSaved };
 }
 
 function openSearchTab() {
@@ -35,10 +42,41 @@ describe('AI search service settings', () => {
   it('sits alongside model services and archive as a peer section', () => {
     setup();
     const nav = screen.getByRole('navigation', { name: 'Settings sections' });
-    expect(nav.querySelectorAll('button')).toHaveLength(3);
+    expect(nav.querySelectorAll('button')).toHaveLength(5);
     expect(screen.getByRole('button', { name: 'Model services' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Search service' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Media service' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'MCP servers' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Archive' })).toBeTruthy();
+  });
+
+  it('saves a trimmed media endpoint and reports it back to the workspace', async () => {
+    const { saveMediaService, onMediaSaved } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Media service' }));
+    fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://media.test/v1/' } });
+    fireEvent.change(screen.getByLabelText('API Key'), { target: { value: 'media-key' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save service' }));
+    await waitFor(() => expect(saveMediaService).toHaveBeenCalled());
+    expect(saveMediaService.mock.calls[0][0]).toMatchObject({ baseUrl: 'https://media.test/v1' });
+    expect(saveMediaService.mock.calls[0][1]).toBe('media-key');
+    await waitFor(() => expect(onMediaSaved).toHaveBeenCalled());
+  });
+
+  it('adds and saves an MCP server with command and arguments', async () => {
+    const { saveMcpServers, onMcpSaved } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'MCP servers' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add MCP server' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'filesystem' } });
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'npx' } });
+    fireEvent.change(screen.getByLabelText('Arguments (space separated)'), { target: { value: '-y @modelcontextprotocol/server-filesystem C:/data' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save MCP servers' }));
+    await waitFor(() => expect(saveMcpServers).toHaveBeenCalled());
+    expect(saveMcpServers.mock.calls[0][0]).toHaveLength(1);
+    expect(saveMcpServers.mock.calls[0][0][0]).toMatchObject({
+      name: 'filesystem', command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', 'C:/data'], enabled: true,
+    });
+    await waitFor(() => expect(onMcpSaved).toHaveBeenCalled());
   });
 
   it('saves a trimmed endpoint and reports it back to the workspace', async () => {

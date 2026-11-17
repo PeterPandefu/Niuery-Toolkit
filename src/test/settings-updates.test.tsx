@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { I18nextProvider } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
 import i18n from '@/i18n';
 import { SettingsDialog } from '@/components/layout/SettingsDialog';
 import { useAppStore } from '@/store/app-store';
@@ -127,5 +128,45 @@ describe('software update status', () => {
 
     expect(screen.getByText(i18n.t('updates.available', { version: '1.2.2' }))).toBeInTheDocument();
     expect(screen.getByRole('button', { name: i18n.t('updates.install') })).toBeEnabled();
+  });
+
+  it('shows download progress and switches to installing when the download finishes', async () => {
+    let emit: ((event: unknown) => void) | undefined;
+    let finish!: () => void;
+    check.mockResolvedValue({
+      version: '1.8.1',
+      downloadAndInstall: vi.fn((onEvent?: (event: unknown) => void) => {
+        emit = onEvent;
+        return new Promise<void>(resolve => { finish = resolve; });
+      }),
+    });
+    openUpdates();
+    await checkUpdates();
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: i18n.t('updates.install') })));
+    await act(async () => {
+      emit!({ event: 'Started', data: { contentLength: 20 * 1024 * 1024 } });
+      emit!({ event: 'Progress', data: { chunkLength: 5 * 1024 * 1024 } });
+    });
+    expect(screen.getByRole('button', { name: i18n.t('updates.downloading', { done: '5 MB', total: '20 MB' }) })).toBeDisabled();
+    await act(async () => {
+      emit!({ event: 'Finished' });
+      finish();
+    });
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('ai_restart_application');
+  });
+
+  it('warns when the download makes no progress for 30 seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      check.mockResolvedValue({ version: '1.8.1', downloadAndInstall: vi.fn(() => new Promise<void>(() => {})) });
+      openUpdates();
+      await checkUpdates();
+      await act(async () => fireEvent.click(screen.getByRole('button', { name: i18n.t('updates.install') })));
+      expect(screen.queryByText(i18n.t('updates.stalled'))).not.toBeInTheDocument();
+      await act(async () => { vi.advanceTimersByTime(31_000); });
+      expect(screen.getByText(i18n.t('updates.stalled'))).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

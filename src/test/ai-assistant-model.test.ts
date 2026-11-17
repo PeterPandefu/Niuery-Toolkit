@@ -19,11 +19,39 @@ describe('AI conversation domain', () => {
     expect(chat.systemPrompt).toBeTruthy();
   });
 
-  it('sends only complete historical rounds and the pending user message', () => {
+  it('keeps settled historical rounds, including failed partial answers, and the pending user message', () => {
     const chat = conversation();
     chat.messages = [message('user', 'old'), message('assistant', 'valid'), message('user', 'failed question'),
       message('assistant', 'partial', 'failed'), message('user', 'current'), message('assistant', '', 'waiting')];
-    expect(buildContext(chat).map(m => m.content)).toEqual(['old', 'valid', 'current']);
+    const context = buildContext(chat);
+    expect(context.map(m => m.id)).toEqual(['old', 'valid', 'failed question', 'partial', 'current']);
+    expect(context[3].content).toContain('partial');
+    expect(context[3].content).toContain('系统注');
+  });
+
+  it('carries an interrupted round with its partial output and tool calls into the next request', () => {
+    const chat = conversation();
+    const interrupted: AiMessage = { ...message('assistant', '我先读取数据', 'interrupted'), toolCalls: [
+      { id: 'c1', name: 'read_range', arguments: '{}', status: 'complete', result: '42' },
+      { id: 'c2', name: 'put_page', arguments: '{}', status: 'failed', error: '回复意外中断，此调用未执行。' },
+    ] };
+    chat.messages = [message('user', '针对数据生成图表'), interrupted, message('user', '继续')];
+    const context = buildContext(chat);
+    expect(context.map(m => m.role)).toEqual(['user', 'assistant', 'user']);
+    expect(context[0].content).toBe('针对数据生成图表');
+    expect(context[1].content).toContain('我先读取数据');
+    expect(context[1].content).toContain('意外中断');
+    expect(context[1].toolCalls).toEqual(interrupted.toolCalls);
+    expect(context[2].content).toBe('继续');
+  });
+
+  it('marks stopped answers as unfinished but still drops in-flight rounds', () => {
+    const chat = conversation();
+    chat.messages = [message('user', 'q1'), message('assistant', 'half', 'stopped'),
+      message('user', 'q2'), message('assistant', 'live', 'streaming'), message('user', 'now')];
+    const context = buildContext(chat);
+    expect(context.map(m => m.id)).toEqual(['q1', 'half', 'now']);
+    expect(context[1].content).toContain('被用户停止');
   });
 
   it('keeps the last 20 rounds and preserves full local history', () => {

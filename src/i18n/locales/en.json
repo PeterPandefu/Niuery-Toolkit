@@ -11,7 +11,10 @@
     "check": "Check for updates",
     "checking": "Checking…",
     "install": "Download and install",
-    "installing": "Installing…"
+    "installing": "Installing…",
+    "downloading": "Downloading {{done}} / {{total}}",
+    "downloadingUnknown": "Downloading {{done}}",
+    "stalled": "No download progress for over 30 seconds. The network or system proxy may be blocking the download. Check your connection, or adjust the proxy and restart the app to retry."
   },
   "network": {
     "title": "Network permissions",

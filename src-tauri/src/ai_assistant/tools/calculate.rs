@@ -8,8 +8,8 @@ const MAX_DEPTH: usize = 64;
 
 pub fn spec() -> ToolSpec {
     ToolSpec {
-        name: NAME,
-        description: "计算一个四则运算表达式，支持加减乘除、括号、小数与一元正负号。不支持变量、函数或任何其他语法。需要精确算术结果时使用，不要自行心算。",
+        name: NAME.into(),
+        description: "计算一个四则运算表达式，支持加减乘除、括号、小数与一元正负号。不支持变量、函数或任何其他语法。需要精确算术结果时使用，不要自行心算。".into(),
         parameters: json!({
             "type": "object",
             "properties": {
@@ -46,7 +46,10 @@ fn evaluate(expression: &str) -> Result<f64, String> {
     // A whitelist, not a blacklist: anything outside it is rejected before parsing,
     // so no identifier, function call or evaluation surface can reach the parser.
     if !expression.chars().all(|c| {
-        matches!(c, '0'..='9' | '.' | '+' | '-' | '*' | '/' | '(' | ')' | ' ' | '\t')
+        matches!(
+            c,
+            '0'..='9' | '.' | '+' | '-' | '*' | '/' | '(' | ')' | ' ' | '\t'
+        )
     }) {
         return Err("表达式只允许数字、小数点、四则运算符、括号与空白。".into());
     }
@@ -168,7 +171,8 @@ impl Parser<'_> {
             }
         }
         let text: String = self.tokens[start..self.pos].iter().collect();
-        text.parse::<f64>().map_err(|_| "数字格式无效。".to_string())
+        text.parse::<f64>()
+            .map_err(|_| "数字格式无效。".to_string())
     }
 }
 

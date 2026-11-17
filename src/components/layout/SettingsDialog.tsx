@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { cn } from '@/lib/utils';
+import { cn, formatBytes } from '@/lib/utils';
 import { getAvailableCategories, getToolsByCategory } from '@/registry/tool-registry';
 import { useToolLifecycleStore } from '@/store/tool-lifecycle-store';
 import { useAppStore } from '@/store/app-store';
@@ -13,7 +13,7 @@ import { DEFAULT_POINTER_EFFECT } from '@/lib/pointer-effect';
 import type { PointerEffect, SkinId } from '@/types/tool';
 import { useTheme } from '@/hooks/use-theme';
 import { ResourceManager } from '@/components/resources/ResourceManager';
-import { checkForAppUpdate, installAppUpdate, type AvailableUpdate } from '@/lib/app-updater';
+import { checkForAppUpdate, installAppUpdate, type AvailableUpdate, type UpdateProgress } from '@/lib/app-updater';
 import { ReleaseNotes } from '@/components/markdown/ReleaseNotes';
 
 interface SettingsDialogProps {
@@ -309,6 +309,9 @@ function UpdateSettings() {
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
+  const [progress, setProgress] = useState<UpdateProgress | null>(null);
+  const [stalled, setStalled] = useState(false);
+  const lastProgressAt = useRef(0);
 
   const checkUpdate = useCallback(async () => {
     setChecking(true);
@@ -329,13 +332,36 @@ function UpdateSettings() {
     if (!update) return;
     setInstalling(true);
     setError(null);
+    setProgress(null);
+    setStalled(false);
+    lastProgressAt.current = Date.now();
     try {
-      await installAppUpdate(update);
+      await installAppUpdate(update, next => {
+        lastProgressAt.current = Date.now();
+        setProgress(next);
+        setStalled(false);
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setInstalling(false);
     }
   }, [update]);
+
+  useEffect(() => {
+    if (!installing) return;
+    const timer = setInterval(() => {
+      if (Date.now() - lastProgressAt.current > 30_000) setStalled(true);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [installing]);
+
+  const installLabel = installing
+    ? progress && !progress.done
+      ? progress.total !== null
+        ? t('updates.downloading', { done: formatBytes(progress.downloaded), total: formatBytes(progress.total) })
+        : t('updates.downloadingUnknown', { done: formatBytes(progress.downloaded) })
+      : t('updates.installing')
+    : t('updates.install');
 
   return (
     <div className="space-y-4 px-2 py-1">
@@ -356,9 +382,10 @@ function UpdateSettings() {
             <p className="text-xs text-muted-foreground">{t(checking ? 'updates.checking' : checked ? 'updates.noUpdate' : error ? 'updates.checkFailed' : 'updates.notChecked')}</p>
           )}
           {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          {installing && stalled ? <p className="text-xs text-destructive">{t('updates.stalled')}</p> : null}
           <div className="flex gap-2">
             <button type="button" onClick={() => void checkUpdate()} disabled={checking || installing} className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50"><RefreshCw className={cn('h-3.5 w-3.5', checking && 'animate-spin')} />{checking ? t('updates.checking') : t('updates.check')}</button>
-            {update ? <button type="button" onClick={() => void installUpdate()} disabled={checking || installing} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Download className="h-3.5 w-3.5" />{installing ? t('updates.installing') : t('updates.install')}</button> : null}
+            {update ? <button type="button" onClick={() => void installUpdate()} disabled={checking || installing} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Download className="h-3.5 w-3.5" />{installLabel}</button> : null}
           </div>
         </div>
       )}

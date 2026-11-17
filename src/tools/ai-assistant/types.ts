@@ -11,8 +11,6 @@ export interface AiModel {
   streamUsage?: boolean;
   /** Display provider-returned thinking; omission keeps it visible. */
   showThinking?: boolean;
-  /** Declared by the user, like supportsImages. Ollama's native wire is excluded. */
-  supportsTools?: boolean;
 }
 
 export interface AiProvider {
@@ -56,6 +54,10 @@ export type AiMessageStatus = 'waiting' | 'streaming' | 'complete' | 'stopped' |
 
 export type AiToolCallStatus = 'pending' | 'running' | 'complete' | 'failed' | 'rejected';
 
+/** Session tool permission level: ask before every gated call, ask only on
+ *  detected risk, or never ask. Chosen in the composer when a session starts. */
+export type AiPermissionMode = 'ask' | 'auto' | 'full';
+
 /** Where a tool URL came from. History never upgrades a URL to a trusted source. */
 export type AiToolProvenance = 'userProvided' | 'searchDerived' | 'modelProposed';
 
@@ -87,6 +89,7 @@ export interface AiMessage {
   modelId?: string;
   error?: string;
   finishReason?: string;
+  forcedFinish?: boolean;
   usage?: AiUsage;
   firstTokenMs?: number;
   durationMs?: number;
@@ -95,7 +98,7 @@ export interface AiMessage {
   toolCalls?: AiToolCall[];
 }
 
-export type AiAnswerVersion = Pick<AiMessage, 'content' | 'thinking' | 'createdAt' | 'status' | 'modelId' | 'providerId' | 'error' | 'usage' | 'finishReason' | 'firstTokenMs' | 'durationMs' | 'toolCalls'>;
+export type AiAnswerVersion = Pick<AiMessage, 'content' | 'thinking' | 'createdAt' | 'status' | 'modelId' | 'providerId' | 'error' | 'usage' | 'finishReason' | 'forcedFinish' | 'firstTokenMs' | 'durationMs' | 'toolCalls'>;
 
 export interface AiConversation {
   id: string;
@@ -109,6 +112,7 @@ export interface AiConversation {
   draft: string;
   draftAttachments: AiAttachment[];
   approvedTargets: string[];
+  permissionMode?: AiPermissionMode;
   updatedAt: number;
   excludedMessageIds?: string[];
   pinned?: boolean;
@@ -116,7 +120,6 @@ export interface AiConversation {
   parentConversationId?: string;
   summary?: string;
   tasks?: AiTask[];
-  toolsEnabled?: boolean;
 }
 
 export interface AiTaskResult { label: string; target: string; message: AiMessage }
@@ -124,6 +127,10 @@ export interface AiTask { id: string; kind: 'comparison' | 'summary'; createdAt:
 export interface AiTaskPlan extends AiTask { targets: string[]; requests: AiRequest[]; droppedRounds: number }
 
 export interface AiSearchService { baseUrl: string; hasApiKey: boolean; enabled: boolean }
+
+export interface AiMediaService { baseUrl: string; hasApiKey: boolean; enabled: boolean; imageModel?: string; videoModel?: string }
+
+export interface AiMcpServer { id: string; name: string; command: string; args: string[]; env?: Record<string, string>; enabled: boolean }
 
 export interface AiWorkspace {
   version: 1;
@@ -134,6 +141,9 @@ export interface AiWorkspace {
   activeConversationId?: string;
   templates?: AiPromptTemplate[];
   searchService?: AiSearchService;
+  mediaService?: AiMediaService;
+  mcpServers?: AiMcpServer[];
+  officeEnabled?: boolean;
 }
 
 export interface AiPromptTemplate { id: string; name: string; content: string; favorite?: boolean }
@@ -160,15 +170,14 @@ export interface AiRequest {
   systemPrompt: string;
   parameters: AiParameters;
   messages: AiMessage[];
-  /** Omitted means false, so comparison and summary tasks stay tool-free. */
-  toolsEnabled?: boolean;
+  permissionMode: AiPermissionMode;
 }
 
 export interface AiStreamEvent {
   requestId: string;
   conversationId: string;
   messageId: string;
-  type: 'delta' | 'thinking' | 'done' | 'error' | 'stopped' | 'metadata' | 'tool_call' | 'tool_result' | 'approval_required';
+  type: 'delta' | 'thinking' | 'done' | 'error' | 'stopped' | 'metadata' | 'tool_call' | 'tool_result' | 'approval_required' | 'question_required' | 'round_reset';
   text?: string;
   error?: string;
   finishReason?: string;
@@ -183,7 +192,6 @@ export interface AiStreamEvent {
   filePath?: string;
   fileSize?: number;
   durationMs?: number;
-  forcedFinish?: boolean;
 }
 
 export interface AiUsage { inputTokens: number; outputTokens: number; totalTokens: number }
@@ -200,7 +208,11 @@ export interface AiBackend {
   listModels(providerId: string): Promise<AiModel[]>;
   listTools(): Promise<AiToolInfo[]>;
   decideTool(callId: string, decision: AiToolDecision): Promise<void>;
+  answerTool(callId: string, answer: string): Promise<void>;
   saveSearchService(config: AiSearchService, apiKey?: string): Promise<AiSearchService>;
+  saveMediaService(config: AiMediaService, apiKey?: string): Promise<AiMediaService>;
+  saveMcpServers(servers: AiMcpServer[]): Promise<AiMcpServer[]>;
+  saveOfficeEnabled(enabled: boolean): Promise<boolean>;
   testSearchService(): Promise<string>;
   testConnection(providerId: string): Promise<string>;
   testModel?(providerId: string, modelId: string): Promise<string>;
