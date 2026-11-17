@@ -113,7 +113,19 @@ impl GuardedHttp {
         url: &str,
         max_bytes: usize,
     ) -> std::result::Result<CappedResponse, ToolHttpError> {
-        self.send_capped(reqwest::Method::GET, url, None, None, max_bytes)
+        self.send_capped(reqwest::Method::GET, url, None, None, &[], max_bytes)
+            .await
+    }
+
+    /// GET against the user's own configured service (e.g. DashScope task
+    /// polling), where the query itself must carry the bearer key.
+    pub async fn get_auth_capped(
+        &self,
+        url: &str,
+        bearer: Option<&str>,
+        max_bytes: usize,
+    ) -> std::result::Result<CappedResponse, ToolHttpError> {
+        self.send_capped(reqwest::Method::GET, url, None, bearer, &[], max_bytes)
             .await
     }
 
@@ -126,7 +138,20 @@ impl GuardedHttp {
         bearer: Option<&str>,
         max_bytes: usize,
     ) -> std::result::Result<CappedResponse, ToolHttpError> {
-        self.send_capped(reqwest::Method::POST, url, Some(body), bearer, max_bytes)
+        self.send_capped(reqwest::Method::POST, url, Some(body), bearer, &[], max_bytes)
+            .await
+    }
+
+    /// POST with extra fixed headers (e.g. `X-DashScope-Async: enable`).
+    pub async fn post_json_headers_capped(
+        &self,
+        url: &str,
+        body: &serde_json::Value,
+        bearer: Option<&str>,
+        headers: &[(&str, &str)],
+        max_bytes: usize,
+    ) -> std::result::Result<CappedResponse, ToolHttpError> {
+        self.send_capped(reqwest::Method::POST, url, Some(body), bearer, headers, max_bytes)
             .await
     }
 
@@ -136,6 +161,7 @@ impl GuardedHttp {
         url: &str,
         body: Option<&serde_json::Value>,
         bearer: Option<&str>,
+        headers: &[(&str, &str)],
         max_bytes: usize,
     ) -> std::result::Result<CappedResponse, ToolHttpError> {
         let parsed = reqwest::Url::parse(url).map_err(|_| ToolHttpError::InvalidUrl)?;
@@ -145,6 +171,9 @@ impl GuardedHttp {
         }
         if let Some(key) = bearer {
             request = request.bearer_auth(key);
+        }
+        for (name, value) in headers {
+            request = request.header(*name, *value);
         }
         let deadline = Instant::now() + self.first_byte_timeout;
         let response = timeout_at(deadline, request.send())

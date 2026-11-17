@@ -161,18 +161,32 @@ pub struct SearchService {
     pub enabled: bool,
 }
 
-/// OpenAI-compatible media endpoint: /images/generations for images and
-/// /videos (create + poll) for video. One config serves both tools.
+/// Media generation protocol. `openai` uses /images/generations and /videos
+/// (create + poll); `dashscope` (千问平台) uses the OpenAI-compatible image
+/// endpoint plus async video-synthesis tasks polled via /tasks/{id}.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MediaProtocol {
+    #[default]
+    Openai,
+    Dashscope,
+}
+
+/// One config serves the image, text-to-video and image-to-video tools.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MediaService {
     pub base_url: String,
     pub has_api_key: bool,
     pub enabled: bool,
+    #[serde(default)]
+    pub protocol: MediaProtocol,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub video_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_to_video_model: Option<String>,
 }
 
 /// A stdio MCP server whose tools are exposed to the model as mcp__<name>__<tool>.

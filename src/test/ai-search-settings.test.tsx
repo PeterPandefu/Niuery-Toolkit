@@ -62,6 +62,27 @@ describe('AI search service settings', () => {
     await waitFor(() => expect(onMediaSaved).toHaveBeenCalled());
   });
 
+  it('configures the Qianwen DashScope protocol with three model slots', async () => {
+    const { saveMediaService } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Media service' }));
+    expect(screen.queryByLabelText('Image-to-video model (optional)')).toBeNull();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Protocol' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Qianwen platform (DashScope)' }));
+    expect(screen.getByLabelText('Base URL')).toHaveValue('https://maas.qianwenaiapi.com/compatible-mode/v1');
+    fireEvent.change(screen.getByLabelText('Text-to-image model (optional)'), { target: { value: 'qwen-image-3.0-pro' } });
+    fireEvent.change(screen.getByLabelText('Text-to-video model (optional)'), { target: { value: 'wan3.0-video' } });
+    fireEvent.change(screen.getByLabelText('Image-to-video model (optional)'), { target: { value: 'wan2.7-i2v' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save service' }));
+    await waitFor(() => expect(saveMediaService).toHaveBeenCalled());
+    expect(saveMediaService.mock.calls[0][0]).toMatchObject({
+      protocol: 'dashscope',
+      baseUrl: 'https://maas.qianwenaiapi.com/compatible-mode/v1',
+      imageModel: 'qwen-image-3.0-pro',
+      videoModel: 'wan3.0-video',
+      imageToVideoModel: 'wan2.7-i2v',
+    });
+  });
+
   it('adds and saves an MCP server with command and arguments', async () => {
     const { saveMcpServers, onMcpSaved } = setup();
     fireEvent.click(screen.getByRole('button', { name: 'MCP servers' }));
