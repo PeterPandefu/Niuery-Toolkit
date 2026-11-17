@@ -449,7 +449,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            Some(vec!["--minimized"]),
         ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -579,6 +579,16 @@ pub fn run() {
             window_chrome::set_window_chrome,
         ])
         .setup(move |app| {
+            // 开机自启动（带 --minimized 参数）时保持主窗口隐藏，仅显示托盘图标；
+            // 窗口默认 visible=false，避免自启动时先闪现再隐藏。
+            let launched_minimized = std::env::args().any(|arg| arg == "--minimized");
+            if !launched_minimized {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+
             // 开发模式下：开机自启动等独立启动场景自动拉起前端 dev 服务
             #[cfg(all(debug_assertions, windows))]
             dev_server::ensure(app.handle().clone());
@@ -630,6 +640,10 @@ pub fn run() {
 
             // 构建托盘菜单（勾选状态与实际注册状态同步）
             let autostart_checked = app.autolaunch().is_enabled().unwrap_or(false);
+            if autostart_checked {
+                // 旧版本注册的自启动项不带 --minimized 参数，重新写入以刷新
+                let _ = app.autolaunch().enable();
+            }
             let autostart_item = CheckMenuItemBuilder::with_id("autostart", "开机自启动")
                 .checked(autostart_checked)
                 .build(app)?;

@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import MarkdownIt from 'markdown-it';
 import hljs from 'highlight.js';
 import katex from 'katex';
@@ -6,6 +6,7 @@ import 'katex/dist/katex.min.css';
 import { toast } from 'sonner';
 import { useAuiState, type TextMessagePartProps, type ReasoningMessagePartProps } from '@assistant-ui/react';
 import { useAiText } from '../ui-text';
+import { mediaResultPath } from './media-result';
 
 /** Pins a streaming panel to its newest output unless the reader scrolls up.
  *  The distance is measured against the height before this commit's growth, so
@@ -67,8 +68,11 @@ export function AiToolCallGroup({ groupKey, indices, children }: PropsWithChildr
   const parts = useAuiState(state => state.message.content);
   const live = parts.some(part => part.type === 'tool-call' && part.result === undefined);
   const contentRef = useFollowBottom(!!groupKey && open && live);
-  if (!groupKey) return <>{children}</>;
   const calls = indices.flatMap(index => { const part = parts[index]; return part && part.type === 'tool-call' ? [part] : []; });
+  // Generated media is the point of the call; reveal it without a manual expand.
+  const mediaSettled = calls.some(call => mediaResultPath(call.toolName, call.result, call.isError));
+  useEffect(() => { if (mediaSettled) setOpen(true); }, [mediaSettled]);
+  if (!groupKey) return <>{children}</>;
   const failed = calls.filter(call => call.isError).length;
   const running = calls.some(call => call.result === undefined);
   return <section className={`ai-tool-group${open ? ' is-open' : ''}`} aria-label={t('工具调用', 'Tool calls')}>

@@ -23,7 +23,7 @@ mod write;
 
 use super::{
     engine::transport::GuardedHttp,
-    types::{MediaService, SearchService},
+    types::{MediaProtocol, MediaService, SearchService},
 };
 use rig_core::completion::{ToolAnnotations, ToolDefinition};
 use rig_core::message::ToolName;
@@ -155,6 +155,13 @@ pub fn list(env: &ToolEnv) -> Vec<ToolSpec> {
     if env.media_ready() {
         specs.push(media::image_spec());
         specs.push(media::video_spec());
+        if env
+            .media
+            .as_ref()
+            .is_some_and(|config| config.protocol == MediaProtocol::Dashscope)
+        {
+            specs.push(media::image_video_spec());
+        }
     }
     specs.extend(mcp::specs(&env.mcp));
     if env.restricted {
@@ -180,6 +187,7 @@ pub fn approval_of(name: &str) -> Option<ApprovalLevel> {
         .chain(std::iter::once(images::spec()))
         .chain(std::iter::once(media::image_spec()))
         .chain(std::iter::once(media::video_spec()))
+        .chain(std::iter::once(media::image_video_spec()))
         .find(|spec| spec.name == name)
         .map(|spec| spec.approval)
 }
@@ -198,7 +206,8 @@ pub fn auto_risk(name: &str, provenance: Option<&str>) -> bool {
         | edit::NAME
         | create_dir::NAME
         | media::IMAGE_NAME
-        | media::VIDEO_NAME => true,
+        | media::VIDEO_NAME
+        | media::IMAGE_VIDEO_NAME => true,
         web::NAME | browser::NAME => {
             !matches!(provenance, Some("userProvided" | "searchDerived"))
         }
@@ -222,6 +231,7 @@ pub fn is_path_tool(name: &str) -> bool {
                 | grep::NAME
                 | media::IMAGE_NAME
                 | media::VIDEO_NAME
+                | media::IMAGE_VIDEO_NAME
         )
 }
 
@@ -237,7 +247,7 @@ pub fn file_preview(name: &str, arguments: &Value) -> Option<(String, u64)> {
     let path = arguments.get("path").and_then(Value::as_str)?;
     let (target, size) = match name {
         file::NAME | append::NAME | edit::NAME => file::resolve(path).ok()?,
-        write::NAME | media::IMAGE_NAME | media::VIDEO_NAME => {
+        write::NAME | media::IMAGE_NAME | media::VIDEO_NAME | media::IMAGE_VIDEO_NAME => {
             let size = arguments
                 .get("content")
                 .and_then(Value::as_str)
@@ -355,6 +365,13 @@ pub async fn execute(
             }
             None => ToolOutcome::error("图像/视频服务未配置或已停用。"),
         },
+        media::IMAGE_VIDEO_NAME => match env.media.as_ref().filter(|_| env.media_ready()) {
+            Some(config) => {
+                media::run_video_from_image(arguments, config, env.media_key.as_deref(), http)
+                    .await
+            }
+            None => ToolOutcome::error("图像/视频服务未配置或已停用。"),
+        },
         _ => ToolOutcome::error("未知工具，已拒绝执行。"),
     }
 }
@@ -455,6 +472,43 @@ mod tests {
     }
 
     #[test]
+    fn ai_assistant_tools_media_protocol_gates_image_to_video() {
+        let openai = ToolEnv {
+            media: Some(MediaService {
+                base_url: "https://example.com/v1".into(),
+                has_api_key: true,
+                enabled: true,
+                protocol: MediaProtocol::Openai,
+                image_model: None,
+                video_model: None,
+                image_to_video_model: None,
+            }),
+            media_key: Some("k".into()),
+            ..Default::default()
+        };
+        let specs = list(&openai);
+        assert!(specs.iter().any(|spec| spec.name == media::IMAGE_NAME));
+        assert!(specs.iter().any(|spec| spec.name == media::VIDEO_NAME));
+        assert!(!specs.iter().any(|spec| spec.name == media::IMAGE_VIDEO_NAME));
+
+        let dashscope = ToolEnv {
+            media: Some(MediaService {
+                protocol: MediaProtocol::Dashscope,
+                ..openai.media.clone().unwrap()
+            }),
+            ..openai
+        };
+        let specs = list(&dashscope);
+        assert!(specs.iter().any(|spec| spec.name == media::IMAGE_VIDEO_NAME));
+        assert!(is_path_tool(media::IMAGE_VIDEO_NAME));
+        let preview = file_preview(
+            media::IMAGE_VIDEO_NAME,
+            &json!({ "path": std::env::temp_dir().join("niuery-media-preview.mp4").to_str().unwrap() }),
+        );
+        assert!(preview.is_some());
+    }
+
+    #[test]
     fn ai_assistant_tools_definitions_carry_names_and_schemas() {
         let specs = list(&ToolEnv::default());
         for spec in &specs {
@@ -488,6 +542,10 @@ mod tests {
         assert_eq!(approval_of(images::NAME), Some(ApprovalLevel::Approve));
         assert_eq!(approval_of(media::IMAGE_NAME), Some(ApprovalLevel::Approve));
         assert_eq!(approval_of(media::VIDEO_NAME), Some(ApprovalLevel::Approve));
+        assert_eq!(
+            approval_of(media::IMAGE_VIDEO_NAME),
+            Some(ApprovalLevel::Approve)
+        );
         assert_eq!(approval_of(web::NAME), Some(ApprovalLevel::Approve));
         assert_eq!(approval_of(browser::NAME), Some(ApprovalLevel::Approve));
         assert_eq!(approval_of(search::NAME), Some(ApprovalLevel::Approve));
@@ -556,6 +614,7 @@ mod tests {
         assert!(auto_risk(create_dir::NAME, None));
         assert!(auto_risk(media::IMAGE_NAME, None));
         assert!(auto_risk(media::VIDEO_NAME, None));
+        assert!(auto_risk(media::IMAGE_VIDEO_NAME, None));
         assert!(auto_risk("mcp__server__tool", None));
         assert!(!auto_risk("mcp__office_pptx__read_slide", None));
         assert!(auto_risk("mcp__office_pptx__put_page", None));

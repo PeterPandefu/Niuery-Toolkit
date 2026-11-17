@@ -128,7 +128,9 @@ export interface AiTaskPlan extends AiTask { targets: string[]; requests: AiRequ
 
 export interface AiSearchService { baseUrl: string; hasApiKey: boolean; enabled: boolean }
 
-export interface AiMediaService { baseUrl: string; hasApiKey: boolean; enabled: boolean; imageModel?: string; videoModel?: string }
+export type AiMediaProtocol = 'openai' | 'dashscope';
+
+export interface AiMediaService { baseUrl: string; hasApiKey: boolean; enabled: boolean; protocol?: AiMediaProtocol; imageModel?: string; videoModel?: string; imageToVideoModel?: string }
 
 export interface AiMcpServer { id: string; name: string; command: string; args: string[]; env?: Record<string, string>; enabled: boolean }
 
