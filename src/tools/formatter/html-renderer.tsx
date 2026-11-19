@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { saveBytesWithFeedback } from '@/lib/file-save';
+import { readTextFiles } from '@/lib/local-documents';
 import { isTauri } from '@/lib/api-client';
 import { useTheme } from '@/hooks/use-theme';
 import { diagnoseHtml } from '@/lib/html-diagnostics';
@@ -100,10 +101,16 @@ export default function HtmlRenderer() {
   }, [remoteResources, source, viewport]);
 
   const importHtml = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!file) return;
-    tabs.importTab(file.name, await file.text());
+    if (files.length === 0) return;
+    const { documents, failures } = await readTextFiles(files);
+    const created = tabs.importTabs(documents);
+    if (created.length > 1) toast.success(`已导入 ${created.length} 个页签`);
+    if (documents.length > created.length) toast.error(`页签数量已达上限，${documents.length - created.length} 个文件未导入`);
+    if (failures.length > 0) {
+      toast.error(`导入失败：${failures.map((failure) => `${failure.name}：${failure.error}`).join('；')}`);
+    }
   }, [tabs]);
 
   const exportSnapshot = useCallback(async () => {
@@ -197,7 +204,7 @@ export default function HtmlRenderer() {
         </section>
         <HtmlPreviewFrame html={source} title="HTML 本地预览" />
       </div>
-      <input ref={fileInputRef} type="file" accept=".html,.htm" className="hidden" onChange={(event) => void importHtml(event)} />
+      <input ref={fileInputRef} type="file" multiple accept=".html,.htm" className="hidden" onChange={(event) => void importHtml(event)} />
     </div>
   );
 }
