@@ -79,8 +79,11 @@ describe('AI generation feedback', () => {
   it('distinguishes output truncation and displays measured tokens and timing', () => {
     render(<MessageView message={{ id: 'a', role: 'assistant', content: 'Partial answer', attachments: [], createdAt: 1, status: 'complete', finishReason: 'length', usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 }, firstTokenMs: 500, durationMs: 1500 }} disabled={false} lastAssistant onEdit={() => {}} onRegenerate={() => {}} />);
     expect(screen.getByText(/Output limit reached/)).toBeInTheDocument();
-    expect(screen.getByText(/10.*20.*30/)).toBeInTheDocument();
-    expect(screen.getByText(/0.50.*1.50/)).toBeInTheDocument();
+    expect(screen.getByTitle('Input tokens')).toHaveTextContent('10');
+    expect(screen.getByTitle('Output tokens')).toHaveTextContent('20');
+    expect(screen.getByTitle('Total tokens')).toHaveTextContent('30');
+    expect(screen.getByTitle('Time to first token')).toHaveTextContent('0.50s');
+    expect(screen.getByTitle('Total duration')).toHaveTextContent('1.50s');
   });
   it('exposes model capacities and supported parameters in the model editor', () => {
     render(<AiEnabledModel model={{ id: 'm', name: 'Model', supportsImages: false }} disabled={false} onChange={() => {}} onDisable={() => {}} />);

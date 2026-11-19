@@ -116,11 +116,12 @@ describe('AI assistant page', () => {
     expect(screen.getByRole('menuitem', { name: 'Unpin' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Archive' }));
     expect(screen.queryByRole('button', { name: 'Open conversation: Keep me' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Show archived conversations' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Unarchive' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Show active conversations' }));
-    expect(screen.getByRole('button', { name: 'Open conversation: Keep me' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    const settings = await screen.findByRole('dialog', { name: 'Settings' });
+    fireEvent.click(within(settings).getByRole('button', { name: 'Archive' }));
+    fireEvent.click(within(settings).getByRole('button', { name: 'Unarchive' }));
+    fireEvent.click(within(settings).getByRole('button', { name: 'Close' }));
+    expect(await screen.findByRole('button', { name: 'Open conversation: Keep me' })).toBeInTheDocument();
     await waitFor(() => expect(backend.save.mock.calls[backend.save.mock.calls.length - 1]?.[0].conversations[0]).toMatchObject({ pinned: true, archived: false, title: 'Keep me' }));
   });
   it('searches another assistant message and opens its conversation at the match', async () => {
@@ -259,11 +260,11 @@ describe('AI assistant page', () => {
   it('labels the icon-only model service settings control', async () => {
     render(<AiAssistantPage />);
     await screen.findByRole('textbox', { name: 'Message' });
-    const settings = screen.getByRole('button', { name: 'Model service settings' });
-    expect(settings).toHaveAttribute('title', 'Model service settings');
+    const settings = screen.getByRole('button', { name: 'Settings' });
+    expect(settings).toHaveAttribute('title', 'Settings');
     expect(settings).toHaveTextContent('');
     fireEvent.click(settings);
-    expect(await screen.findByRole('dialog', { name: 'Model service settings' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
   });
 
   it('keeps model selection, parameters and working export controls in the message composer', async () => {
@@ -313,7 +314,7 @@ describe('AI assistant page', () => {
   it('opens a usable default conversation after reset waits for its durable save', async () => {
     render(<AiAssistantPage />);
     await screen.findByRole('textbox', { name: 'Message' });
-    fireEvent.click(screen.getByRole('button', { name: 'Model service settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Reset AI assistant data' }));
     const confirmation = await screen.findByRole('dialog', { name: 'Reset AI assistant?' });
     let finishSave: (() => void) | undefined;
@@ -333,7 +334,7 @@ describe('AI assistant page', () => {
     expect(backend.generate).not.toHaveBeenCalled();
     expect(backend.listModels).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Configure model service' }));
-    expect(await screen.findByRole('dialog', { name: 'Model service settings' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
   });
 
   it('creates conversations, sends a message and retains a draft when switching', async () => {
@@ -435,7 +436,7 @@ describe('AI assistant page', () => {
     backend.saveProvider.mockImplementation(async provider => ({ ...provider, hasApiKey: true }));
     render(<AiAssistantPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Configure model service' }));
-    const dialog = screen.getByRole('dialog', { name: 'Model service settings' });
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Service name' }), { target: { value: 'My API' } });
     fireEvent.change(within(dialog).getByLabelText('API Key'), { target: { value: 'test-secret-only' } });
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Manual model ID' }), { target: { value: 'custom-model' } });
@@ -476,7 +477,7 @@ describe('AI assistant page', () => {
     ]);
     render(<AiAssistantPage />);
     await screen.findByRole('textbox', { name: 'Message' });
-    fireEvent.click(screen.getByRole('button', { name: 'Model service settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Fetch models' }));
     const picker = await screen.findByRole('dialog', { name: 'Choose enabled models' });
     fireEvent.click(within(picker).getByRole('button', { name: 'Clear selection' }));
@@ -484,7 +485,7 @@ describe('AI assistant page', () => {
     fireEvent.click(within(picker).getByRole('button', { name: 'Apply selection' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save service' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save service' })).toBeEnabled());
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Model service settings' })).getByRole('button', { name: 'Close' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Settings' })).getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByRole('combobox', { name: 'Current model' }));
     expect(screen.getByRole('option', { name: 'new-model' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Test model' })).not.toBeInTheDocument();

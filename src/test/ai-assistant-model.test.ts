@@ -115,7 +115,8 @@ describe('AI attachment validation', () => {
     expect(attachment.kind).toBe('text');
     await expect(readAttachment(new File([new Uint8Array([0xff, 0xfe])], 'bad.txt'))).rejects.toThrow(/UTF-8/);
     await expect(readAttachment(new File(['pdf'], 'file.pdf', { type: 'application/pdf' }))).rejects.toThrow(/无效|Invalid/);
-    await expect(readAttachment(new File(['word'], 'file.docx'))).rejects.toThrow(/格式|支持/);
+    await expect(readAttachment(new File(['word'], 'file.docx'))).rejects.toThrow(/无效|Invalid|损坏/);
+    await expect(readAttachment(new File(['binary'], 'tool.exe'))).rejects.toThrow(/格式|支持/);
     await expect(readAttachment(new File([new Uint8Array([0, 1, 2])], 'binary.txt'))).rejects.toThrow(/二进制/);
   });
 
