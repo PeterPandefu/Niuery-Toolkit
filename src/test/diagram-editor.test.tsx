@@ -14,9 +14,16 @@ vi.mock('@/hooks/use-theme', () => ({
   useTheme: () => ({ monacoTheme: 'test-theme', scheme: 'dark' }),
 }));
 
-const openTextDocument = vi.hoisted(() => vi.fn());
+const openTextDocuments = vi.hoisted(() => vi.fn());
 
-vi.mock('@/lib/local-documents', () => ({ openTextDocument }));
+vi.mock('@/lib/local-documents', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/local-documents')>()),
+  openTextDocuments,
+}));
+
+function nativeSelection(...files: { path: string; contents: string }[]) {
+  return { files, failures: [] };
+}
 
 const renderDiagram = vi.fn().mockResolvedValue({ svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>preview</text></svg>' });
 const renderer: DiagramRenderer = { render: renderDiagram };
@@ -24,7 +31,7 @@ const renderer: DiagramRenderer = { render: renderDiagram };
 describe('DiagramEditor', () => {
   beforeEach(() => {
     localStorage.clear();
-    openTextDocument.mockReset();
+    openTextDocuments.mockReset();
     renderDiagram.mockReset();
     renderDiagram.mockResolvedValue({ svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>preview</text></svg>' });
   });
@@ -80,7 +87,7 @@ describe('DiagramEditor', () => {
   });
 
   it('shows imported source for confirmation before replacing the draft', async () => {
-    openTextDocument.mockResolvedValueOnce({ path: 'diagram.mmd', contents: 'flowchart TD\nA --> Imported' });
+    openTextDocuments.mockResolvedValueOnce(nativeSelection({ path: 'diagram.mmd', contents: 'flowchart TD\nA --> Imported' }));
     render(<DiagramEditor kind="mermaid" renderer={renderer} />);
 
     fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
@@ -92,10 +99,10 @@ describe('DiagramEditor', () => {
   });
 
   it('extracts a Mermaid block from Markdown and keeps the draft until confirmation', async () => {
-    openTextDocument.mockResolvedValueOnce({
+    openTextDocuments.mockResolvedValueOnce(nativeSelection({
       path: 'notes.md',
       contents: '# Notes\n\n```mermaid\nflowchart TD\nA --> Extracted\n```\n\nOther text',
-    });
+    }));
     render(<DiagramEditor kind="mermaid" renderer={renderer} />);
     const source = screen.getByRole('textbox', { name: 'Diagram source' });
     const original = (source as HTMLTextAreaElement).value;
@@ -104,17 +111,17 @@ describe('DiagramEditor', () => {
     const preview = await screen.findByText((_, element) => element?.tagName === 'PRE' && element.textContent === 'flowchart TD\nA --> Extracted');
     expect(preview).toBeVisible();
     expect(source).toHaveValue(original);
-    expect(openTextDocument).toHaveBeenCalledWith('Mermaid 实时编辑器 源文件', ['mmd', 'mermaid', 'txt', 'md', 'markdown']);
+    expect(openTextDocuments).toHaveBeenCalledWith('Mermaid 实时编辑器 源文件', ['mmd', 'mermaid', 'txt', 'md', 'markdown']);
 
     fireEvent.click(screen.getByRole('button', { name: '确认替换' }));
     expect(source).toHaveValue('flowchart TD\nA --> Extracted');
   });
 
   it('lets the user preview and import the second Mermaid block without merging diagrams', async () => {
-    openTextDocument.mockResolvedValueOnce({
+    openTextDocuments.mockResolvedValueOnce(nativeSelection({
       path: 'diagrams.markdown',
       contents: '```mermaid\nflowchart LR\nA --> First\n```\n\n```mermaid\nsequenceDiagram\nAlice->>Bob: Second\n```',
-    });
+    }));
     render(<DiagramEditor kind="mermaid" renderer={renderer} />);
     fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
     const selector = await screen.findByRole('combobox', { name: '选择 Mermaid 代码块' });
@@ -129,7 +136,7 @@ describe('DiagramEditor', () => {
   });
 
   it('keeps the current draft when the user cancels an extracted import', async () => {
-    openTextDocument.mockResolvedValueOnce({ path: 'notes.txt', contents: '```mermaid\nflowchart LR\nA --> Cancelled\n```' });
+    openTextDocuments.mockResolvedValueOnce(nativeSelection({ path: 'notes.txt', contents: '```mermaid\nflowchart LR\nA --> Cancelled\n```' }));
     render(<DiagramEditor kind="mermaid" renderer={renderer} />);
     const source = screen.getByRole('textbox', { name: 'Diagram source' });
     fireEvent.change(source, { target: { value: 'flowchart TD\nKeep --> Draft' } });
@@ -141,7 +148,7 @@ describe('DiagramEditor', () => {
   });
 
   it('rejects unrelated text without offering to replace the draft', async () => {
-    openTextDocument.mockResolvedValueOnce({ path: 'notes.md', contents: '# Notes\n\nNo diagrams here.' });
+    openTextDocuments.mockResolvedValueOnce(nativeSelection({ path: 'notes.md', contents: '# Notes\n\nNo diagrams here.' }));
     render(<><Toaster /><DiagramEditor kind="mermaid" renderer={renderer} /></>);
     const source = screen.getByRole('textbox', { name: 'Diagram source' });
     const original = (source as HTMLTextAreaElement).value;
@@ -164,7 +171,7 @@ describe('DiagramEditor', () => {
   });
 
   it('reports native file read failures and keeps the draft', async () => {
-    openTextDocument.mockRejectedValueOnce(new Error('无法读取文档'));
+    openTextDocuments.mockRejectedValueOnce(new Error('无法读取文档'));
     render(<><Toaster /><DiagramEditor kind="mermaid" renderer={renderer} /></>);
     const source = screen.getByRole('textbox', { name: 'Diagram source' });
     const original = (source as HTMLTextAreaElement).value;
@@ -187,13 +194,115 @@ describe('DiagramEditor', () => {
   });
 
   it('preserves PlantUML source import and its file filter', async () => {
-    openTextDocument.mockResolvedValueOnce({ path: 'diagram.puml', contents: '@startuml\nAlice -> Bob: Hi\n@enduml' });
+    openTextDocuments.mockResolvedValueOnce(nativeSelection({ path: 'diagram.puml', contents: '@startuml\nAlice -> Bob: Hi\n@enduml' }));
     render(<DiagramEditor kind="plantuml" renderer={renderer} />);
     fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
     await screen.findByText('确认替换当前草稿');
-    expect(openTextDocument).toHaveBeenCalledWith('PlantUML 实时编辑器 源文件', ['puml']);
+    expect(openTextDocuments).toHaveBeenCalledWith('PlantUML 实时编辑器 源文件', ['puml']);
     fireEvent.click(screen.getByRole('button', { name: '确认替换' }));
     expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveValue('@startuml\nAlice -> Bob: Hi\n@enduml');
+  });
+
+  it('imports every selected Mermaid file as its own tab without a confirmation dialog', async () => {
+    openTextDocuments.mockResolvedValueOnce(nativeSelection(
+      { path: 'C:\\docs\\first.mmd', contents: 'flowchart TD\nA --> First' },
+      { path: '/docs/second.md', contents: '# Notes\n\n```mermaid\nflowchart LR\nB --> Second\n```' },
+    ));
+    render(<><Toaster /><DiagramEditor kind="mermaid" renderer={renderer} /></>);
+
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+
+    expect(await screen.findByRole('tab', { name: 'first.mmd' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'second.md' })).toBeInTheDocument();
+    expect(screen.queryByText('确认替换当前草稿')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveValue('flowchart LR\nB --> Second');
+    expect(await screen.findByText('已导入 2 个页签')).toBeVisible();
+  });
+
+  it('creates one tab per Mermaid block when a batch includes a multi-diagram Markdown file', async () => {
+    openTextDocuments.mockResolvedValueOnce(nativeSelection(
+      { path: 'single.mmd', contents: 'flowchart TD\nA --> Only' },
+      { path: 'multi.md', contents: '```mermaid\nflowchart LR\nA --> One\n```\n\n```mermaid\nsequenceDiagram\nAlice->>Bob: Two\n```' },
+    ));
+    render(<DiagramEditor kind="mermaid" renderer={renderer} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+
+    expect(await screen.findByRole('tab', { name: 'multi.md · 图表 2' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'multi.md · 图表 1' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'single.mmd' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveValue('sequenceDiagram\nAlice->>Bob: Two');
+  });
+
+  it('imports readable files and reports the ones the native dialog could not read', async () => {
+    openTextDocuments.mockResolvedValueOnce({
+      files: [{ path: 'good.puml', contents: '@startuml\nA -> B\n@enduml' }],
+      failures: [{ path: 'C:\\docs\\bad.puml', error: '读取文档失败: 拒绝访问' }],
+    });
+    render(<><Toaster /><DiagramEditor kind="plantuml" renderer={renderer} /></>);
+
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+
+    expect(await screen.findByRole('tab', { name: 'good.puml' })).toBeInTheDocument();
+    expect(await screen.findByText('导入失败：bad.puml：读取文档失败: 拒绝访问')).toBeVisible();
+    expect(screen.queryByText('确认替换当前草稿')).not.toBeInTheDocument();
+  });
+
+  it('skips Markdown without diagrams and still imports the other selected files', async () => {
+    openTextDocuments.mockResolvedValueOnce(nativeSelection(
+      { path: 'plain.md', contents: '# Notes\n\nNo diagrams here.' },
+      { path: 'valid.mmd', contents: 'flowchart TD\nA --> Valid' },
+    ));
+    render(<><Toaster /><DiagramEditor kind="mermaid" renderer={renderer} /></>);
+
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+
+    expect(await screen.findByRole('tab', { name: 'valid.mmd' })).toBeInTheDocument();
+    expect(await screen.findByText(/导入失败：plain\.md：未找到 Mermaid 代码块/)).toBeVisible();
+    expect(screen.queryByRole('tab', { name: 'plain.md' })).not.toBeInTheDocument();
+  });
+
+  it('does nothing when the multi-select dialog is cancelled', async () => {
+    openTextDocuments.mockResolvedValueOnce({ files: [], failures: [] });
+    render(<><Toaster /><DiagramEditor kind="mermaid" renderer={renderer} /></>);
+
+    fireEvent.click(screen.getByRole('button', { name: '导入源文件' }));
+
+    await waitFor(() => expect(openTextDocuments).toHaveBeenCalled());
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+    expect(screen.queryByText('确认替换当前草稿')).not.toBeInTheDocument();
+    expect(screen.queryByText(/已导入/)).not.toBeInTheDocument();
+  });
+
+  it('imports multiple browser-selected files as tabs and keeps the input multi-selectable', async () => {
+    const { container } = render(<><Toaster /><DiagramEditor kind="plantuml" renderer={renderer} /></>);
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(input.multiple).toBe(true);
+    const first = new File(['unused'], 'first.puml');
+    Object.defineProperty(first, 'text', { value: async () => '@startuml\nA -> B\n@enduml' });
+    const second = new File(['unused'], 'second.puml');
+    Object.defineProperty(second, 'text', { value: async () => '@startuml\nC -> D\n@enduml' });
+
+    fireEvent.change(input, { target: { files: [first, second] } });
+
+    expect(await screen.findByRole('tab', { name: 'second.puml' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'first.puml' })).toBeInTheDocument();
+    expect(screen.queryByText('确认替换当前草稿')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Diagram source' })).toHaveValue('@startuml\nC -> D\n@enduml');
+  });
+
+  it('reports unreadable browser files without losing the readable ones', async () => {
+    const { container } = render(<><Toaster /><DiagramEditor kind="plantuml" renderer={renderer} /></>);
+    const broken = new File([], 'broken.puml');
+    Object.defineProperty(broken, 'text', { value: async () => { throw new Error('文件已被移动'); } });
+    const good = new File(['unused'], 'good.puml');
+    Object.defineProperty(good, 'text', { value: async () => '@startuml\nA -> B\n@enduml' });
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [broken, good] } });
+
+    expect(await screen.findByRole('tab', { name: 'good.puml' })).toBeInTheDocument();
+    expect(await screen.findByText('导入失败：broken.puml：文件已被移动')).toBeVisible();
+    expect(screen.getByRole('button', { name: '导入源文件' })).toBeEnabled();
   });
 
   it('renders the current source immediately when the user selects refresh', async () => {

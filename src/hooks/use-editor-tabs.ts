@@ -34,6 +34,7 @@ interface UseEditorTabsResult {
   createTab: (content?: string, name?: string) => string | null;
   duplicateTab: (id?: string) => string | null;
   importTab: (name: string, content: string) => string | null;
+  importTabs: (documents: { name: string; content: string }[]) => string[];
   renameTab: (id: string, name: string) => void;
   closeTab: (id?: string) => void;
   closeOthers: (id?: string) => void;
@@ -160,7 +161,29 @@ export function useEditorTabs(options: UseEditorTabsOptions): UseEditorTabsResul
     return createTab(source.content, source.name);
   }, [activeTabId, createTab, tabs]);
 
-  const importTab = useCallback((name: string, content: string) => createTab(content, name), [createTab]);
+  // 批量导入必须在一次更新内完成：循环调用单个导入会读到同一份陈旧页签列表，导致重名和上限失效。
+  const importTabs = useCallback((documents: { name: string; content: string }[]) => {
+    const next = [...tabs];
+    const created: EditorTab[] = [];
+    for (const document of documents) {
+      if (next.length >= maxTabs) break;
+      const tab = {
+        id: createId(),
+        name: uniqueName(document.name, next, options.extension, options.defaultPrefix ?? '未命名'),
+        content: document.content,
+      };
+      next.push(tab);
+      created.push(tab);
+    }
+    if (created.length > 0) {
+      // 追加而非整体替换，避免覆盖读取文件期间用户产生的编辑。
+      setTabs((current) => [...current, ...created].slice(0, maxTabs));
+      setActiveTabId(created[created.length - 1].id);
+    }
+    return created.map((tab) => tab.id);
+  }, [maxTabs, options.defaultPrefix, options.extension, tabs]);
+
+  const importTab = useCallback((name: string, content: string) => importTabs([{ name, content }])[0] ?? null, [importTabs]);
 
   const renameTab = useCallback((id: string, name: string) => {
     setTabs((current) => current.map((tab) => tab.id === id
@@ -225,6 +248,7 @@ export function useEditorTabs(options: UseEditorTabsOptions): UseEditorTabsResul
     createTab,
     duplicateTab,
     importTab,
+    importTabs,
     renameTab,
     closeTab,
     closeOthers,

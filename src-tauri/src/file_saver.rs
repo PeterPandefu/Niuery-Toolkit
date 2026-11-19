@@ -18,6 +18,18 @@ pub struct OpenedBinaryFile {
     pub contents: String,
 }
 
+#[derive(Serialize)]
+pub struct TextFileFailure {
+    pub path: String,
+    pub error: String,
+}
+
+#[derive(Serialize)]
+pub struct OpenedTextFiles {
+    pub files: Vec<OpenedTextFile>,
+    pub failures: Vec<TextFileFailure>,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RecoverySnapshot {
     pub id: String,
@@ -97,6 +109,39 @@ pub async fn open_text_file_dialog(
             }
             None => Ok(None),
         }
+    })
+    .await
+}
+
+/// 打开用户多选的 UTF-8 文本文档；单个文件读取失败只记录，不影响其余文件。
+#[tauri::command]
+pub async fn open_text_files_dialog(
+    filter_name: String,
+    extensions: Vec<String>,
+) -> Result<OpenedTextFiles, String> {
+    run_file_dialog(move || {
+        let extension_refs: Vec<&str> = extensions.iter().map(String::as_str).collect();
+        let paths = rfd::FileDialog::new()
+            .add_filter(&filter_name, &extension_refs)
+            .pick_files()
+            .unwrap_or_default();
+
+        let mut files = Vec::new();
+        let mut failures = Vec::new();
+        for path in paths {
+            let display_path = path.to_string_lossy().into_owned();
+            match std::fs::read_to_string(&path) {
+                Ok(contents) => files.push(OpenedTextFile {
+                    path: display_path,
+                    contents,
+                }),
+                Err(error) => failures.push(TextFileFailure {
+                    path: display_path,
+                    error: format!("读取文档失败: {error}"),
+                }),
+            }
+        }
+        Ok(OpenedTextFiles { files, failures })
     })
     .await
 }

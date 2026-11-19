@@ -14,6 +14,7 @@ import { useToolLogger } from '@/hooks/use-tool-logger';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { saveBytes } from '@/lib/file-save';
+import { readTextFiles } from '@/lib/local-documents';
 import { measureMarkdownExportHeight } from '@/lib/markdown-export-size';
 import { isTauri } from '@/lib/api-client';
 import {
@@ -278,21 +279,38 @@ export default function MarkdownEditor() {
     });
   }, []);
 
-  // 文件导入
+  // 文件导入：多选时每个文件各建一个页签
+  const importFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    const { documents, failures } = await readTextFiles(files);
+    const created = tabs.importTabs(documents);
+    if (created.length > 0) {
+      log.info('导入文件成功', { count: created.length, names: documents.map((document) => document.name) });
+      toast.success(created.length === 1
+        ? t('markdownEditor.imported', { name: documents[0].name })
+        : t('markdownEditor.importedBatch', { count: created.length }));
+    }
+    if (documents.length > created.length) {
+      toast.error(t('markdownEditor.importTabLimit', { count: documents.length - created.length }));
+    }
+    if (failures.length > 0) {
+      log.warn('导入文件失败', { failures });
+      toast.error(t('markdownEditor.importFailed', {
+        detail: failures.map((failure) => `${failure.name}: ${failure.error}`).join('；'),
+      }));
+    }
+  }, [log, t, tabs]);
+
   const handleImport = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.md,.markdown,.txt';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      tabs.importTab(file.name, text);
-      log.info('导入文件成功', { name: file.name, size: file.size });
-      toast.success(t('markdownEditor.imported', { name: file.name }));
+    input.multiple = true;
+    input.onchange = (e) => {
+      void importFiles(Array.from((e.target as HTMLInputElement).files ?? []));
     };
     input.click();
-  }, [log, t, tabs]);
+  }, [importFiles]);
 
   // 导出 Markdown
   const handleExportMd = useCallback(async () => {
@@ -452,15 +470,9 @@ export default function MarkdownEditor() {
   // 拖放导入
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file && /\.(md|markdown|txt)$/i.test(file.name)) {
-      file.text().then((text) => {
-        tabs.importTab(file.name, text);
-        log.info('拖拽导入文件成功', { name: file.name, size: file.size });
-        toast.success(t('markdownEditor.imported', { name: file.name }));
-      });
-    }
-  }, [log, t, tabs]);
+    const files = Array.from(e.dataTransfer.files ?? []).filter((file) => /\.(md|markdown|txt)$/i.test(file.name));
+    void importFiles(files);
+  }, [importFiles]);
 
   // 大纲跳转
   const handleJumpToLine = useCallback((line: number) => {
