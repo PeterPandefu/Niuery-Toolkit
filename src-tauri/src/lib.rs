@@ -569,6 +569,7 @@ pub fn run() {
             chromium::render_html_to_pdf,
             chromium::render_html_to_png,
             file_saver::open_text_file_dialog,
+            file_saver::open_text_files_dialog,
             file_saver::open_binary_file_dialog,
             file_saver::pick_existing_file,
             file_saver::pick_existing_folder,

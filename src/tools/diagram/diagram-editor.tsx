@@ -1,7 +1,7 @@
 import { Select } from '@/components/ui/select';
 import '@/lib/monaco-setup';
 import Editor from '@monaco-editor/react';
-import { openTextDocument } from '@/lib/local-documents';
+import { openTextDocuments, readTextFiles, type TextDocumentInput } from '@/lib/local-documents';
 import { saveBytesWithFeedback } from '@/lib/file-save';
 import { isTauri } from '@/lib/api-client';
 import { generateExportHtml } from '@/lib/markdown-utils';
@@ -77,6 +77,14 @@ function writeLocalStorage(key: string, value: string) {
   }
 }
 
+function documentName(path: string, fallback: string) {
+  return path.split(/[\\/]/).pop() || fallback;
+}
+
+function failureText(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function rasterizeSvg(svg: string): Promise<Blob> {
   const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -113,7 +121,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
     extension: labels.extension,
     defaultPrefix: kind === 'mermaid' ? '未命名 Mermaid' : '未命名 PlantUML',
   });
-  const { content: source, setContent: setSource, activeTab, storageError, setError: setTabError, importTab } = tabs;
+  const { content: source, setContent: setSource, activeTab, storageError, setError: setTabError, importTab, importTabs } = tabs;
   const [debouncedSource, setDebouncedSource] = useState(source);
   const [followTheme, setFollowTheme] = useState(() => readFollowTheme(kind));
   const [preview, setPreview] = useState<DiagramRenderResult | null>(null);
@@ -198,34 +206,71 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
     setPendingImport(candidates);
   }, [kind]);
 
+  const importBatch = useCallback(async (documents: TextDocumentInput[], readFailures: string[]) => {
+    const failures = [...readFailures];
+    const pending: TextDocumentInput[] = [];
+    for (const document of documents) {
+      try {
+        const candidates = kind === 'mermaid'
+          ? await extractMermaidImport(document.content)
+          : [{ source: document.content, line: null }];
+        candidates.forEach((candidate, index) => pending.push({
+          name: candidates.length > 1 ? `${document.name} · 图表 ${index + 1}` : document.name,
+          content: candidate.source,
+        }));
+      } catch (error) {
+        failures.push(`${document.name}：${failureText(error)}`);
+      }
+    }
+    const created = importTabs(pending);
+    if (created.length > 0) toast.success(`已导入 ${created.length} 个页签`);
+    if (pending.length > created.length) toast.error(`页签数量已达上限，${pending.length - created.length} 个图表未导入`);
+    if (failures.length > 0) toast.error(`导入失败：${failures.join('；')}`);
+  }, [importTabs, kind]);
+
   const handleImport = useCallback(async () => {
     try {
-      const opened = await openTextDocument(`${labels.title} 源文件`, labels.importExtensions);
-      if (opened) {
-        setPendingImportName(opened.path.split(/[\\/]/).pop() ?? `导入.${labels.extension}`);
-        await prepareImport(opened.contents);
-      } else if (!isTauri) {
-        fileInputRef.current?.click();
+      const opened = await openTextDocuments(`${labels.title} 源文件`, labels.importExtensions);
+      if (!opened) {
+        if (!isTauri) fileInputRef.current?.click();
+        return;
       }
+      const fallbackName = `导入.${labels.extension}`;
+      const failures = opened.failures.map((failure) => `${documentName(failure.path, fallbackName)}：${failure.error}`);
+      if (opened.files.length === 1 && failures.length === 0) {
+        const [file] = opened.files;
+        setPendingImportName(documentName(file.path, fallbackName));
+        await prepareImport(file.contents);
+        return;
+      }
+      await importBatch(
+        opened.files.map((file) => ({ name: documentName(file.path, fallbackName), content: file.contents })),
+        failures,
+      );
     } catch (error) {
-      toast.error(`导入失败：${error instanceof Error ? error.message : String(error)}`);
+      toast.error(`导入失败：${failureText(error)}`);
     }
-  }, [labels.extension, labels.importExtensions, labels.title, prepareImport]);
+  }, [importBatch, labels.extension, labels.importExtensions, labels.title, prepareImport]);
 
   const handleBrowserImport = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!file) return;
-    setPendingImportName(file.name);
+    if (files.length === 0) return;
     setIsReadingImport(true);
     try {
-      await prepareImport(await file.text());
+      if (files.length === 1) {
+        setPendingImportName(files[0].name);
+        await prepareImport(await files[0].text());
+        return;
+      }
+      const { documents, failures } = await readTextFiles(files);
+      await importBatch(documents, failures.map((failure) => `${failure.name}：${failure.error}`));
     } catch (error) {
-      toast.error(`导入失败：${error instanceof Error ? error.message : String(error)}`);
+      toast.error(`导入失败：${failureText(error)}`);
     } finally {
       setIsReadingImport(false);
     }
-  }, [prepareImport]);
+  }, [importBatch, prepareImport]);
 
   const exportSource = useCallback(async () => {
     await saveBytesWithFeedback(
@@ -307,7 +352,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
           </label>
           <Button variant="ghost" size="sm" onClick={() => tabs.createTab()} aria-label="新建图表"><FilePlus2 />新建</Button>
           <Button variant="ghost" size="sm" onClick={() => resetSource(true)} aria-label="清空图表"><Trash2 />清空</Button>
-          <LoadingButton variant="ghost" size="sm" onClick={handleImport} loading={isReadingImport} aria-label="导入源文件"><Upload />导入</LoadingButton>
+          <LoadingButton variant="ghost" size="sm" onClick={handleImport} loading={isReadingImport} aria-label="导入源文件" title="导入源文件，可多选"><Upload />导入</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportSource} aria-label="导出源文件"><FileText />导出</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportSvg} disabled={!preview} aria-label="导出 SVG"><Download />SVG</LoadingButton>
           <LoadingButton variant="ghost" size="sm" onClick={exportPng} disabled={!preview} aria-label="导出 PNG"><FileImage />PNG</LoadingButton>
@@ -354,7 +399,7 @@ export function DiagramEditor({ kind, renderer }: DiagramEditorProps) {
         </section>
       </div>
 
-      <input ref={fileInputRef} type="file" accept={labels.importExtensions.map((extension) => `.${extension}`).join(',')} className="hidden" onChange={(event) => void handleBrowserImport(event)} />
+      <input ref={fileInputRef} type="file" multiple accept={labels.importExtensions.map((extension) => `.${extension}`).join(',')} className="hidden" onChange={(event) => void handleBrowserImport(event)} />
       {pendingImport !== null && selectedImport && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onKeyDown={(event) => {
           if (event.key === 'Escape') setPendingImport(null);

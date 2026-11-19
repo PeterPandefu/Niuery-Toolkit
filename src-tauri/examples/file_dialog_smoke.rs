@@ -35,7 +35,7 @@ fn main() {
         .unwrap();
     runtime.block_on(async {
         for round in 0..3 {
-            for mode in ["text", "binary", "path", "folder", "save"] {
+            for mode in ["text", "multi", "binary", "path", "folder", "save"] {
                 let (shown_tx, shown_rx) = tokio::sync::oneshot::channel();
                 let (responsive_tx, responsive_rx) = mpsc::channel();
                 let canceller = std::thread::spawn(move || {
@@ -98,6 +98,16 @@ fn main() {
                         .await
                         .unwrap()
                         .is_none()),
+                        "multi" => {
+                            let selection = file_saver::open_text_files_dialog(
+                                "Markdown".into(),
+                                vec!["md".into()],
+                            )
+                            .await
+                            .unwrap();
+                            assert!(selection.files.is_empty());
+                            assert!(selection.failures.is_empty());
+                        }
                         "binary" => assert!(file_saver::open_binary_file_dialog(
                             "文档".into(),
                             vec!["pdf".into()]

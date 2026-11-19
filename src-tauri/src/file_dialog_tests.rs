@@ -11,7 +11,7 @@ pub(crate) mod dialog_stub {
     pub struct PendingDialog {
         pub entered: mpsc::Sender<std::thread::ThreadId>,
         pub release: mpsc::Receiver<()>,
-        pub path: Option<PathBuf>,
+        pub paths: Vec<PathBuf>,
     }
 
     pub static PENDING: Mutex<Option<PendingDialog>> = Mutex::new(None);
@@ -32,11 +32,20 @@ pub(crate) mod dialog_stub {
         }
 
         pub fn pick_file(self) -> Option<PathBuf> {
+            self.pick_files()
+                .and_then(|paths| paths.into_iter().next())
+        }
+
+        pub fn pick_files(self) -> Option<Vec<PathBuf>> {
             let pending = PENDING.lock().unwrap().take().expect("缺少对话框测试配置");
             pending.entered.send(std::thread::current().id()).unwrap();
             // 超时保证旧实现即便阻塞命令分发，测试仍能自行结束并报告失败。
             let _ = pending.release.recv_timeout(Duration::from_millis(800));
-            pending.path
+            if pending.paths.is_empty() {
+                None
+            } else {
+                Some(pending.paths)
+            }
         }
 
         pub fn pick_folder(self) -> Option<PathBuf> {
@@ -59,6 +68,7 @@ fn waiting_for_a_file_dialog_does_not_block_ipc_dispatch() {
     let app = tauri::test::mock_builder()
         .invoke_handler(tauri::generate_handler![
             file_saver::open_text_file_dialog,
+            file_saver::open_text_files_dialog,
             file_saver::open_binary_file_dialog,
             file_saver::pick_existing_file,
             file_saver::pick_existing_folder,
@@ -73,6 +83,7 @@ fn waiting_for_a_file_dialog_does_not_block_ipc_dispatch() {
 
     for command in [
         "open_text_file_dialog",
+        "open_text_files_dialog",
         "open_binary_file_dialog",
         "pick_existing_file",
         "pick_existing_folder",
@@ -83,7 +94,7 @@ fn waiting_for_a_file_dialog_does_not_block_ipc_dispatch() {
         *dialog_stub::PENDING.lock().unwrap() = Some(dialog_stub::PendingDialog {
             entered: entered_tx,
             release: release_rx,
-            path: None,
+            paths: Vec::new(),
         });
         let (response_tx, response_rx) = mpsc::channel();
         let started = std::time::Instant::now();
@@ -141,10 +152,12 @@ fn waiting_for_a_file_dialog_does_not_block_ipc_dispatch() {
             .expect("关闭对话框后命令未完成")
         {
             tauri::ipc::InvokeResponse::Ok(body) => {
-                assert_eq!(
-                    body.deserialize::<serde_json::Value>().unwrap(),
+                let cancelled = if command == "open_text_files_dialog" {
+                    serde_json::json!({ "files": [], "failures": [] })
+                } else {
                     serde_json::Value::Null
-                );
+                };
+                assert_eq!(body.deserialize::<serde_json::Value>().unwrap(), cancelled);
             }
             tauri::ipc::InvokeResponse::Err(error) => panic!("取消选择不应报错: {error:?}"),
         }
@@ -157,18 +170,32 @@ fn waiting_for_a_file_dialog_does_not_block_ipc_dispatch() {
         .unwrap();
     let fixture = std::env::temp_dir().join(format!("文件对话框回归-{}.md", nanoid::nanoid!()));
     std::fs::write(&fixture, "# 导入内容\n").unwrap();
+    let second_fixture =
+        std::env::temp_dir().join(format!("文件对话框回归-{}.mmd", nanoid::nanoid!()));
+    std::fs::write(&second_fixture, "flowchart TD\nA --> B\n").unwrap();
+    let missing = fixture.with_extension("不存在");
     runtime.block_on(async {
-        for mode in ["text", "binary", "path", "folder", "save", "missing"] {
+        for mode in [
+            "text",
+            "binary",
+            "multi",
+            "multi-missing",
+            "path",
+            "folder",
+            "save",
+            "missing",
+        ] {
             let (entered_tx, entered_rx) = mpsc::channel();
             let (release_tx, release_rx) = mpsc::channel();
             *dialog_stub::PENDING.lock().unwrap() = Some(dialog_stub::PendingDialog {
                 entered: entered_tx,
                 release: release_rx,
-                path: Some(if mode == "missing" {
-                    fixture.with_extension("不存在")
-                } else {
-                    fixture.clone()
-                }),
+                paths: match mode {
+                    "multi" => vec![fixture.clone(), second_fixture.clone()],
+                    "multi-missing" => vec![fixture.clone(), missing.clone()],
+                    "missing" => vec![missing.clone()],
+                    _ => vec![fixture.clone()],
+                },
             });
             let runtime_thread = std::thread::current().id();
             let release = async {
@@ -202,6 +229,34 @@ fn waiting_for_a_file_dialog_does_not_block_ipc_dispatch() {
                                 .unwrap(),
                             "# 导入内容\n".as_bytes()
                         );
+                    }
+                    "multi" => {
+                        let selection = file_saver::open_text_files_dialog(
+                            "图表源文件".into(),
+                            vec!["md".into(), "mmd".into()],
+                        )
+                        .await
+                        .unwrap();
+                        assert!(selection.failures.is_empty());
+                        assert_eq!(selection.files.len(), 2);
+                        assert_eq!(selection.files[0].path, path);
+                        assert_eq!(selection.files[0].contents, "# 导入内容\n");
+                        assert_eq!(
+                            selection.files[1].path,
+                            second_fixture.to_string_lossy()
+                        );
+                        assert_eq!(selection.files[1].contents, "flowchart TD\nA --> B\n");
+                    }
+                    "multi-missing" => {
+                        let selection =
+                            file_saver::open_text_files_dialog("文档".into(), vec!["md".into()])
+                                .await
+                                .unwrap();
+                        assert_eq!(selection.files.len(), 1);
+                        assert_eq!(selection.files[0].path, path);
+                        assert_eq!(selection.failures.len(), 1);
+                        assert_eq!(selection.failures[0].path, missing.to_string_lossy());
+                        assert!(selection.failures[0].error.starts_with("读取文档失败:"));
                     }
                     "path" => assert_eq!(
                         file_saver::pick_existing_file().await.unwrap().as_deref(),
@@ -248,4 +303,5 @@ fn waiting_for_a_file_dialog_does_not_block_ipc_dispatch() {
         }
     });
     std::fs::remove_file(fixture).unwrap();
+    std::fs::remove_file(second_fixture).unwrap();
 }
