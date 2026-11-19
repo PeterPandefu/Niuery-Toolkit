@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { diagnoseHtml } from '@/lib/html-diagnostics';
 import { compareImageBlobs } from '@/lib/image-diff';
 import { EditorTabs } from '@/components/shared/EditorTabs';
+import { HtmlPreviewFrame } from '@/components/shared/HtmlPreviewFrame';
 import { useEditorTabs } from '@/hooks/use-editor-tabs';
 
 const DEFAULT_HTML = `<!doctype html>
@@ -69,7 +70,6 @@ export default function HtmlRenderer() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const diagnostics = useMemo(() => diagnoseHtml(source), [source]);
   const remoteResources = diagnostics.remoteResources;
-  const preview = useMemo(() => source, [source]);
 
   useEffect(() => {
     if (storageError) toast.error(storageError);
@@ -195,9 +195,7 @@ export default function HtmlRenderer() {
         <section className="min-h-0 min-w-0 flex-1 border-b lg:border-b-0 lg:border-r">
           <Editor height="100%" language="html" theme={monacoTheme} value={source} onChange={(value) => setSource(value ?? '')} options={{ minimap: { enabled: false }, wordWrap: 'on', automaticLayout: true, padding: { top: 12 } }} />
         </section>
-        <section className="min-h-0 min-w-0 flex-1 bg-white">
-          <iframe title="HTML 本地预览" sandbox="allow-scripts" srcDoc={preview} className="h-full w-full border-0" />
-        </section>
+        <HtmlPreviewFrame html={source} title="HTML 本地预览" />
       </div>
       <input ref={fileInputRef} type="file" accept=".html,.htm" className="hidden" onChange={(event) => void importHtml(event)} />
     </div>
