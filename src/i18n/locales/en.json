@@ -223,6 +223,7 @@
     "xml-json": "XML ↔ JSON",
     "timestamp": "Timestamp",
     "number-base": "Number Base",
+    "char-byte": "Char ↔ Byte",
     "color-picker": "Color & Picker",
     "data-size": "Data Unit Converter",
     "angle": "Angle",

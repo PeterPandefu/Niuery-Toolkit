@@ -18,6 +18,7 @@ import {
   Fingerprint,
   Globe,
   Hash,
+  Hexagon,
   ImagePlus,
   KeyRound,
   Languages,
@@ -164,6 +165,32 @@ registerTool({
   component: lazy(() => import('@/tools/converter/number-base')),
   keywords: ['binary', 'hex', 'octal', 'decimal', '进制', '二进制', '十六进制'],
   description: '二/八/十/十六进制互转',
+});
+
+registerTool({
+  id: 'char-byte',
+  name: '字符 ↔ 字节',
+  icon: Hexagon,
+  category: 'data',
+  component: lazy(() => import('@/tools/converter/char-byte')),
+  keywords: [
+    'hex',
+    'byte',
+    'bytes',
+    'char',
+    'character',
+    '字符',
+    '字节',
+    '报文',
+    '十六进制',
+    'hex dump',
+    'packet',
+    'gbk',
+    'gb18030',
+    'utf-8',
+    '编码',
+  ],
+  description: '字符与字节双向转换，含报文 hex dump 与逐字符字节对照',
 });
 
 registerTool({
