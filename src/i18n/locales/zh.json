@@ -223,6 +223,7 @@
     "xml-json": "XML ↔ JSON",
     "timestamp": "时间戳转换",
     "number-base": "进制转换",
+    "char-byte": "字符 ↔ 字节",
     "color-picker": "颜色与取色",
     "data-size": "数据单位换算",
     "angle": "角度转换",
