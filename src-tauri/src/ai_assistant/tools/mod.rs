@@ -394,6 +394,50 @@ pub async fn test_search(env: &ToolEnv, http: &GuardedHttp) -> ToolOutcome {
     }
 }
 
+/// Settings-page diagnostic: generates one real artifact at `target` so the user
+/// can preview it. Costs credits, so it only runs on an explicit click.
+pub async fn test_media(
+    env: &ToolEnv,
+    http: &GuardedHttp,
+    kind: &str,
+    target: &std::path::Path,
+) -> ToolOutcome {
+    let Some(config) = env.media.as_ref().filter(|_| env.media_ready()) else {
+        return ToolOutcome::error("图像/视频服务未配置或已停用。");
+    };
+    let path = target.display().to_string();
+    let key = env.media_key.as_deref();
+    match kind {
+        "image" => {
+            media::run_image(
+                &serde_json::json!({
+                    "prompt": "一只橘猫坐在木桌上，暖色光线，写实摄影",
+                    "path": path,
+                    "size": "1024x1024"
+                }),
+                config,
+                key,
+                http,
+            )
+            .await
+        }
+        "video" => {
+            media::run_video(
+                &serde_json::json!({
+                    "prompt": "一只橘猫在木桌上转头看向镜头，镜头缓慢推近",
+                    "path": path,
+                    "duration": 5
+                }),
+                config,
+                key,
+                http,
+            )
+            .await
+        }
+        _ => ToolOutcome::error("未知的测试类型。"),
+    }
+}
+
 pub fn truncate(content: String) -> String {
     if content.chars().count() <= MAX_RESULT_CHARS {
         return content;

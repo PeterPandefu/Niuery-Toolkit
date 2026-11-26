@@ -108,6 +108,20 @@ export const desktopAiBackend: AiBackend = {
     if (!inDesktop()) throw desktopRequired();
     return invoke('ai_save_media_service', apiKey === undefined ? { config } : { config, apiKey });
   },
+  async listMediaModels() {
+    if (!inDesktop()) throw desktopRequired();
+    ensureNetworkAccessAllowed();
+    return invoke<string[]>('ai_list_media_models');
+  },
+  async testMediaGenerate(kind) {
+    if (!inDesktop()) throw desktopRequired();
+    ensureNetworkAccessAllowed();
+    return invoke<string>('ai_test_media_generate', { kind });
+  },
+  async openMediaTestDirectory() {
+    if (!inDesktop()) throw desktopRequired();
+    await invoke<void>('ai_open_media_test_directory');
+  },
   async saveMcpServers(servers) {
     if (!inDesktop()) throw desktopRequired();
     return invoke('ai_save_mcp_servers', { servers });

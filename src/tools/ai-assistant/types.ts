@@ -213,6 +213,9 @@ export interface AiBackend {
   answerTool(callId: string, answer: string): Promise<void>;
   saveSearchService(config: AiSearchService, apiKey?: string): Promise<AiSearchService>;
   saveMediaService(config: AiMediaService, apiKey?: string): Promise<AiMediaService>;
+  listMediaModels(): Promise<string[]>;
+  testMediaGenerate(kind: 'image' | 'video'): Promise<string>;
+  openMediaTestDirectory(): Promise<void>;
   saveMcpServers(servers: AiMcpServer[]): Promise<AiMcpServer[]>;
   saveOfficeEnabled(enabled: boolean): Promise<boolean>;
   testSearchService(): Promise<string>;
