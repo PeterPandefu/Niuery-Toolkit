@@ -386,6 +386,90 @@ pub async fn ai_save_media_service(
     .await
 }
 
+async fn media_service(
+    app: &tauri::AppHandle,
+    state: &AiState,
+) -> Result<(MediaService, Option<String>), String> {
+    let _guard = state.storage.lock().await;
+    let root = directory(app)?;
+    let namespace = app.config().identifier.clone();
+    blocking(move || {
+        let config = storage::load(&root)?
+            .and_then(|workspace| workspace.media_service)
+            .ok_or("请先配置图像/视频服务")?;
+        let key = if config.has_api_key {
+            credentials::read(&namespace, MEDIA_SERVICE_ID)?
+        } else {
+            None
+        };
+        Ok((config, key))
+    })
+    .await
+}
+
+/// The media base URL is the platform's OpenAI-compatible prefix, which serves
+/// `/models` for both protocols, so the provider probe is reused verbatim.
+#[tauri::command]
+pub async fn ai_list_media_models(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+) -> Result<Vec<String>, String> {
+    let (config, key) = media_service(&app, &state).await?;
+    let probe = Provider {
+        id: MEDIA_SERVICE_ID.into(),
+        name: MEDIA_SERVICE_ID.into(),
+        kind: "openai".into(),
+        base_url: config.base_url,
+        has_api_key: config.has_api_key,
+        models: Vec::new(),
+        enabled: true,
+    };
+    let models = fetch_models(&probe, key.as_deref()).await?;
+    Ok(models.into_iter().map(|model| model.id).collect())
+}
+
+#[tauri::command]
+pub async fn ai_test_media_generate(
+    app: tauri::AppHandle,
+    state: State<'_, AiState>,
+    kind: String,
+) -> Result<String, String> {
+    let file_name = match kind.as_str() {
+        "image" => "test-image.png",
+        "video" => "test-video.mp4",
+        _ => return Err("未知的测试类型".into()),
+    };
+    let (config, key) = media_service(&app, &state).await?;
+    let dir = directory(&app)?.join("media-test");
+    let target = dir.join(file_name);
+    blocking(move || {
+        std::fs::create_dir_all(&dir).map_err(|_| "无法创建测试产物目录".to_string())
+    })
+    .await?;
+    let env = tools::ToolEnv {
+        media: Some(config),
+        media_key: key,
+        ..Default::default()
+    };
+    let http = engine::transport::GuardedHttp::for_tools()?;
+    let outcome = tools::test_media(&env, &http, &kind, &target).await;
+    if outcome.is_error {
+        return Err(outcome.content);
+    }
+    Ok(target.display().to_string())
+}
+
+#[tauri::command]
+pub async fn ai_open_media_test_directory(app: tauri::AppHandle) -> Result<(), String> {
+    let root = directory(&app)?.join("media-test");
+    blocking(move || {
+        std::fs::create_dir_all(&root).map_err(|_| "无法创建测试产物目录".to_string())?;
+        tauri_plugin_opener::open_path(root, None::<&str>)
+            .map_err(|_| "无法打开测试产物目录".into())
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn ai_save_mcp_servers(
     app: tauri::AppHandle,
