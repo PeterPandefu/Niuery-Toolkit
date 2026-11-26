@@ -1,7 +1,8 @@
 import { Select } from '@/components/ui/select';
 import { useEffect, useState } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { nanoid } from 'nanoid';
-import { Archive, Box, Cable, Check, Database, Image as ImageIcon, KeyRound, Loader2, Plus, RefreshCw, Search, Server, Trash2, Unplug } from 'lucide-react';
+import { Archive, Box, Cable, Check, Database, FolderOpen, Image as ImageIcon, KeyRound, Loader2, Plus, RefreshCw, Search, Server, Trash2, Unplug, Video } from 'lucide-react';
 import type { AiBackend, AiConversation, AiMediaService, AiMcpServer, AiModel, AiProvider, AiSearchService } from './types';
 import { AiDialog, AiError } from './ui';
 import { useAiText } from './ui-text';
@@ -171,6 +172,32 @@ export function AiSettings({ providers, conversations = [], searchService, media
   </AiDialog>;
 }
 
+/** Platform model lists mix chat and media models, so only media-ish ids are
+ *  offered in the pickers; manual entry still covers anything this misses. */
+const MEDIA_MODEL_PATTERN = /image|video|wan|t2v|i2v|t2i|sora/i;
+const MANUAL_MODEL = '__manual__';
+
+/** A native datalist never opens its popup inside WebView2, so the picker uses
+ *  the shared Select. A value outside the fetched list becomes its own option,
+ *  which keeps manually entered ids visible instead of silently dropping them. */
+function MediaModelField({ label, value, placeholder, options, disabled, onChange }: { label: string; value: string; placeholder: string; options: string[]; disabled: boolean; onChange(next: string): void }) {
+  const t = useAiText();
+  const [manual, setManual] = useState(false);
+  if (manual || !options.length) return <label>{label}
+    <input disabled={disabled} value={value} placeholder={placeholder} onChange={event => onChange(event.target.value)} />
+    {options.length > 0 && <button type="button" disabled={disabled} onClick={() => setManual(false)}>{t('返回列表选择', 'Back to list')}</button>}
+  </label>;
+  return <label>{label}<Select value={value} disabled={disabled} placeholder={t('留空（使用默认模型）', 'Blank (use default model)')} onChange={event => {
+    if (event.target.value === MANUAL_MODEL) { setManual(true); return; }
+    onChange(event.target.value);
+  }}>
+    <option value="">{t('留空（使用默认模型）', 'Blank (use default model)')}</option>
+    {value && !options.includes(value) && <option value={value}>{value}</option>}
+    {options.map(id => <option key={id} value={id}>{id}</option>)}
+    <option value={MANUAL_MODEL}>{t('手动输入…', 'Type manually…')}</option>
+  </Select></label>;
+}
+
 function MediaServicePanel({ backend, initial, onSaved }: { backend: AiBackend; initial?: AiMediaService; onSaved(config: AiMediaService): void }) {
   const t = useAiText();
   const [media, setMedia] = useState<AiMediaService>(initial ?? { baseUrl: '', hasApiKey: false, enabled: true });
@@ -179,11 +206,23 @@ function MediaServicePanel({ backend, initial, onSaved }: { backend: AiBackend; 
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState<unknown>();
   const [working, setWorking] = useState(false);
+  const [catalog, setCatalog] = useState<string[] | null>(null);
+  const [preview, setPreview] = useState<{ kind: 'image' | 'video'; url: string } | null>(null);
   const dashscope = (media.protocol ?? 'openai') === 'dashscope';
-  function edit(next: AiMediaService) { setMedia(next); setDirty(true); setFeedback(''); }
+  const mediaModels = (catalog ?? []).filter(id => MEDIA_MODEL_PATTERN.test(id));
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
+  function edit(next: AiMediaService) {
+    if (next.baseUrl !== media.baseUrl) setCatalog(null);
+    setMedia(next); setDirty(true); setFeedback('');
+  }
   function switchProtocol(protocol: 'openai' | 'dashscope') {
     const defaultBase = protocol === 'dashscope' ? 'https://maas.qianwenaiapi.com/compatible-mode/v1' : 'https://api.openai.com/v1';
     edit({ ...media, protocol, baseUrl: media.baseUrl.trim() ? media.baseUrl : defaultBase });
+    setCatalog(null);
+  }
+  async function runMedia(operation: () => Promise<void>) {
+    setWorking(true); setError(undefined); setFeedback('');
+    try { await operation(); } catch (failure) { setError(failure); } finally { setWorking(false); }
   }
   async function save() {
     const baseUrl = media.baseUrl.trim().replace(/\/+$/, '');
@@ -195,16 +234,39 @@ function MediaServicePanel({ backend, initial, onSaved }: { backend: AiBackend; 
     setFeedback(t('图像/视频服务已保存', 'Media service saved'));
     onSaved(saved);
   }
+  async function fetchModels() {
+    await save();
+    const ids = await backend.listMediaModels();
+    setCatalog(ids);
+    return ids;
+  }
+  async function generate(kind: 'image' | 'video') {
+    await save();
+    const path = await backend.testMediaGenerate(kind);
+    const response = await fetch(convertFileSrc(path), { cache: 'no-store' });
+    if (!response.ok) throw new Error(t('测试产物已生成，但无法读取预览', 'The test artifact was generated but cannot be previewed.'));
+    setPreview({ kind, url: URL.createObjectURL(await response.blob()) });
+    setFeedback(kind === 'image' ? t('测试图片已生成，见下方预览', 'Test image generated; see the preview below.') : t('测试视频已生成，见下方预览', 'Test video generated; see the preview below.'));
+  }
   return <section className="ai-archive-panel" aria-labelledby="ai-media-heading">
     <div className="ai-settings-section-heading"><span className="ai-settings-section-icon"><ImageIcon size={18} aria-hidden="true" /></span><div><h3 id="ai-media-heading">{t('图像/视频服务', 'Media service')}</h3><p>{dashscope ? t('为 generate_image、generate_video 与 generate_video_from_image 工具配置千问平台服务；未配置或停用时这些工具不会提供给模型。', 'Configure the Qianwen platform for generate_image, generate_video and generate_video_from_image. They are not offered until configured and enabled.') : t('为 generate_image 与 generate_video 工具配置 OpenAI 兼容端点；未配置或停用时这两个工具不会提供给模型。', 'Configure an OpenAI-compatible endpoint for generate_image and generate_video. They are not offered until configured and enabled.')}</p></div><label className="ai-checkbox ai-service-toggle"><input type="checkbox" disabled={working} checked={media.enabled} onChange={event => edit({ ...media, enabled: event.target.checked })} />{t('启用服务', 'Enable service')}</label></div>
-    <form className="ai-form" onSubmit={event => { event.preventDefault(); setWorking(true); setError(undefined); setFeedback(''); void save().catch(setError).finally(() => setWorking(false)); }}>
+    <form className="ai-form" onSubmit={event => { event.preventDefault(); void runMedia(save); }}>
       <label>{t('协议类型', 'Protocol')}<Select value={media.protocol ?? 'openai'} disabled={working} onChange={event => switchProtocol(event.target.value as 'openai' | 'dashscope')}><option value="openai">{t('OpenAI 兼容', 'OpenAI compatible')}</option><option value="dashscope">{t('千问平台（DashScope）', 'Qianwen platform (DashScope)')}</option></Select></label>
       <div><label>Base URL<input type="url" required disabled={working} value={media.baseUrl} placeholder={dashscope ? 'https://maas.qianwenaiapi.com/compatible-mode/v1' : 'https://api.openai.com/v1'} onChange={event => edit({ ...media, baseUrl: event.target.value })} spellCheck={false} /></label><p className="ai-field-hint">{dashscope ? t('填写千问平台 OpenAI 兼容前缀（以 /compatible-mode/v1 结尾，Token Plan 填 token-plan.maas.qianwenaiapi.com 对应前缀）。图像与视频会自动改用同主机 /api/v1 的原生接口：图像同步生成，视频提交异步任务并轮询。', 'Use the Qianwen OpenAI-compatible prefix ending in /compatible-mode/v1 (for Token Plan, the token-plan.maas.qianwenaiapi.com prefix). Images and videos automatically use the native /api/v1 API on the same host: synchronous images, async video tasks with polling.') : t('完整接口前缀，通常以 /v1 结尾；应用在其后拼接 images/generations 与 videos 路径。', 'Full API prefix, usually ending in /v1; the app appends images/generations and videos paths.')}</p></div>
       <label>API Key<input type="password" autoComplete="new-password" disabled={working} value={mediaKey ?? ''} placeholder={media.hasApiKey ? t('已安全保存，留空保持不变', 'Saved securely; leave blank to keep') : t('输入服务密钥', 'Enter the service key')} onChange={event => { setMediaKey(event.target.value || undefined); setDirty(true); setFeedback(''); }} /></label>
       {media.hasApiKey && <label className="ai-checkbox ai-key-delete"><input type="checkbox" disabled={working} checked={mediaKey === ''} onChange={event => { setMediaKey(event.target.checked ? '' : undefined); setDirty(true); setFeedback(''); }} />{t('删除已保存的密钥', 'Delete saved API key')}</label>}
-      <div className="ai-form-row"><label>{t('文生图模型（可选）', 'Text-to-image model (optional)')}<input disabled={working} value={media.imageModel ?? ''} placeholder={dashscope ? 'qwen-image-3.0' : 'gpt-image-1'} onChange={event => edit({ ...media, imageModel: event.target.value || undefined })} /></label><label>{t('文生视频模型（可选）', 'Text-to-video model (optional)')}<input disabled={working} value={media.videoModel ?? ''} placeholder={dashscope ? 'wan2.6-t2v' : 'sora-2'} onChange={event => edit({ ...media, videoModel: event.target.value || undefined })} /></label></div>
-      {dashscope && <div className="ai-form-row"><label>{t('图生视频模型（可选）', 'Image-to-video model (optional)')}<input disabled={working} value={media.imageToVideoModel ?? ''} placeholder="wan2.6-i2v-flash" onChange={event => edit({ ...media, imageToVideoModel: event.target.value || undefined })} /></label></div>}
-      {dashscope && <p className="ai-field-hint">{t('留空时使用默认模型：文生图 qwen-image-3.0、文生视频 wan2.6-t2v、图生视频 wan2.6-i2v-flash。也可填 qwen-image-3.0-pro、wan3.0-video、wan2.7-i2v 等，参数会按模型自动适配。', 'Defaults when left blank: qwen-image-3.0 for images, wan2.6-t2v for text-to-video, wan2.6-i2v-flash for image-to-video. Other models such as qwen-image-3.0-pro, wan3.0-video or wan2.7-i2v also work; parameters adapt to the model.')}</p>}
+      <div className="ai-settings-network"><button type="button" disabled={working} onClick={() => void runMedia(async () => { const ids = await fetchModels(); const found = ids.filter(id => MEDIA_MODEL_PATTERN.test(id)).length; setFeedback(t(`连接成功，发现 ${ids.length} 个模型，其中 ${found} 个图像/视频模型`, `Connected. Found ${ids.length} models, ${found} of them media models.`)); })}>{working ? <Loader2 size={15} className="ai-spin" aria-hidden="true" /> : <Unplug size={15} aria-hidden="true" />}{t('测试连接', 'Test connection')}</button><p>{t('测试会先保存配置，再只读取模型列表，不生成任何内容、不产生费用。', 'Testing saves the configuration first, then only reads the model list. Nothing is generated and no charge is incurred.')}</p></div>
+      <div className="ai-model-actions"><button type="button" disabled={working} onClick={() => void runMedia(async () => { const ids = await fetchModels(); const found = ids.filter(id => MEDIA_MODEL_PATTERN.test(id)).length; setFeedback(t(`已发现 ${found} 个图像/视频模型，可在下方模型框中选择`, `Found ${found} media models. Pick them in the fields below.`)); })}><RefreshCw size={15} className={working ? 'ai-spin' : undefined} aria-hidden="true" />{t('获取模型列表', 'Fetch models')}</button><span className="ai-field-hint">{t('只列出图像/视频模型，仍可手动填写任意模型 ID', 'Only media models are listed; any model ID can still be typed in')}</span></div>
+      <div className="ai-form-row"><MediaModelField label={t('文生图模型（可选）', 'Text-to-image model (optional)')} value={media.imageModel ?? ''} placeholder={dashscope ? 'qwen-image-3.0' : 'gpt-image-1'} options={mediaModels} disabled={working} onChange={next => edit({ ...media, imageModel: next || undefined })} /><MediaModelField label={t('文生视频模型（可选）', 'Text-to-video model (optional)')} value={media.videoModel ?? ''} placeholder={dashscope ? 'wan2.6-t2v' : 'sora-2'} options={mediaModels} disabled={working} onChange={next => edit({ ...media, videoModel: next || undefined })} /></div>
+      {dashscope && <div className="ai-form-row"><MediaModelField label={t('图生视频模型（可选）', 'Image-to-video model (optional)')} value={media.imageToVideoModel ?? ''} placeholder="wan2.6-i2v-flash" options={mediaModels} disabled={working} onChange={next => edit({ ...media, imageToVideoModel: next || undefined })} /></div>}
+      {dashscope && <p className="ai-field-hint">{t('留空时使用默认模型：文生图 qwen-image-3.0、文生视频 wan2.6-t2v、图生视频 wan2.6-i2v-flash。建议用「获取模型列表」确认你的账号实际可用的 ID，例如 qwen-image-3.0-pro、wan3.0-video；参数会按模型自动适配。', 'Defaults when left blank: qwen-image-3.0 for images, wan2.6-t2v for text-to-video, wan2.6-i2v-flash for image-to-video. Use Fetch models to confirm the IDs your account can actually call, such as qwen-image-3.0-pro or wan3.0-video; parameters adapt to the model.')}</p>}
+      <div className="ai-form-row ai-model-test-row"><button type="button" disabled={working} onClick={() => void runMedia(() => generate('image'))}><ImageIcon size={15} aria-hidden="true" />{t('试生成图片', 'Generate test image')}</button><button type="button" disabled={working} onClick={() => void runMedia(() => generate('video'))}><Video size={15} aria-hidden="true" />{t('试生成视频', 'Generate test video')}</button><button type="button" disabled={working} onClick={() => void runMedia(() => backend.openMediaTestDirectory())}><FolderOpen size={15} aria-hidden="true" />{t('打开文件夹', 'Open folder')}</button></div>
+      <p className="ai-field-hint">{t('试生成会真实调用服务并产生费用：图片约 10 秒，视频约 2 分钟。产物保存在应用数据目录的 media-test 子目录，下次测试覆盖同名文件。图生视频与文生视频共用同一链路，可用文生视频按钮验证。', 'Test generation really calls the service and incurs charges: about 10 seconds for an image, 2 minutes for a video. Artifacts live in the media-test subfolder of the app data directory and are overwritten on the next test. Image-to-video shares the text-to-video pipeline, so the video button covers it.')}</p>
+      {preview && <div className="ai-media-preview">
+        {preview.kind === 'image'
+          ? <img src={preview.url} alt={t('测试生成的图像', 'Test generated image')} />
+          : <video src={preview.url} controls preload="metadata" aria-label={t('测试生成的视频', 'Test generated video')} />}
+      </div>}
       <p className="ai-field-hint">{t('密钥安全存储于系统凭据中，不下发到界面。生成可能产生费用，每次调用仍需你在弹窗中逐次批准。', 'The key stays in system credentials. Generation may incur charges, and every call still needs your per-call approval.')}</p>
       <footer className="ai-settings-footer"><div className="ai-settings-feedback"><AiError error={error} />{!error && <span role="status" className={feedback ? 'ai-feedback' : 'ai-muted'}>{feedback ? <><Check size={14} aria-hidden="true" />{feedback}</> : dirty ? t('有未保存的修改', 'Unsaved changes') : t('配置仅保存在本机', 'Configuration is stored locally')}</span>}</div><div className="ai-button-row"><button type="submit" className="ai-primary" disabled={working}>{working && <Loader2 size={15} className="ai-spin" aria-hidden="true" />}{working ? t('处理中…', 'Working…') : t('保存服务', 'Save service')}</button></div></footer>
     </form>

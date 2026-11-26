@@ -4,6 +4,11 @@ import i18n from '@/i18n';
 import { AiSettings } from '@/tools/ai-assistant/settings';
 import type { AiBackend, AiMediaService, AiMcpServer, AiSearchService } from '@/tools/ai-assistant/types';
 
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+  convertFileSrc: (path: string) => `http://asset.localhost/${encodeURIComponent(path)}`,
+}));
+
 function setup(searchService?: AiSearchService) {
   const saveSearchService = vi.fn(async (config: AiSearchService, apiKey?: string) => ({
     ...config,
@@ -15,6 +20,9 @@ function setup(searchService?: AiSearchService) {
     hasApiKey: apiKey === undefined ? config.hasApiKey : apiKey.length > 0,
   }));
   const saveMcpServers = vi.fn(async (servers: AiMcpServer[]) => servers);
+  const listMediaModels = vi.fn(async () => ['qwen3.8-flash', 'qwen-image-3.0-pro', 'wan3.0-video', 'glm-5.3']);
+  const testMediaGenerate = vi.fn(async () => 'C:/data/media-test/test-image.png');
+  const openMediaTestDirectory = vi.fn(async () => {});
   const onSearchSaved = vi.fn();
   const onMediaSaved = vi.fn();
   const onMcpSaved = vi.fn();
@@ -22,13 +30,14 @@ function setup(searchService?: AiSearchService) {
     load: vi.fn(), save: vi.fn(), saveProvider: vi.fn(), removeProvider: vi.fn(),
     listModels: vi.fn(), listTools: vi.fn(), decideTool: vi.fn(),
     saveSearchService, testSearchService, saveMediaService, saveMcpServers,
+    listMediaModels, testMediaGenerate, openMediaTestDirectory,
     testConnection: vi.fn(), generate: vi.fn(), cancel: vi.fn(),
     openDataDirectory: vi.fn(), reset: vi.fn(),
   } as unknown as AiBackend;
   render(<AiSettings providers={[]} searchService={searchService} backend={backend}
     onSave={vi.fn()} onSearchSaved={onSearchSaved} onMediaSaved={onMediaSaved} onMcpSaved={onMcpSaved} onRemove={vi.fn()}
     onClearHistory={vi.fn()} onReset={vi.fn()} onClose={vi.fn()} />);
-  return { saveSearchService, testSearchService, onSearchSaved, saveMediaService, saveMcpServers, onMediaSaved, onMcpSaved };
+  return { saveSearchService, testSearchService, onSearchSaved, saveMediaService, saveMcpServers, onMediaSaved, onMcpSaved, listMediaModels, testMediaGenerate, openMediaTestDirectory };
 }
 
 function openSearchTab() {
@@ -81,6 +90,54 @@ describe('AI search service settings', () => {
       videoModel: 'wan3.0-video',
       imageToVideoModel: 'wan2.7-i2v',
     });
+  });
+
+  it('probes the media connection for free after saving, without generating anything', async () => {
+    const { saveMediaService, listMediaModels, testMediaGenerate } = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Media service' }));
+    fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://media.test/compatible-mode/v1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+    await waitFor(() => expect(listMediaModels).toHaveBeenCalled());
+    expect(saveMediaService.mock.invocationCallOrder[0]).toBeLessThan(listMediaModels.mock.invocationCallOrder[0]);
+    expect(testMediaGenerate).not.toHaveBeenCalled();
+    expect(await screen.findByText('Connected. Found 4 models, 2 of them media models.')).toBeInTheDocument();
+  });
+
+  it('offers only media models in the pickers while still allowing a typed id', async () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Media service' }));
+    fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://media.test/compatible-mode/v1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch models' }));
+    const picker = await screen.findByRole('combobox', { name: 'Text-to-image model (optional)' });
+    fireEvent.click(picker);
+    const offered = screen.getAllByRole('option').map(item => item.getAttribute('aria-label'));
+    expect(offered).toEqual(['Blank (use default model)', 'qwen-image-3.0-pro', 'wan3.0-video', 'Type manually…']);
+    fireEvent.click(screen.getByRole('option', { name: 'qwen-image-3.0-pro' }));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Text-to-image model (optional)' })).toHaveTextContent('qwen-image-3.0-pro'));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Text-to-image model (optional)' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Type manually…' }));
+    const typed = screen.getByLabelText('Text-to-image model (optional)');
+    fireEvent.change(typed, { target: { value: 'a-model-the-filter-missed' } });
+    expect(typed).toHaveValue('a-model-the-filter-missed');
+  });
+
+  it('previews the generated test image after saving the configuration', async () => {
+    const createObjectURL = vi.fn(() => 'blob:media-preview');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, blob: async () => new Blob(['image']) })));
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }));
+    try {
+      const { saveMediaService, testMediaGenerate } = setup();
+      fireEvent.click(screen.getByRole('button', { name: 'Media service' }));
+      fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://media.test/compatible-mode/v1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Generate test image' }));
+      await waitFor(() => expect(testMediaGenerate).toHaveBeenCalledWith('image'));
+      expect(saveMediaService.mock.invocationCallOrder[0]).toBeLessThan(testMediaGenerate.mock.invocationCallOrder[0]);
+      const image = await screen.findByAltText('Test generated image');
+      expect(image).toHaveAttribute('src', 'blob:media-preview');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('adds and saves an MCP server with command and arguments', async () => {
